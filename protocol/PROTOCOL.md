@@ -161,3 +161,9 @@ Version = **8** (layout unchanged).
 - **30 BlockSyncConfig** gains a fourth u32: max mobs.
 - **40 EntUpdate** flags: 2 = mob/NPC/other player. Mesh ids with bit 30 (`0x40000000 | entityId`) are per-entity *dynamic* meshes: MC re-sends them (EV 39, firstIndex 0 = replace) ~10×/s nearby, ~3×/s farther; Valheim reuses the Mesh and frees it when the entity leaves the snapshot.
 - Entity ids with bit 31 set are live block entities (chests, ender chests, shulker boxes) at their block position; their mesh is the renderer capture for (state, lid openness in 1/8 steps). Their static palette entry is an invisible placeholder quad (collision boxes unchanged).
+
+
+## v9 changes (ValCraft 0.7.5)
+Version = **9**. **40 EntUpdate** entries grow to 25 bytes: `u32 id, u32 mesh, f32 x,y,z, u8 flags, f32 groundY` (≤9 per message).
+Flags: 8 = groundY valid (terrain-type block under the entity, MC Y of its top), 4 = standing on it. Valheim adds
+`offset = valheimGround(x,z) - (groundY + anchor.y)` (smoothed, |offset| < 3 m, held while airborne/swimming, faded out over player-placed blocks).

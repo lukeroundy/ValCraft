@@ -70,7 +70,7 @@ final class EntitySync {
 				if (meshOf.size() <= 20 || meshOf.size() % 50 == 0) ValCraft.LOG.info("[entities] mesh {} for {} ({} quads)", mesh, key, q.size());
 			}
 			var p = e.position();
-			ents.add(new BlockCodec.Ent(e.getId(), mesh, (float) p.x, (float) p.y, (float) p.z, e instanceof ItemEntity ? 1 : 0));
+			ents.add(ground(mc, e, new BlockCodec.Ent(e.getId(), mesh, (float) p.x, (float) p.y, (float) p.z, e instanceof ItemEntity ? 1 : 0)));
 		}
 		// mobs / NPCs / other players: re-captured every frame-ish (nearest 100 ms, farther 300 ms) into a per-entity dynamic mesh
 		mobs.sort((a, b) -> Double.compare(a.distanceToSqr(mc.player), b.distanceToSqr(mc.player)));
@@ -91,7 +91,7 @@ final class EntitySync {
 			}
 			if (!lastMobCapture.containsKey(e.getId())) continue;
 			var p = e.position();
-			ents.add(new BlockCodec.Ent(e.getId(), mesh, (float) p.x, (float) p.y, (float) p.z, 2));
+			ents.add(ground(mc, e, new BlockCodec.Ent(e.getId(), mesh, (float) p.x, (float) p.y, (float) p.z, 2)));
 		}
 		lastMobCapture.keySet().retainAll(live);
 		// chests / ender chests / shulker boxes: live block entities, mesh per (state, lid openness bucket)
@@ -137,6 +137,22 @@ final class EntitySync {
 
 	private static java.util.ArrayDeque<dev.valcraft.link.ValCraftLink.Event> outboxRef;
 	private static java.util.ArrayDeque<dev.valcraft.link.ValCraftLink.Event> outbox() { return outboxRef; }
+
+	/** 0.7.5: if the entity stands on mirrored terrain (terrain-type block under its feet), tell Valheim the MC ground Y so it can
+	 *  re-seat the entity on Valheim's smooth ground. Not for player-placed blocks (rendered as blocks in Valheim). */
+	static BlockCodec.Ent ground(Minecraft mc, Entity e, BlockCodec.Ent en) {
+		if (!e.onGround() && !(e instanceof ItemEntity && e.getDeltaMovement().lengthSqr() < 1e-3)) {
+			// airborne / swimming: still report the terrain below (within 3 blocks) so Valheim keeps the same offset
+			var bp = e.blockPosition();
+			for (int dy = 1; dy <= 3; dy++) { var s = mc.level.getBlockState(bp.below(dy)); if (!s.isAir()) return TerrainSync.isTerrainBlock(s) ? withGround(en, bp.getY() - dy + 1, 0) : en; }
+			return en;
+		}
+		var below = net.minecraft.core.BlockPos.containing(e.getX(), e.getY() - 0.2, e.getZ());
+		var s = mc.level.getBlockState(below);
+		if (!TerrainSync.isTerrainBlock(s)) return en;
+		return withGround(en, below.getY() + 1, BlockCodec.ENT_ON_TERRAIN);
+	}
+	private static BlockCodec.Ent withGround(BlockCodec.Ent en, float gy, int extra) { return new BlockCodec.Ent(en.id(), en.meshId(), en.x(), en.y(), en.z(), en.flags() | 8 | extra, gy); }
 
 	static boolean wanted(Entity e) {
 		return e instanceof ItemEntity || e instanceof ArmorStand || e instanceof ItemFrame || e instanceof FallingBlockEntity || e instanceof PrimedTnt

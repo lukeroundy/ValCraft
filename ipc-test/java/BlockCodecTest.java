@@ -55,7 +55,7 @@ public class BlockCodecTest {
 		// 0.7.4: dynamic mob mesh re-sent (replace), mob + lid-block pseudo entity in the snapshot
 		ev.addAll(BlockCodec.entityMesh(0x40000007, eq));
 		ev.addAll(BlockCodec.entityMesh(0x40000007, eq.subList(0, 3)));
-		ev.addAll(BlockCodec.entityUpdate(List.of(new BlockCodec.Ent(7, 0x40000007, 1, 64, 1, 2), new BlockCodec.Ent(0x80000000 | 1234, 5, 3, 64, 3, 0))));
+		ev.addAll(BlockCodec.entityUpdate(List.of(new BlockCodec.Ent(7, 0x40000007, 1, 64, 1, 2 | 8 | 4, 63f), new BlockCodec.Ent(0x80000000 | 1234, 5, 3, 64, 3, 0))));
 		ev.add(BlockCodec.atlas(3, 10, 64, 16, "C:/x/blocks-atlas.png"));
 		try (var out = new DataOutputStream(new FileOutputStream(a[0]))) {
 			for (var e : ev) {

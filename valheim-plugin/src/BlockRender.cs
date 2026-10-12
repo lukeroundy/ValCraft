@@ -39,6 +39,7 @@ namespace ValCraft
         static readonly Dictionary<uint, Mesh> EntMeshes = new Dictionary<uint, Mesh>();
         static readonly Dictionary<uint, GameObject> EntObjs = new Dictionary<uint, GameObject>();
         static Texture2D _frames; static bool _copyOk;
+        static readonly Dictionary<uint, float> GroundOffset = new Dictionary<uint, float>();
 
         internal static bool Handle(LinkEvent ev)
         {
@@ -375,6 +376,20 @@ namespace ValCraft
                 EntMeshes.TryGetValue(e.Mesh, out var m);
                 if (mf.sharedMesh != m) mf.sharedMesh = m;
                 var target = new Vector3(e.X, e.Y, -e.Z);
+                // 0.7.5: re-seat on Valheim's smooth ground (flag 8 = MC groundY valid; 4 = standing on it). offset = valheimGround - mcGround.
+                GroundOffset.TryGetValue(e.Id, out var off);
+                if ((e.Flags & 8) != 0)
+                {
+                    float vg = TerrainExport.HeightAtMc(e.X, e.Z, _root.position);
+                    if (!float.IsNaN(vg))
+                    {
+                        float want = vg - (e.GroundY + _root.position.y);
+                        if (Mathf.Abs(want) < 3f) off = (e.Flags & 4) != 0 ? Mathf.Lerp(off, want, Mathf.Clamp01(Time.deltaTime * 10f)) : off;
+                    }
+                }
+                else off = Mathf.Lerp(off, 0f, Mathf.Clamp01(Time.deltaTime * 4f)); // on a player block / unknown: no correction
+                GroundOffset[e.Id] = off;
+                target.y += off;
                 if ((e.Flags & 1) != 0) target.y += Mathf.Sin(t * 2f + e.Id) * 0.1f + 0.1f;
                 var lp = go.transform.localPosition;
                 go.transform.localPosition = (lp - target).sqrMagnitude > 16f ? target : Vector3.Lerp(lp, target, Mathf.Clamp01(Time.deltaTime * 12f));
@@ -394,7 +409,7 @@ namespace ValCraft
                         foreach (var kv in EntMeshes) if (kv.Value == mm && (kv.Key & 0x40000000u) != 0) { UnityEngine.Object.Destroy(mm); EntMeshes.Remove(kv.Key); Ents.Meshes.Remove(kv.Key); break; }
                         UnityEngine.Object.Destroy(go);
                     }
-                    EntObjs.Remove(id);
+                    EntObjs.Remove(id); GroundOffset.Remove(id);
                 }
             }
         }

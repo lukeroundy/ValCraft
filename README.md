@@ -318,3 +318,6 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
 - Chest / ender chest / shulker box lids animate (live block-entity capture per 1/8 openness).
 - Decorated pots: logs why capture fails and falls back to a built-in pot mesh.
 - Shader pick now honours priority across loaded shaders: solid blocks use `Standard` (override `[Blocks] OpaqueShader`).
+
+## 0.7.5 (protocol v9)
+- Mobs, dropped items and other entities standing on mirrored terrain are re-seated on Valheim's smooth ground (offset kept while jumping/swimming; not applied on player-placed blocks).

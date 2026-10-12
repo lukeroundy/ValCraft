@@ -18,7 +18,7 @@ import java.nio.file.StandardOpenOption;
  * standalone IPC test compiles this exact file.
  */
 public final class ValCraftLink implements AutoCloseable {
-	public static final int MAGIC = 0x434C4156, VERSION = 8;
+	public static final int MAGIC = 0x434C4156, VERSION = 9;
 	static final int OFF_MAGIC = 0x0, OFF_VERSION = 0x4, OFF_VALHEIM_PID = 0x10, OFF_MC_PID = 0x14;
 	static final int OFF_VALHEIM_HB = 0x18, OFF_MC_HB = 0x20, OFF_VALHEIM_FLAGS = 0x28, OFF_MC_FLAGS = 0x2C;
 	static final int OFF_SESSION = 0x30, OFF_MC_ACKED_SESSION = 0x34;

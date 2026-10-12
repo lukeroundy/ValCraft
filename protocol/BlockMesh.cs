@@ -319,7 +319,7 @@ namespace ValCraft.Protocol
     {
         public readonly Dictionary<uint, List<BlockPaletteEntry.Q>> Meshes = new Dictionary<uint, List<BlockPaletteEntry.Q>>();
         public readonly HashSet<uint> CompleteMeshes = new HashSet<uint>(), NewMeshes = new HashSet<uint>();
-        public struct Ent { public uint Id, Mesh; public float X, Y, Z; public byte Flags; }
+        public struct Ent { public uint Id, Mesh; public float X, Y, Z; public byte Flags; public float GroundY; }
         public Dictionary<uint, Ent> Current = new Dictionary<uint, Ent>();
         Dictionary<uint, Ent> _building;
         public int Snapshots;
@@ -339,10 +339,10 @@ namespace ValCraft.Protocol
             {
                 bool first = p[0] != 0, last = p[1] != 0; int n = BitConverter.ToUInt16(p, 2);
                 if (first || _building == null) _building = new Dictionary<uint, Ent>();
-                for (int i = 0; i < n && 4 + (i + 1) * 21 <= p.Length; i++)
+                for (int i = 0; i < n && 4 + (i + 1) * 25 <= p.Length; i++)
                 {
-                    int o = 4 + i * 21;
-                    var e = new Ent { Id = BitConverter.ToUInt32(p, o), Mesh = BitConverter.ToUInt32(p, o + 4), X = BitConverter.ToSingle(p, o + 8), Y = BitConverter.ToSingle(p, o + 12), Z = BitConverter.ToSingle(p, o + 16), Flags = p[o + 20] };
+                    int o = 4 + i * 25;
+                    var e = new Ent { Id = BitConverter.ToUInt32(p, o), Mesh = BitConverter.ToUInt32(p, o + 4), X = BitConverter.ToSingle(p, o + 8), Y = BitConverter.ToSingle(p, o + 12), Z = BitConverter.ToSingle(p, o + 16), Flags = p[o + 20], GroundY = BitConverter.ToSingle(p, o + 21) };
                     _building[e.Id] = e;
                 }
                 if (last) { Current = _building; _building = null; Snapshots++; }

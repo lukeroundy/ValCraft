@@ -73,7 +73,7 @@ public final class BlockCodec {
 		return new ValCraftLink.Event(ValCraftLink.EV_BLOCK_ANIM, b.array());
 	}
 
-	public static final int ENT_QUADS_PER_MSG = (ValCraftLink.SLOT_PAYLOAD - 8) / QUAD_BYTES, ENT_PER_MSG = (ValCraftLink.SLOT_PAYLOAD - 4) / 21;
+	public static final int ENT_QUADS_PER_MSG = (ValCraftLink.SLOT_PAYLOAD - 8) / QUAD_BYTES, ENT_PER_MSG = (ValCraftLink.SLOT_PAYLOAD - 4) / 25;
 
 	/** EV_ENT_MESH: u32 meshId, u16 firstIndex, u8 n, u8 last, n quads (same 44-byte layout as EV 37, positions relative to the entity origin). */
 	public static List<ValCraftLink.Event> entityMesh(int meshId, List<Quad> q) {
@@ -90,16 +90,20 @@ public final class BlockCodec {
 		return out;
 	}
 
-	public record Ent(int id, int meshId, float x, float y, float z, int flags) {}
+	public record Ent(int id, int meshId, float x, float y, float z, int flags, float groundY) {
+		public Ent(int id, int meshId, float x, float y, float z, int flags) { this(id, meshId, x, y, z, flags, 0f); }
+	}
+	/** EntUpdate flag 4: standing on mirrored Valheim terrain; groundY = MC Y of the top of the terrain block under it. */
+	public static final int ENT_ON_TERRAIN = 4;
 	/** EV_ENT_UPDATE: u8 first, u8 last, u16 n, n x (u32 entityId, u32 meshId, f32 x,y,z MC, u8 flags: 1 = dropped item (Valheim spins/bobs)). first..last = one full snapshot. */
 	public static List<ValCraftLink.Event> entityUpdate(List<Ent> ents) {
 		List<ValCraftLink.Event> out = new ArrayList<>();
 		int off = 0;
 		do {
 			int n = Math.min(ENT_PER_MSG, ents.size() - off);
-			ByteBuffer b = le(4 + n * 21);
+			ByteBuffer b = le(4 + n * 25);
 			b.put((byte) (off == 0 ? 1 : 0)).put((byte) (off + n >= ents.size() ? 1 : 0)).putShort((short) n);
-			for (int i = 0; i < n; i++) { Ent e = ents.get(off + i); b.putInt(e.id()).putInt(e.meshId()).putFloat(e.x()).putFloat(e.y()).putFloat(e.z()).put((byte) e.flags()); }
+			for (int i = 0; i < n; i++) { Ent e = ents.get(off + i); b.putInt(e.id()).putInt(e.meshId()).putFloat(e.x()).putFloat(e.y()).putFloat(e.z()).put((byte) e.flags()).putFloat(e.groundY()); }
 			out.add(new ValCraftLink.Event(ValCraftLink.EV_ENT_UPDATE, b.array()));
 			off += n;
 		} while (off < ents.size());
