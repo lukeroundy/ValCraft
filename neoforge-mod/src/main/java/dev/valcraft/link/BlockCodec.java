@@ -9,7 +9,7 @@ import java.util.List;
 /** Pure-JDK encoder for the v5 block-render messages (PROTOCOL.md "v5"). Shared with the IPC test. */
 public final class BlockCodec {
 	private BlockCodec() {}
-	public static final int FLAG_FULL_OPAQUE = 1, FLAG_COLLIDES = 2, FLAG_CUTOUT = 4;
+	public static final int FLAG_FULL_OPAQUE = 1, FLAG_COLLIDES = 2, FLAG_CUTOUT = 4, FLAG_TRANSLUCENT = 8, FLAG_CROSS = 16, FLAG_FLUID = 32;
 	public static final int MAX_BOXES = 8;
 	public static final int BLOCKS_PER_MSG = (ValCraftLink.SLOT_PAYLOAD - 14) / 4; // 58
 

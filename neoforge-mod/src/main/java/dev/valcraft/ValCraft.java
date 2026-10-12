@@ -10,6 +10,6 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft() {
-		LOG.info("ValCraft loaded (0.7.0: MC blocks rendered in Valheim)");
+		LOG.info("ValCraft loaded (0.7.1: fluids, glass, plants)");
 	}
 }

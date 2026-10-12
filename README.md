@@ -297,3 +297,7 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
 - Minecraft blocks that aren't Valheim terrain (builds, placed blocks) are drawn inside Valheim: MC streams 16³ sections within `[Blocks] Radius` (64) over the link (protocol v5), Valheim builds face-culled meshes textured from a PNG atlas of MC's block textures (`%LOCALAPPDATA%\ValCraft\blocks-atlas.png`), with MeshColliders on the `piece` layer (`[Blocks] Collision`). Toggle: `[Blocks] RenderBlocks`.
 - Terrain edits use the confirmed 1.0.17 API first: `TerrainComp.Save(bool)`, `Heightmap.Poke(int,bool)`.
 - IPC test adds a Java→C# block-stream + mesher test (`BlockCodecTest`, `IpcTest blocks`).
+
+## 0.7.1
+- Water/lava drawn (sloped surfaces, still/flow textures, water tinted + translucent, no collision); glass/stained glass/ice/slime/honey on a translucent material with same-block face culling; plants (flowers, grass, saplings, crops, sugar cane, ...) as X-shaped cutout quads without collision.
+- Valheim picks separate opaque / cutout / translucent shaders and logs every loaded shader name once (for tuning).

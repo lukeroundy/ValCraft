@@ -29,6 +29,7 @@ static unsafe class Program
         return false;
     }
 
+    static bool nodsCheck;
     static int BlocksTest(string file)
     {
         var st = new BlockStore();
@@ -38,7 +39,8 @@ static unsafe class Program
         var m = new BlockStore.MeshData();
         bool ok = true;
         void Expect((int, int, int) k, int faces) { st.Build(k, m); Console.WriteLine($"[cs] section {k}: {m.Faces} faces (expected {faces}), {m.ColTris.Count / 6} collider quads"); if (m.Faces != faces) ok = false;
-            for (int i = 0; i < m.Tris.Count; i += 3) { int a = m.Tris[i], c1 = m.Tris[i + 1], c2 = m.Tris[i + 2];
+            var all = new System.Collections.Generic.List<int>(); foreach (var sub in m.Sub) all.AddRange(sub); bool ds = nodsCheck;
+            for (int i = 0; i < all.Count && !ds; i += 3) { int a = all[i], c1 = all[i + 1], c2 = all[i + 2];
                 float ex = m.Pos[c1 * 3] - m.Pos[a * 3], ey = m.Pos[c1 * 3 + 1] - m.Pos[a * 3 + 1], ez = m.Pos[c1 * 3 + 2] - m.Pos[a * 3 + 2];
                 float fx = m.Pos[c2 * 3] - m.Pos[a * 3], fy = m.Pos[c2 * 3 + 1] - m.Pos[a * 3 + 1], fz = m.Pos[c2 * 3 + 2] - m.Pos[a * 3 + 2];
                 float d = (ey * fz - ez * fy) * m.Nrm[a * 3] + (ez * fx - ex * fz) * m.Nrm[a * 3 + 1] + (ex * fy - ey * fx) * m.Nrm[a * 3 + 2];
@@ -53,6 +55,17 @@ static unsafe class Program
         // slab top face at y=0.5 (Unity local); cube face at z: MC z=0 -> Unity -0
         bool slabTop = false; for (int i = 0; i < m.Pos.Count; i += 3) if (Math.Abs(m.Pos[i + 1] - 0.5f) < 1e-4 && Math.Abs(m.Pos[i + 2] + 6f) < 1e-4) slabTop = true;
         if (!slabTop) { Console.WriteLine("[cs] slab geometry wrong"); ok = false; }
+        // 0.7.1: glass (cull same), water (fluid slopes + same-fluid culling), plant (cross, double-sided, no collision)
+        Expect((3, 4, 0), 9);           // two adjacent glass blocks: 12 - 2 shared faces - 1 against the full section 2
+        st.Build((3, 4, 0), m); if (m.Sub[2].Count == 0 || m.ColTris.Count == 0) { Console.WriteLine("[cs] glass not translucent/colliding"); ok = false; }
+        st.Build((4, 4, 0), m);
+        Console.WriteLine($"[cs] water: {m.Faces} faces, {m.ColTris.Count} collider idx, sub2 {m.Sub[2].Count}");
+        if (m.ColTris.Count != 0 || m.Faces != 10 || m.Sub[2].Count == 0) ok = false; // 2 water blocks side by side: shared side culled -> 10
+        bool sloped = false; for (int i = 1; i < m.Pos.Count; i += 3) if (m.Pos[i] > 0.4f && m.Pos[i] < 0.9f && Math.Abs(m.Pos[i] - 0.875f) > 1e-3 && Math.Abs(m.Pos[i] - 0.5f) > 1e-3) sloped = true;
+        if (!sloped) { Console.WriteLine("[cs] no averaged corner height"); ok = false; }
+        nodsCheck = true; st.Build((5, 4, 0), m); nodsCheck = false;
+        Console.WriteLine($"[cs] plant: {m.Faces} quads, cutout {m.Sub[1].Count / 6}, collider {m.ColTris.Count}");
+        if (m.Faces != 4 || m.Sub[1].Count != 24 || m.ColTris.Count != 0) ok = false;
         Console.WriteLine($"[cs] blocks test: {n} messages, {(ok ? "PASS" : "FAIL")}");
         return ok ? 0 : 1;
     }

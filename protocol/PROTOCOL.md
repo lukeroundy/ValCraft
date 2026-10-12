@@ -128,3 +128,10 @@ Valheim terrain (terrain-type blocks at/below the column's mirrored terrain top 
 Palette entries always precede the sections that use them (same ordered ring). Sections that leave the radius are sent
 as empty. MC scans changed sections (break/place/neighbour-notify events, terrain-top changes) first, then a
 round-robin pass nearest-first (initial sync + anything missed). Mesh coordinates: `unity = anchor + (x, y, -z)`.
+
+### v5 additions (ValCraft 0.7.1, layout/version unchanged)
+BlockPalette flags gain **8 translucent** (alpha-blended submesh), **16 cross** (X-shaped double-sided plant quads, face tile = tile[2], no collision),
+**32 fluid** (box maxY = fluid height/16; tiles up/down = still, sides = flowing; corner heights averaged with same-fluid
+neighbours, full height when the same fluid is above; faces against the same fluid are culled; no collision).
+Fluids are identified as "the same fluid" by equal tile[1]. Full-box non-opaque blocks cull faces against the same palette id (glass-glass).
+Valheim uses 3 submeshes/materials: 0 opaque, 1 cutout, 2 translucent.

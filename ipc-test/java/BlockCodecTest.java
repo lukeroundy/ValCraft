@@ -21,6 +21,14 @@ public class BlockCodecTest {
 		ev.addAll(BlockCodec.section(2, 4, 0, l, p, 4096));
 		ev.addAll(BlockCodec.section(9, 4, 9, new short[] { 7 }, new short[] { 1 }, 1));
 		ev.addAll(BlockCodec.section(9, 4, 9, new short[0], new short[0], 0)); // removal
+		int T = BlockCodec.FLAG_TRANSLUCENT, F = BlockCodec.FLAG_FLUID, X = BlockCodec.FLAG_CROSS;
+		ev.add(BlockCodec.palette(3, T | BlockCodec.FLAG_COLLIDES, new int[] { 5, 5, 5, 5, 5, 5 }, new byte[] { 0, 0, 0, 16, 16, 16 })); // glass
+		ev.add(BlockCodec.palette(4, F | T, new int[] { 6, 6, 7, 7, 7, 7 }, new byte[] { 0, 0, 0, 16, 14, 16 })); // water source
+		ev.add(BlockCodec.palette(5, F | T, new int[] { 6, 6, 7, 7, 7, 7 }, new byte[] { 0, 0, 0, 16, 8, 16 }));  // flowing water
+		ev.add(BlockCodec.palette(6, X | BlockCodec.FLAG_CUTOUT, new int[] { 8, 8, 8, 8, 8, 8 }, new byte[] { 0, 0, 0, 16, 16, 16 })); // poppy
+		ev.addAll(BlockCodec.section(3, 4, 0, new short[] { 0, 1 }, new short[] { 3, 3 }, 2));
+		ev.addAll(BlockCodec.section(4, 4, 0, new short[] { 0, 1 }, new short[] { 4, 5 }, 2));
+		ev.addAll(BlockCodec.section(5, 4, 0, new short[] { 0 }, new short[] { 6 }, 1));
 		ev.add(BlockCodec.atlas(3, 10, 64, 16, "C:/x/blocks-atlas.png"));
 		try (var out = new DataOutputStream(new FileOutputStream(a[0]))) {
 			for (var e : ev) {

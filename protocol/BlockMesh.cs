@@ -6,7 +6,10 @@ namespace ValCraft.Protocol
     /// <summary>One MC block state as Valheim draws it (EvBlockPalette).</summary>
     public sealed class BlockPaletteEntry
     {
-        public const byte FullOpaque = 1, Collides = 2, Cutout = 4;
+        public const byte FullOpaque = 1, Collides = 2, Cutout = 4, Translucent = 8, Cross = 16, Fluid = 32;
+        public bool FullBox => Boxes.Length == 6 && Boxes[0] == 0 && Boxes[1] == 0 && Boxes[2] == 0 && Boxes[3] == 16 && Boxes[4] == 16 && Boxes[5] == 16;
+        /// <summary>Submesh: 0 opaque, 1 cutout (alpha test), 2 translucent (blended).</summary>
+        public int Layer => (Flags & Fluid) != 0 ? ((Flags & Translucent) != 0 ? 2 : 0) : (Flags & Cross) != 0 ? 1 : (Flags & Translucent) != 0 ? 2 : (Flags & Cutout) != 0 ? 1 : 0;
         public byte Flags;
         public ushort[] Tiles = new ushort[6]; // MC Direction order: down, up, north, south, west, east
         public byte[] Boxes = { 0, 0, 0, 16, 16, 16 }; // n*6, 1/16 block
@@ -93,9 +96,11 @@ namespace ValCraft.Protocol
         public sealed class MeshData
         {
             public readonly List<float> Pos = new List<float>(), Nrm = new List<float>(), Uv = new List<float>();
-            public readonly List<int> Tris = new List<int>(), ColTris = new List<int>();
-            public int Faces => Tris.Count / 6;
-            public void Clear() { Pos.Clear(); Nrm.Clear(); Uv.Clear(); Tris.Clear(); ColTris.Clear(); }
+            public readonly List<int>[] Sub = { new List<int>(), new List<int>(), new List<int>() };
+            public readonly List<int> ColTris = new List<int>();
+            public int Faces => (Sub[0].Count + Sub[1].Count + Sub[2].Count) / 6;
+            public int TriCount => Sub[0].Count + Sub[1].Count + Sub[2].Count;
+            public void Clear() { Pos.Clear(); Nrm.Clear(); Uv.Clear(); foreach (var t in Sub) t.Clear(); ColTris.Clear(); }
         }
 
         // MC directions: normal (MC coords)
@@ -109,21 +114,34 @@ namespace ValCraft.Protocol
             int bx = key.Item1 << 4, by = key.Item2 << 4, bz = key.Item3 << 4;
             float g = AtlasPerRow, eps = 0.5f / Math.Max(1, AtlasTileSize);
             var c = new float[12];
+            var hc = new float[4];
             for (int i = 0; i < 4096; i++)
             {
                 ushort id = arr[i];
                 if (id == 0 || !Palette.TryGetValue(id, out var e)) continue;
                 int lx = i & 15, lz = (i >> 4) & 15, ly = i >> 8;
+                int wx = bx + lx, wy = by + ly, wz = bz + lz;
+                var tris = m.Sub[e.Layer];
                 bool collides = (e.Flags & BlockPaletteEntry.Collides) != 0;
+                if ((e.Flags & BlockPaletteEntry.Cross) != 0) { Cross(m, tris, e.Tiles[2], lx, ly, lz, g, eps); continue; }
+                bool fluid = (e.Flags & BlockPaletteEntry.Fluid) != 0;
+                if (fluid)
+                {
+                    bool fullAbove = SameFluid(e, wx, wy + 1, wz);
+                    hc[0] = fullAbove ? 1 : CornerH(e, wx, wy, wz, 0, 0); hc[1] = fullAbove ? 1 : CornerH(e, wx, wy, wz, 1, 0);
+                    hc[2] = fullAbove ? 1 : CornerH(e, wx, wy, wz, 1, 1); hc[3] = fullAbove ? 1 : CornerH(e, wx, wy, wz, 0, 1);
+                }
                 for (int b = 0; b + 6 <= e.Boxes.Length; b += 6)
                 {
                     float x0 = e.Boxes[b] / 16f, y0 = e.Boxes[b + 1] / 16f, z0 = e.Boxes[b + 2] / 16f, x1 = e.Boxes[b + 3] / 16f, y1 = e.Boxes[b + 4] / 16f, z1 = e.Boxes[b + 5] / 16f;
+                    if (fluid) y1 = 1f; // replaced per corner below
                     for (int d = 0; d < 6; d++)
                     {
-                        // face on the block boundary next to a full opaque block -> hidden
-                        bool atEdge = d switch { 0 => y0 == 0, 1 => y1 == 1, 2 => z0 == 0, 3 => z1 == 1, 4 => x0 == 0, _ => x1 == 1 };
-                        if (atEdge && Occludes(bx + lx + Dir[d, 0], by + ly + Dir[d, 1], bz + lz + Dir[d, 2])) continue;
-                        // corners (MC block-local) + uv fractions
+                        bool atEdge = fluid || d switch { 0 => y0 == 0, 1 => y1 == 1, 2 => z0 == 0, 3 => z1 == 1, 4 => x0 == 0, _ => x1 == 1 };
+                        int nx = wx + Dir[d, 0], ny = wy + Dir[d, 1], nz = wz + Dir[d, 2];
+                        if (atEdge && Occludes(nx, ny, nz)) continue;
+                        if (fluid) { if (SameFluid(e, nx, ny, nz)) continue; }
+                        else if (atEdge && e.FullBox && (e.Flags & BlockPaletteEntry.FullOpaque) == 0 && At(nx, ny, nz) == id) continue; // glass-glass, leaves-leaves
                         float u0, u1, v0, v1;
                         switch (d)
                         {
@@ -131,26 +149,68 @@ namespace ValCraft.Protocol
                             case 2: case 3: { float z = d == 2 ? z0 : z1; Set(c, x0, y0, z, x1, y0, z, x1, y1, z, x0, y1, z); u0 = x0; u1 = x1; v0 = y0; v1 = y1; break; }
                             default: { float x = d == 4 ? x0 : x1; Set(c, x, y0, z0, x, y0, z1, x, y1, z1, x, y1, z0); u0 = z0; u1 = z1; v0 = y0; v1 = y1; break; }
                         }
-                        int tile = e.Tiles[d];
-                        float col = tile % (int)g, row = tile / (int)g, span = 1 - 2 * eps;
-                        float U0 = (col + eps + u0 * span) / g, U1 = (col + eps + u1 * span) / g;
-                        float Vb = 1f - (row + 1) / g; // tile bottom (texture origin bottom-left; PNG row 0 = top)
-                        float V0 = Vb + (eps + v0 * span) / g, V1 = Vb + (eps + v1 * span) / g;
-                        int start = m.Pos.Count / 3;
-                        for (int k = 0; k < 4; k++)
-                        {
-                            m.Pos.Add(lx + c[k * 3]); m.Pos.Add(ly + c[k * 3 + 1]); m.Pos.Add(-(lz + c[k * 3 + 2]));
-                            m.Nrm.Add(Dir[d, 0]); m.Nrm.Add(Dir[d, 1]); m.Nrm.Add(-Dir[d, 2]);
-                        }
-                        // uv per corner, matching Set order: (u0,v0) (u1,v0) (u1,v1) (u0,v1)
-                        m.Uv.Add(U0); m.Uv.Add(V0); m.Uv.Add(U1); m.Uv.Add(V0); m.Uv.Add(U1); m.Uv.Add(V1); m.Uv.Add(U0); m.Uv.Add(V1);
-                        // winding: Unity front face = cross(b-a, c-a) along the outward normal
-                        int a0 = start, a1 = start + 1, a2 = start + 2, a3 = start + 3;
-                        if (!Front(m.Pos, a0, a1, a2, Dir[d, 0], Dir[d, 1], -Dir[d, 2])) { int t = a1; a1 = a3; a3 = t; }
-                        m.Tris.Add(a0); m.Tris.Add(a1); m.Tris.Add(a2); m.Tris.Add(a0); m.Tris.Add(a2); m.Tris.Add(a3);
-                        if (collides) { m.ColTris.Add(a0); m.ColTris.Add(a1); m.ColTris.Add(a2); m.ColTris.Add(a0); m.ColTris.Add(a2); m.ColTris.Add(a3); }
+                        if (fluid)
+                            for (int k = 0; k < 4; k++)
+                                if (c[k * 3 + 1] >= 1f) c[k * 3 + 1] = hc[((c[k * 3] > 0.5f ? 1 : 0) + (c[k * 3 + 2] > 0.5f ? 2 : 0)) switch { 0 => 0, 1 => 1, 3 => 2, _ => 3 }];
+                        Quad(m, tris, collides, c, lx, ly, lz, Dir[d, 0], Dir[d, 1], -Dir[d, 2], e.Tiles[d], u0, u1, v0, v1, g, eps, false);
                     }
                 }
+            }
+        }
+
+        bool SameFluid(BlockPaletteEntry e, int x, int y, int z)
+        {
+            var id = At(x, y, z);
+            return id != 0 && Palette.TryGetValue(id, out var o) && (o.Flags & BlockPaletteEntry.Fluid) != 0 && o.Tiles[1] == e.Tiles[1];
+        }
+
+        /// <summary>Fluid surface height at a block corner: 1 if any sharing column has the same fluid above, else the average of the same-fluid heights.</summary>
+        float CornerH(BlockPaletteEntry e, int x, int y, int z, int cx, int cz)
+        {
+            float sum = 0; int n = 0;
+            for (int dx = cx - 1; dx <= cx; dx++)
+                for (int dz = cz - 1; dz <= cz; dz++)
+                {
+                    int ax = x + dx, az = z + dz;
+                    if (!SameFluid(e, ax, y, az)) continue;
+                    if (SameFluid(e, ax, y + 1, az)) return 1f;
+                    var o = Palette[At(ax, y, az)];
+                    sum += o.Boxes.Length >= 6 ? o.Boxes[4] / 16f : 1f; n++;
+                }
+            return n == 0 ? (e.Boxes.Length >= 6 ? e.Boxes[4] / 16f : 1f) : sum / n;
+        }
+
+        void Cross(MeshData m, List<int> tris, int tile, int lx, int ly, int lz, float g, float eps)
+        {
+            var c = new float[12];
+            const float a = 0.15f, b = 0.85f; // MC's cross model inset
+            Set(c, a, 0, a, b, 0, b, b, 1, b, a, 1, a);
+            Quad(m, tris, false, c, lx, ly, lz, 0.707f, 0, 0.707f, tile, 0, 1, 0, 1, g, eps, true);
+            Set(c, b, 0, a, a, 0, b, a, 1, b, b, 1, a);
+            Quad(m, tris, false, c, lx, ly, lz, -0.707f, 0, 0.707f, tile, 0, 1, 0, 1, g, eps, true);
+        }
+
+        /// <summary>Emit one quad (corners c in MC block-local coords; uv order (u0,v0)(u1,v0)(u1,v1)(u0,v1)); normal in Unity coords.</summary>
+        static void Quad(MeshData m, List<int> tris, bool collides, float[] c, int lx, int ly, int lz, float nx, float ny, float nz, int tile, float u0, float u1, float v0, float v1, float g, float eps, bool doubleSided)
+        {
+            float col = tile % (int)g, row = tile / (int)g, span = 1 - 2 * eps;
+            float U0 = (col + eps + u0 * span) / g, U1 = (col + eps + u1 * span) / g;
+            float Vb = 1f - (row + 1) / g; // tile bottom (texture origin bottom-left; PNG row 0 = top)
+            float V0 = Vb + (eps + v0 * span) / g, V1 = Vb + (eps + v1 * span) / g;
+            for (int side = 0; side < (doubleSided ? 2 : 1); side++)
+            {
+                float sn = side == 0 ? 1 : -1;
+                int start = m.Pos.Count / 3;
+                for (int k = 0; k < 4; k++)
+                {
+                    m.Pos.Add(lx + c[k * 3]); m.Pos.Add(ly + c[k * 3 + 1]); m.Pos.Add(-(lz + c[k * 3 + 2]));
+                    if (doubleSided) { m.Nrm.Add(0); m.Nrm.Add(1); m.Nrm.Add(0); } else { m.Nrm.Add(nx); m.Nrm.Add(ny); m.Nrm.Add(nz); }
+                }
+                m.Uv.Add(U0); m.Uv.Add(V0); m.Uv.Add(U1); m.Uv.Add(V0); m.Uv.Add(U1); m.Uv.Add(V1); m.Uv.Add(U0); m.Uv.Add(V1);
+                int a0 = start, a1 = start + 1, a2 = start + 2, a3 = start + 3;
+                if (!Front(m.Pos, a0, a1, a2, nx * sn, ny * sn, nz * sn)) { int t = a1; a1 = a3; a3 = t; }
+                tris.Add(a0); tris.Add(a1); tris.Add(a2); tris.Add(a0); tris.Add(a2); tris.Add(a3);
+                if (collides) { m.ColTris.Add(a0); m.ColTris.Add(a1); m.ColTris.Add(a2); m.ColTris.Add(a0); m.ColTris.Add(a2); m.ColTris.Add(a3); }
             }
         }
 

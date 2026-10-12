@@ -158,7 +158,7 @@ public final class BlockSync {
 				if (s.isAir()) continue;
 				int wx = (sx << 4) + x, wy = (sy << 4) + y, wz = (sz << 4) + z;
 				if (TerrainSync.isTerrainBlock(s)) { int top = TerrainSync.terrainTop(wx, wz); if (top == Integer.MIN_VALUE || wy <= top) continue; }
-				if (s.getRenderShape() == net.minecraft.world.level.block.RenderShape.INVISIBLE) continue;
+				if (s.getRenderShape() == net.minecraft.world.level.block.RenderShape.INVISIBLE && s.getFluidState().isEmpty()) continue;
 				int id = Block.getId(s);
 				tmpLocal[n] = (short) ((y << 8) | (z << 4) | x); tmpState[n] = id; n++;
 				h = h * 31 + ((y << 8) | (z << 4) | x); h = h * 31 + id;
@@ -227,10 +227,17 @@ public final class BlockSync {
 		paletteOf.put(stateId, id);
 		BlockState s = Block.stateById(stateId);
 		int flags = 0; int[] tiles = new int[6]; byte[] boxes;
+		if (s.getRenderShape() == net.minecraft.world.level.block.RenderShape.INVISIBLE && !s.getFluidState().isEmpty()) {
+			outbox.add(fluidPalette(mc, id, s));
+			return id;
+		}
 		try {
 			if (s.isSolidRender(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)) flags |= BlockCodec.FLAG_FULL_OPAQUE;
 			if (!s.getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).isEmpty()) flags |= BlockCodec.FLAG_COLLIDES;
-			if (ItemBlockRenderTypes.getChunkRenderType(s) != RenderType.solid()) flags |= BlockCodec.FLAG_CUTOUT;
+			RenderType rt = ItemBlockRenderTypes.getChunkRenderType(s);
+			if (rt == RenderType.translucent() || rt == RenderType.tripwire()) flags |= BlockCodec.FLAG_TRANSLUCENT;
+			else if (rt != RenderType.solid()) flags |= BlockCodec.FLAG_CUTOUT;
+			if (isCross(s)) flags = (flags & ~BlockCodec.FLAG_COLLIDES & ~BlockCodec.FLAG_FULL_OPAQUE) | BlockCodec.FLAG_CROSS | BlockCodec.FLAG_CUTOUT;
 		} catch (Throwable t) { flags = BlockCodec.FLAG_FULL_OPAQUE | BlockCodec.FLAG_COLLIDES; }
 		try {
 			List<AABB> list = s.getShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).toAabbs();
@@ -261,6 +268,28 @@ public final class BlockSync {
 		} catch (Throwable t) { ValCraft.LOG.warn("[blocks] textures for {}: {}", s, t.toString()); }
 		outbox.add(BlockCodec.palette(id, flags, tiles, boxes));
 		return id;
+	}
+
+	/** Blocks MC draws with the "cross" (X-shaped) / crop model. */
+	static boolean isCross(BlockState s) {
+		var b = s.getBlock();
+		return b instanceof net.minecraft.world.level.block.BushBlock || b instanceof net.minecraft.world.level.block.SugarCaneBlock
+				|| b instanceof net.minecraft.world.level.block.BambooSaplingBlock || b instanceof net.minecraft.world.level.block.WebBlock
+				|| b instanceof net.minecraft.world.level.block.NetherSproutsBlock || b instanceof net.minecraft.world.level.block.HangingRootsBlock;
+	}
+
+	/** Water/lava: tiles up/down = still (frame 0), sides = flowing; box height = fluid height; translucent for non-lava. */
+	private static ValCraftLink.Event fluidPalette(Minecraft mc, int id, BlockState s) {
+		var fs = s.getFluidState();
+		var ext = net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions.of(fs);
+		var atlasFn = mc.getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS);
+		int tint = ext.getTintColor() & 0xFFFFFF;
+		if (tint == 0xFFFFFF) tint = -1;
+		int still = tileFor(atlasFn.apply(ext.getStillTexture()), tint), flow = tileFor(atlasFn.apply(ext.getFlowingTexture()), tint);
+		boolean lava = fs.is(net.minecraft.tags.FluidTags.LAVA);
+		int h = Math.max(1, Math.min(16, Math.round(fs.getOwnHeight() * 16)));
+		int flags = BlockCodec.FLAG_FLUID | (lava ? 0 : BlockCodec.FLAG_TRANSLUCENT);
+		return BlockCodec.palette(id, flags, new int[] { still, still, flow, flow, flow, flow }, new byte[] { 0, 0, 0, 16, (byte) h, 16 });
 	}
 
 	private static int tileFor(TextureAtlasSprite sprite, int tint) {

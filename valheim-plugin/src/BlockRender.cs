@@ -22,7 +22,7 @@ namespace ValCraft
         static readonly BlockStore Store = new BlockStore();
         static readonly BlockStore.MeshData Md = new BlockStore.MeshData();
         static readonly Dictionary<(int, int, int), GameObject> Objects = new Dictionary<(int, int, int), GameObject>();
-        static Material _mat;
+        static Material _mat, _matCutout, _matTrans; static Material[] _mats;
         static Texture2D _atlas;
         static int _loadedRevision = -1, _layer = -1, _messages, _built;
         static float _nextAtlasTry, _nextStat;
@@ -96,7 +96,7 @@ namespace ValCraft
         {
             Store.Build(k, Md);
             Objects.TryGetValue(k, out var go);
-            if (Md.Tris.Count == 0) { if (go != null) DestroyGo(go); Objects.Remove(k); return; }
+            if (Md.TriCount == 0) { if (go != null) DestroyGo(go); Objects.Remove(k); return; }
             if (go == null)
             {
                 go = new GameObject($"mc_section_{k.Item1}_{k.Item2}_{k.Item3}");
@@ -105,7 +105,7 @@ namespace ValCraft
                 go.transform.localPosition = new Vector3(k.Item1 * 16, k.Item2 * 16, -k.Item3 * 16);
                 go.AddComponent<MeshFilter>();
                 var mr = go.AddComponent<MeshRenderer>();
-                mr.sharedMaterial = _mat;
+                mr.sharedMaterials = _mats;
                 mr.shadowCastingMode = ShadowCastingMode.On;
                 mr.receiveShadows = true;
                 Objects[k] = go;
@@ -123,7 +123,10 @@ namespace ValCraft
                 uv[i] = new Vector2(Md.Uv[i * 2], Md.Uv[i * 2 + 1]);
             }
             mesh.vertices = v; mesh.normals = n; mesh.uv = uv;
-            mesh.SetTriangles(Md.Tris, 0);
+            var white = new Color32[nv]; for (int i = 0; i < nv; i++) white[i] = new Color32(255, 255, 255, 255);
+            mesh.colors32 = white;
+            mesh.subMeshCount = 3;
+            for (int sm = 0; sm < 3; sm++) mesh.SetTriangles(Md.Sub[sm], sm, false);
             mesh.RecalculateBounds();
             var mc = go.GetComponent<MeshCollider>();
             if (Collision && Md.ColTris.Count > 0)
@@ -145,32 +148,56 @@ namespace ValCraft
             UnityEngine.Object.Destroy(go);
         }
 
-        static readonly string[] ShaderNames = { "Standard", "Legacy Shaders/Transparent/Cutout/Diffuse", "Legacy Shaders/Diffuse", "Custom/Piece", "Unlit/Transparent Cutout", "Unlit/Texture", "Sprites/Default" };
+        static readonly string[] OpaqueNames = { "Standard", "Legacy Shaders/Diffuse", "Custom/Piece", "Unlit/Texture" };
+        static readonly string[] CutoutNames = { "Legacy Shaders/Transparent/Cutout/Diffuse", "Standard", "Unlit/Transparent Cutout", "Legacy Shaders/Transparent/Cutout/VertexLit", "Nature/Tree Soft Occlusion Leaves" };
+        static readonly string[] TransNames = { "Legacy Shaders/Transparent/Diffuse", "Standard", "Unlit/Transparent", "Legacy Shaders/Transparent/VertexLit", "Sprites/Default", "Legacy Shaders/Particles/Alpha Blended", "UI/Default" };
+        static Shader[] _loaded;
+
+        static Shader FindShader(string[] names, out string picked)
+        {
+            foreach (var n in names) { var sh = Shader.Find(n); if (sh != null) { picked = n; return sh; } }
+            if (_loaded == null) _loaded = Resources.FindObjectsOfTypeAll<Shader>();
+            foreach (var n in names) foreach (var sh in _loaded) if (sh != null && sh.name == n) { picked = n; return sh; }
+            picked = null; return null;
+        }
+
+        static Material Make(Shader sh, string name, int mode)
+        {
+            var m = new Material(sh) { name = "ValCraftBlocks_" + mode };
+            if (m.HasProperty("_Color")) m.SetColor("_Color", Color.white);
+            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0f);
+            if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0f);
+            if (m.HasProperty("_Cutoff")) m.SetFloat("_Cutoff", 0.5f);
+            if (name == "Standard" && mode == 1) { m.SetFloat("_Mode", 1f); m.EnableKeyword("_ALPHATEST_ON"); m.SetOverrideTag("RenderType", "TransparentCutout"); m.renderQueue = (int)RenderQueue.AlphaTest; }
+            if (name == "Standard" && mode == 2)
+            {
+                m.SetFloat("_Mode", 2f); m.SetOverrideTag("RenderType", "Transparent");
+                m.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha); m.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha); m.SetInt("_ZWrite", 0);
+                m.DisableKeyword("_ALPHATEST_ON"); m.EnableKeyword("_ALPHABLEND_ON"); m.renderQueue = (int)RenderQueue.Transparent;
+            }
+            if (mode == 2 && m.renderQueue < (int)RenderQueue.Transparent) m.renderQueue = (int)RenderQueue.Transparent;
+            if (mode == 1 && m.renderQueue < (int)RenderQueue.AlphaTest) m.renderQueue = (int)RenderQueue.AlphaTest;
+            return m;
+        }
 
         static void EnsureMaterial()
         {
             if (_mat != null) return;
-            Shader sh = null; string name = null;
-            foreach (var s in ShaderNames) { sh = Shader.Find(s); if (sh != null) { name = s; break; } }
-            if (sh == null)
-            {
-                // Valheim strips unused shaders from Shader.Find; take one from a loaded object.
-                foreach (var s in Resources.FindObjectsOfTypeAll<Shader>())
-                    foreach (var want in ShaderNames) if (s != null && s.name == want) { sh = s; name = s.name; break; }
-            }
-            if (sh == null) { ValCraftPlugin.Log.LogWarning("[blocks] no usable shader found (tried " + string.Join(", ", ShaderNames) + "); blocks will be invisible"); sh = Shader.Find("Hidden/InternalErrorShader"); name = "error"; }
-            _mat = new Material(sh) { name = "ValCraftBlocks" };
-            if (_mat.HasProperty("_Color")) _mat.SetColor("_Color", Color.white);
-            if (_mat.HasProperty("_Glossiness")) _mat.SetFloat("_Glossiness", 0f);
-            if (_mat.HasProperty("_Metallic")) _mat.SetFloat("_Metallic", 0f);
-            if (_mat.HasProperty("_Cutoff")) _mat.SetFloat("_Cutoff", 0.5f);
-            if (name == "Standard")
-            {
-                _mat.SetFloat("_Mode", 1f); _mat.EnableKeyword("_ALPHATEST_ON");
-                _mat.SetOverrideTag("RenderType", "TransparentCutout"); _mat.renderQueue = (int)RenderQueue.AlphaTest;
-            }
-            ValCraftPlugin.Log.LogInfo($"[blocks] material shader: {name}");
-            if (_atlas != null) _mat.mainTexture = _atlas;
+            var op = FindShader(OpaqueNames, out var opN);
+            if (op == null) { ValCraftPlugin.Log.LogWarning("[blocks] no opaque shader found; blocks will be invisible"); op = Shader.Find("Hidden/InternalErrorShader"); opN = "error"; }
+            var cu = FindShader(CutoutNames, out var cuN);
+            var tr = FindShader(TransNames, out var trN);
+            if (cu == null) { cu = tr; cuN = trN; } // no alpha-test shader: blended is the next best thing for plants/glass
+            if (cu == null) { cu = op; cuN = opN; }
+            if (tr == null) { tr = cu; trN = cuN; }
+            _mat = Make(op, opN, 0); _matCutout = Make(cu, cuN, 1); _matTrans = Make(tr, trN, 2);
+            _mats = new[] { _mat, _matCutout, _matTrans };
+            ValCraftPlugin.Log.LogInfo($"[blocks] shaders: opaque={opN}, cutout={cuN}, translucent={trN}");
+            if (_loaded == null) _loaded = Resources.FindObjectsOfTypeAll<Shader>();
+            var names = new List<string>(); foreach (var sh in _loaded) if (sh != null && !sh.name.StartsWith("Hidden/")) names.Add(sh.name);
+            names.Sort();
+            ValCraftPlugin.Log.LogInfo($"[blocks] loaded shaders ({names.Count}): {string.Join(", ", names)}");
+            if (_atlas != null) foreach (var m in _mats) m.mainTexture = _atlas;
         }
 
         static void LoadAtlasIfChanged()
@@ -185,7 +212,7 @@ namespace ValCraft
                 if (_atlas == null) _atlas = new Texture2D(2, 2, TextureFormat.RGBA32, false) { name = "ValCraftAtlas" };
                 if (!ImageConversion.LoadImage(_atlas, bytes, false)) throw new Exception("LoadImage failed");
                 _atlas.filterMode = FilterMode.Point; _atlas.wrapMode = TextureWrapMode.Clamp; _atlas.anisoLevel = 0;
-                _mat.mainTexture = _atlas;
+                foreach (var m in _mats) m.mainTexture = _atlas;
                 _loadedRevision = Store.AtlasRevision;
                 ValCraftPlugin.Log.LogInfo($"[blocks] atlas rev {_loadedRevision} loaded ({_atlas.width}x{_atlas.height}, {Store.AtlasTiles} tiles) from {Store.AtlasPath}");
             }
