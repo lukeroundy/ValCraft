@@ -113,6 +113,24 @@ namespace ValCraft
             }
         }
 
+        /// <summary>0.9.2: drop zero-area / NaN collider triangles (PhysX "cleaning the mesh failed"); empty if nothing solid is left.</summary>
+        static readonly List<int> _cleanTris = new List<int>();
+        static List<int> CleanTris(Vector3[] v, List<int> tris)
+        {
+            _cleanTris.Clear();
+            for (int t = 0; t + 2 < tris.Count; t += 3)
+            {
+                int a = tris[t], b = tris[t + 1], c = tris[t + 2];
+                if (a >= v.Length || b >= v.Length || c >= v.Length) continue;
+                var cr = Vector3.Cross(v[b] - v[a], v[c] - v[a]);
+                float area2 = cr.sqrMagnitude;
+                if (float.IsNaN(area2) || area2 < 1e-8f) continue;
+                _cleanTris.Add(a); _cleanTris.Add(b); _cleanTris.Add(c);
+            }
+            if (_cleanTris.Count < 3) _cleanTris.Clear();
+            return _cleanTris;
+        }
+
         static void Rebuild((int, int, int) k)
         {
             Store.Build(k, Md);
@@ -151,11 +169,12 @@ namespace ValCraft
             for (int sm = 0; sm < 5; sm++) mesh.SetTriangles(Md.Sub[sm], sm, false);
             mesh.RecalculateBounds();
             var mc = go.GetComponent<MeshCollider>();
-            if (Collision && Md.ColTris.Count > 0)
+            var colTris = Collision && Md.ColTris.Count > 0 ? CleanTris(v, Md.ColTris) : null;
+            if (colTris != null && colTris.Count > 0)
             {
                 var cm = mc != null ? mc.sharedMesh : null;
                 if (cm == null || cm == mesh) cm = new Mesh { name = go.name + "_col", indexFormat = IndexFormat.UInt32 };
-                cm.Clear(); cm.vertices = v; cm.SetTriangles(Md.ColTris, 0); cm.RecalculateBounds();
+                cm.Clear(); cm.vertices = v; cm.SetTriangles(colTris, 0); cm.RecalculateBounds();
                 if (mc == null) mc = go.AddComponent<MeshCollider>();
                 mc.sharedMesh = null; mc.sharedMesh = cm;
             }

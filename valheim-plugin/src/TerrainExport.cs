@@ -27,7 +27,7 @@ namespace ValCraft
         static int _terrainMask, _sentTiles;
         static bool _init;
         static Func<object> _worldGen, _zone;
-        static MethodInfo _getBiome, _groundHeight, _findHm, _isCultivated, _isCleared, _isPaved;
+        static MethodInfo _getBiome, _groundHeight, _findHm, _isCultivated, _isCleared, _isPaved, _paintMask;
         static float _nextLog;
 
         static void Init()
@@ -44,9 +44,10 @@ namespace ValCraft
             _findHm = hm == null ? null : AccessTools.Method(hm, "FindHeightmap", new[] { typeof(Vector3) });
             _isCultivated = hm == null ? null : AccessTools.Method(hm, "IsCultivated", new[] { typeof(Vector3) });
             _isCleared = hm == null ? null : AccessTools.Method(hm, "IsCleared", new[] { typeof(Vector3) });
-            _isPaved = hm == null ? null : AccessTools.Method(hm, "IsPaved", new[] { typeof(Vector3) }) ?? AccessTools.Method(hm, "IsLava", new[] { typeof(Vector3) }) /* not paved, ignored below */;
-            if (_isPaved != null && _isPaved.Name != "IsPaved") _isPaved = null;
-            ValCraftPlugin.Log.LogInfo($"[terrain] WorldGenerator.GetBiome={_getBiome != null && _worldGen != null}, Heightmap.FindHeightmap={_findHm != null}, IsCultivated={_isCultivated != null}, IsCleared={_isCleared != null}, IsPaved={_isPaved != null}");
+            // 0.9.2: Valheim 1.0 has no IsPaved; paved = blue channel of the paint mask. Looked up without AccessTools warnings.
+            _isPaved = null;
+            _paintMask = hm?.GetMethod("GetPaintMask", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, new[] { typeof(Vector3) }, null);
+            ValCraftPlugin.Log.LogInfo($"[terrain] WorldGenerator.GetBiome={_getBiome != null && _worldGen != null}, Heightmap.FindHeightmap={_findHm != null}, IsCultivated={_isCultivated != null}, IsCleared={_isCleared != null}, PaintMask(paved)={_paintMask != null}");
         }
 
         public static void Update(ValCraftLink link, bool connected)
@@ -169,7 +170,7 @@ namespace ValCraft
                     var hm = _findHm.Invoke(null, new object[] { p });
                     if (hm != null)
                     {
-                        if (_isPaved != null && (bool)_isPaved.Invoke(hm, new object[] { p })) return 8;
+                        if (_paintMask != null && ((Color)_paintMask.Invoke(hm, new object[] { p })).b > 0.5f) return 8;
                         if (_isCultivated != null && (bool)_isCultivated.Invoke(hm, new object[] { p })) return 2;
                         if (_isCleared != null && (bool)_isCleared.Invoke(hm, new object[] { p })) return 9;
                     }

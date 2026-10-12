@@ -18,7 +18,7 @@ namespace ValCraft
         static float _nextFire, _nextWater;
         static bool _init;
         static Type _aoeT, _effT, _charT;
-        static FieldInfo _aoeDmg, _effType; static MethodInfo _inLava, _liquid;
+        static FieldInfo _aoeDmg, _effType; static MethodInfo _inLava, _liquid, _hmFind, _hmIsLava, _hmHeight;
         static readonly Collider[] _hits = new Collider[64];
         static bool _wasFire;
 
@@ -28,10 +28,14 @@ namespace ValCraft
             _aoeT = AccessTools.TypeByName("Aoe"); _effT = AccessTools.TypeByName("EffectArea"); _charT = AccessTools.TypeByName("Character");
             _aoeDmg = AccessTools.Field(_aoeT, "m_damage"); _effType = AccessTools.Field(_effT, "m_type");
             _inLava = AccessTools.Method(_charT, "InLava", Type.EmptyTypes);
+            var hmT = AccessTools.TypeByName("Heightmap"); const BindingFlags BF = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+            _hmFind = hmT?.GetMethod("FindHeightmap", BF, null, new[] { typeof(Vector3) }, null);
+            _hmIsLava = hmT?.GetMethod("IsLava", BF, null, new[] { typeof(Vector3), typeof(float) }, null);
+            _hmHeight = hmT?.GetMethod("GetHeight", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(Vector3), typeof(float).MakeByRefType() }, null);
             var fl = AccessTools.TypeByName("Floating"); var lt = AccessTools.TypeByName("LiquidType");
             _liquid = fl == null || lt == null ? null : AccessTools.Method(fl, "GetLiquidLevel", new[] { typeof(Vector3), typeof(float), lt });
             _liquidType = lt;
-            ValCraftPlugin.Log.LogInfo($"[hazard] Aoe={_aoeT != null} EffectArea={_effT != null} InLava={_inLava != null} Floating.GetLiquidLevel={_liquid != null} (fire={Fire}, water={Water})");
+            ValCraftPlugin.Log.LogInfo($"[hazard] Aoe={_aoeT != null} EffectArea={_effT != null} InLava={_inLava != null} Heightmap.IsLava(pos,r)={_hmIsLava != null} Floating.GetLiquidLevel={_liquid != null} (fire={Fire}, water={Water})");
         }
         static Type _liquidType;
 
@@ -71,6 +75,21 @@ namespace ValCraft
                 }
             }
             bool lava = false; try { lava = _inLava != null && (bool)_inLava.Invoke(pl, null); } catch { }
+            // 0.9.2: the hidden player is kinematic (no ground contact), so also ask the terrain: Ashlands lava under the feet
+            if (!lava && _hmFind != null && _hmIsLava != null)
+            {
+                try
+                {
+                    var fp = pl.transform.position; var hm = _hmFind.Invoke(null, new object[] { fp });
+                    if (hm != null && (bool)_hmIsLava.Invoke(hm, new object[] { fp, 0.6f }))
+                    {
+                        var args = new object[] { fp, 0f };
+                        bool near = _hmHeight == null || !(bool)_hmHeight.Invoke(null, args) || fp.y - (float)args[1] < 0.6f;
+                        lava = near;
+                    }
+                }
+                catch { }
+            }
             if (lava) { best = Math.Max(best, 20f); src = "lava"; }
             bool fire = best > 0;
             if (fire != _wasFire) { _wasFire = fire; ValCraftPlugin.Log.LogInfo(fire ? $"[hazard] MC player in Valheim fire ({src})" : "[hazard] out of fire"); }
@@ -249,7 +268,8 @@ namespace ValCraft
                 foreach (var cd in go.GetComponentsInChildren<Component>(true)) if (cd != null && cd.GetType().Name == "CharacterDrop") UnityEngine.Object.Destroy(cd);
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
                 foreach (var a in go.GetComponentsInChildren<AudioSource>(true)) a.mute = true;
-                var rb = go.GetComponent<Rigidbody>(); if (rb != null) { rb.isKinematic = true; rb.useGravity = false; }
+                // 0.9.2: not kinematic (Character code sets velocity every FixedUpdate -> 20k Unity warnings); frozen dynamic body, moved by position
+                var rb = go.GetComponent<Rigidbody>(); if (rb != null) { rb.isKinematic = false; rb.useGravity = false; rb.constraints = RigidbodyConstraints.FreezeAll; rb.interpolation = RigidbodyInterpolation.None; }
                 var cap = go.GetComponent<CapsuleCollider>();
                 if (cap != null && m.W > 0 && m.H > 0) { cap.radius = Math.Max(0.2f, m.W / 2); cap.height = Math.Max(cap.radius * 2, m.H); cap.center = new Vector3(0, cap.height / 2, 0); }
                 var ch = go.GetComponent(_charT);
