@@ -129,6 +129,7 @@ public final class ValCraftClient {
 				case ValCraftLink.EV_INV_REQ -> ItemLink.snapshot(mc);
 				case ValCraftLink.EV_DAMAGE -> HealthLink.damage(mc, ev.payload());
 				case ValCraftLink.EV_BUILD_STATE -> BuildLink.state(ev.payload());
+				case ValCraftLink.EV_BUILD_PIECES -> BuildLink.pieces(mc, ev.payload());
 				case ValCraftLink.EV_BLOCK_SYNC_CONFIG -> BlockSync.receiveConfig(ev.payload());
 				case ValCraftLink.EV_TERRAIN_HEIGHTS -> HeightField.receive(ev.payload());
 				case ValCraftLink.EV_ATTACK_TARGET -> ValheimAttack.receiveTarget(ev.payload());

@@ -206,3 +206,13 @@ Changed layouts (durability u16: 0..10000 = fraction remaining, 0xFFFF = none):
 | 51 EvBuildState | V→MC | u8 active. While active and the mace is held, MC left-click = place, sneak+left = remove, sneak+right = rotate; MC attack/mining suppressed. |
 
 Mapping file: on load, default entries missing from the user file are appended; `"_known"` records the default keys already offered so deleted entries stay deleted. Only stackable Valheim items (materials, arrows) are moved into Valheim for crafting/building; tools and armour stay in MC.
+
+## v13 (0.8.5) — MC-side build picker
+
+Valheim's own piece window is no longer used (Minecraft has OS focus; in 0.8.4 Valheim's flag said visible but `SelectionWindow` never activated).
+
+| Type | Dir | Payload |
+|---|---|---|
+| 49 EvBuildMenu | MC→V | empty. Enters build mode if needed (equip hammer, deposit MC materials), then Valheim answers with EvBuildPieces once the deposit acks are in (≤ 1.5 s). |
+| 52 EvBuildPieces | V→MC | u8 first, u8 last, u8 n, n × (u16 index, u8 Piece.PieceCategory, u8 flags (1 = can build now), u8 nameLen, utf8 localized name (≤ 60 B), u8 costLen, utf8 cost text (≤ 120 B)). MC opens its picker screen after `last`. |
+| 53 EvBuildSelect | MC→V | u16 index → Player.SetSelectedPiece. |

@@ -231,6 +231,7 @@ namespace ValCraft
                     default:
                         if (ev.Type == ValCraftLink.EvHealth) HealthLink.Receive(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvBuildMenu) ItemBridge.BuildMenu();
+                        else if (ev.Type == ValCraftLink.EvBuildSelect) ItemBridge.BuildSelect(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvBuildAction) { if (ev.Payload != null && ev.Payload.Length > 0) ItemBridge.BuildAction(ev.Payload[0]); }
                         else if (!ItemBridge.Handle(ev)) BlockRender.Handle(ev);
                         break;

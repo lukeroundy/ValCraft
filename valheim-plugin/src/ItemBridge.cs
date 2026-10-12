@@ -247,8 +247,10 @@ namespace ValCraft
             return true;
         }
 
+        static bool _awaitSnap;
         static void OnSnapshot(Dictionary<string, int> inv)
         {
+            _awaitSnap = false;
             if (!_crafting && !_building) return;
             foreach (var kv in inv)
             {
@@ -373,7 +375,7 @@ namespace ValCraft
             _tryPlace = AccessTools.Method(_playerT, "TryPlacePiece"); _removePiece = AccessTools.Method(_playerT, "RemovePiece", Type.EmptyTypes); _getSel = AccessTools.Method(_playerT, "GetSelectedPiece", Type.EmptyTypes);
             _rot = AccessTools.Field(_playerT, "m_placeRotation");
             _selWinF = AccessTools.Field(_hudT, "m_pieceSelectionWindow");
-            PlayerSync.HudWanted = () => MenuRequested();
+
             ValCraftPlugin.Log.LogInfo($"[build] Hud.TogglePieceSelection={_toggleSel != null} TryPlacePiece={_tryPlace != null} RemovePiece={_removePiece != null} EquipItem={_equip != null}");
         }
         static object Hud() => _hudInst != null ? _hudInst.GetValue(null) : _hudInstF?.GetValue(null);
@@ -384,7 +386,87 @@ namespace ValCraft
             if (!Enabled || !_ok || !PlayerSync.Following || PlayerSync.Player == null) return;
             if (!_buildInit) BuildInit();
             if (!_building && !EnterBuild()) return;
-            ToggleMenu();
+            // 0.8.5: Valheim's own piece window can't be used (MC has OS focus and the window stayed inactive), so MC
+            // shows its own picker: send the piece list once the material deposit has landed.
+            _listWantedAt = Time.unscaledTime;
+            ValCraftPlugin.Log.LogInfo("[build] piece list requested by Minecraft");
+        }
+
+        static float _listWantedAt = -1f;
+        static readonly List<Component> _menuPieces = new List<Component>();
+        static MethodInfo _updAvail, _haveReq, _setSel, _localize; static Type _reqModeT; static PropertyInfo _locInst;
+
+        static string L(string s)
+        {
+            try
+            {
+                if (_localize == null) { var lt = AccessTools.TypeByName("Localization"); _localize = AccessTools.Method(lt, "Localize", new[] { typeof(string) }); _locInst = AccessTools.Property(lt, "instance"); }
+                var inst = _locInst?.GetValue(null);
+                return inst == null || _localize == null ? s : (string)_localize.Invoke(inst, new object[] { s });
+            }
+            catch { return s; }
+        }
+
+        static void SendPieceList()
+        {
+            _listWantedAt = -1f;
+            var pl = PlayerSync.Player; if (pl == null || _link == null) return;
+            try
+            {
+                _updAvail = _updAvail ?? AccessTools.Method(_playerT, "UpdateAvailablePiecesList");
+                _reqModeT = _reqModeT ?? AccessTools.Inner(_playerT, "RequirementMode");
+                _haveReq = _haveReq ?? AccessTools.Method(_playerT, "HaveRequirements", new[] { AccessTools.TypeByName("Piece"), _reqModeT });
+                try { _updAvail?.Invoke(pl, null); } catch { }
+                var table = AccessTools.Field(_playerT, "m_buildPieces")?.GetValue(pl);
+                if (table == null) { ValCraftPlugin.Log.LogWarning("[build] player has no build piece table (hammer not equipped?)"); return; }
+                _menuPieces.Clear();
+                var entries = new List<BuildCodec.Entry>();
+                var avail = AccessTools.Field(table.GetType(), "m_availablePieces")?.GetValue(table) as IList;
+                var seen = new HashSet<Component>();
+                if (avail != null) foreach (IList cat in avail) if (cat != null) foreach (Component pc in cat) if (pc != null && seen.Add(pc)) _menuPieces.Add(pc);
+                if (_menuPieces.Count == 0 && AccessTools.Field(table.GetType(), "m_pieces")?.GetValue(table) is IList all)
+                {
+                    var known = _reqModeT == null ? null : Enum.ToObject(_reqModeT, 1);
+                    foreach (GameObject go in all) { var pc = go == null ? null : go.GetComponent("Piece"); if (pc == null || !seen.Add(pc)) continue; try { if (_haveReq != null && !(bool)_haveReq.Invoke(pl, new[] { pc, known })) continue; } catch { } _menuPieces.Add(pc); }
+                }
+                var canMode = _reqModeT == null ? null : Enum.ToObject(_reqModeT, 0);
+                for (int i = 0; i < _menuPieces.Count; i++)
+                {
+                    var pc = _menuPieces[i]; var t = pc.GetType();
+                    string name = L((string)AccessTools.Field(t, "m_name").GetValue(pc));
+                    int cat = Convert.ToInt32(AccessTools.Field(t, "m_category").GetValue(pc));
+                    var cost = new System.Text.StringBuilder();
+                    if (AccessTools.Field(t, "m_resources")?.GetValue(pc) is Array reqs)
+                        foreach (var r in reqs)
+                        {
+                            var rt = r.GetType(); var drop = AccessTools.Field(rt, "m_resItem").GetValue(r) as Component; int amt = (int)AccessTools.Field(rt, "m_amount").GetValue(r);
+                            if (drop == null || amt <= 0) continue;
+                            string mc = Map.McFor(drop.gameObject.name);
+                            if (cost.Length > 0) cost.Append(", ");
+                            cost.Append(amt).Append(' ').Append(L((string)AccessTools.Field(_sharedF.FieldType, "m_name").GetValue(Shared(_itemDataF.GetValue(drop))))).Append(mc != null ? " (" + mc.Replace("minecraft:", "") + ")" : " (Valheim only)");
+                        }
+                    bool can = false; try { can = _haveReq != null && (bool)_haveReq.Invoke(pl, new[] { pc, canMode }); } catch { }
+                    entries.Add(new BuildCodec.Entry { Index = (ushort)i, Category = (byte)Math.Max(0, Math.Min(255, cat)), CanBuild = can, Name = name, Cost = cost.ToString() });
+                }
+                int sent = 0; foreach (var m in BuildCodec.Encode(entries)) if (_link.TrySend(ValCraftLink.EvBuildPieces, m)) sent++;
+                ValCraftPlugin.Log.LogInfo($"[build] sent {entries.Count} pieces to the Minecraft picker ({sent} messages)");
+            }
+            catch (Exception e) { ValCraftPlugin.Log.LogWarning("[build] piece list failed: " + e.GetBaseException().Message); }
+        }
+
+        /// <summary>EvBuildSelect {u16 index} from the MC picker.</summary>
+        internal static void BuildSelect(byte[] p)
+        {
+            if (!_building || p == null || p.Length < 2 || PlayerSync.Player == null) return;
+            int i = BitConverter.ToUInt16(p, 0);
+            if (i >= _menuPieces.Count || _menuPieces[i] == null) { ValCraftPlugin.Log.LogWarning($"[build] picker index {i} out of range"); return; }
+            try
+            {
+                _setSel = _setSel ?? AccessTools.Method(_playerT, "SetSelectedPiece", new[] { AccessTools.TypeByName("Piece") });
+                bool ok = _setSel != null && (bool)_setSel.Invoke(PlayerSync.Player, new object[] { _menuPieces[i] });
+                ValCraftPlugin.Log.LogInfo($"[build] selected {_menuPieces[i].name}: {(ok ? "ok (aim + left-click to place)" : "Valheim refused")}");
+            }
+            catch (Exception e) { ValCraftPlugin.Log.LogWarning("[build] select failed: " + e.GetBaseException().Message); }
         }
 
         // 0.8.4: in 0.8.3 the menu opened inside the HUD that ValCraft hides (HideValheimHud), so Valheim reported it
@@ -457,7 +539,7 @@ namespace ValCraft
             try { _equip.Invoke(PlayerSync.Player, new object[] { hammer, false }); } catch (Exception e) { ValCraftPlugin.Log.LogWarning("[build] equip hammer: " + e.GetBaseException().Message); return false; }
             _building = true;
             _link?.TrySend(ValCraftLink.EvBuildState, new byte[] { 1 });
-            _snapRequested = _link != null && _link.TrySend(ValCraftLink.EvInvReq, null); // building costs come from MC materials
+            _snapRequested = _awaitSnap = _link != null && _link.TrySend(ValCraftLink.EvInvReq, null); // building costs come from MC materials
             ValCraftPlugin.Log.LogInfo($"[build] build mode on (mace = {(_virtualHammer != null ? "virtual" : "real")} Valheim hammer); moving mapped Minecraft materials into the Valheim inventory");
             return true;
         }
@@ -487,7 +569,7 @@ namespace ValCraft
         {
             if (!_building) return;
             if (!PlayerSync.Following || PlayerSync.Player == null) { _virtualHammer = null; ExitBuild("player gone"); return; }
-            MenuUpdate();
+            if (_listWantedAt >= 0 && ((PendingDeposit.Count == 0 && !_awaitSnap) || Time.unscaledTime - _listWantedAt > 1.5f)) SendPieceList();
             if (!HeldIs(MaceId)) ExitBuild("mace no longer held");
         }
 

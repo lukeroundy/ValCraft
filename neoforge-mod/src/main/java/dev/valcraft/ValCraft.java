@@ -10,6 +10,6 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft() {
-		LOG.info("ValCraft loaded (0.8.4: build menu fix)");
+		LOG.info("ValCraft loaded (0.8.5: MC-side build picker)");
 	}
 }

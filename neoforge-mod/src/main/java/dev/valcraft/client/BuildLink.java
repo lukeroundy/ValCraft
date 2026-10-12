@@ -17,7 +17,19 @@ public final class BuildLink {
 	private static boolean usePressed;
 
 	static void state(byte[] p) { active = p != null && p.length > 0 && p[0] != 0; }
-	static void reset() { active = false; usePressed = false; }
+	static void reset() { active = false; usePressed = false; pending.clear(); }
+
+	private static final java.util.List<dev.valcraft.link.BuildCodec.Piece> pending = new java.util.ArrayList<>();
+	/** EV_BUILD_PIECES (render thread): collect, then open the picker. */
+	static void pieces(net.minecraft.client.Minecraft mc, byte[] p) {
+		if (dev.valcraft.link.BuildCodec.first(p)) pending.clear();
+		pending.addAll(dev.valcraft.link.BuildCodec.decode(p));
+		if (!dev.valcraft.link.BuildCodec.last(p)) return;
+		var list = new java.util.ArrayList<>(pending); pending.clear();
+		dev.valcraft.ValCraft.LOG.info("[build] Valheim piece list: {} pieces", list.size());
+		if (list.isEmpty()) { if (mc.player != null) mc.player.displayClientMessage(net.minecraft.network.chat.Component.literal("Valheim: no build pieces known yet"), true); return; }
+		if (mc.screen == null && holdingMace(mc)) mc.setScreen(new BuildScreen(list));
+	}
 	static void tick(Minecraft mc) { if (!mc.options.keyUse.isDown()) usePressed = false; }
 
 	static boolean holdingMace(Minecraft mc) { return mc.player != null && mc.player.getMainHandItem().is(Items.MACE); }

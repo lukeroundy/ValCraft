@@ -11,5 +11,6 @@
     <Compile Include="../../protocol/BlockMesh.cs" Link="BlockMesh.cs" />
     <Compile Include="../../protocol/ItemMap.cs" Link="ItemMap.cs" />
     <Compile Include="../../protocol/HealthCodec.cs" Link="HealthCodec.cs" />
+    <Compile Include="../../protocol/BuildCodec.cs" Link="BuildCodec.cs" />
   </ItemGroup>
 </Project>

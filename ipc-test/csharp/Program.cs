@@ -266,6 +266,16 @@ static unsafe class Program
             var dm = ValCraft.Protocol.HealthCodec.Damage(2.5f, 1, 0.6f, -0.8f, 30f);
             Check(dm.Length == 17 && BitConverter.ToSingle(dm, 0) == 2.5f && dm[4] == 1 && BitConverter.ToSingle(dm, 9) == -0.8f && BitConverter.ToSingle(dm, 13) == 30f, "damage");
         }
+        // 0.8.5 build piece list: C# encode/decode + file for the Java decoder test
+        var bl = new System.Collections.Generic.List<ValCraft.Protocol.BuildCodec.Entry>();
+        for (int i = 0; i < 40; i++) bl.Add(new ValCraft.Protocol.BuildCodec.Entry { Index = (ushort)(i * 7), Category = (byte)(i % 3), CanBuild = i % 2 == 0, Name = "Piece " + i + (i == 5 ? " Ä長い" : ""), Cost = i == 9 ? new string('x', 300) : "10 Wood (oak_log), 2 Stone (cobblestone)" });
+        var bm = ValCraft.Protocol.BuildCodec.Encode(bl);
+        var back = new System.Collections.Generic.List<ValCraft.Protocol.BuildCodec.Entry>();
+        foreach (var m in bm) { Check(m.Length <= 248, "build msg size"); back.AddRange(ValCraft.Protocol.BuildCodec.Decode(m)); }
+        Check(bm[0][0] == 1 && bm[bm.Count - 1][1] == 1 && back.Count == 40 && back[5].Name == "Piece 5 Ä長い" && back[39].Index == 273 && !back[39].CanBuild && back[9].Cost.Length == 120, "build list");
+        using (var w = new System.IO.BinaryWriter(System.IO.File.Create("/tmp/valcraft-build.bin")))
+        { w.Write(System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(bm.Count)); foreach (var m in bm) { w.Write(System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(m.Length)); w.Write(m); } }
+        Console.WriteLine($"[cs] build list: {bm.Count} messages");
         Console.WriteLine(fail == 0 ? "items OK" : $"items {fail} failures");
         return fail == 0 ? 0 : 1;
     }
