@@ -32,6 +32,9 @@ namespace ValCraft.Protocol
         public readonly HashSet<(int, int, int)> Dirty = new HashSet<(int, int, int)>();
         public int AtlasRevision, AtlasTiles, AtlasPerRow = 64, AtlasTileSize = 16; public string AtlasPath;
         public bool ResetRequested;
+        /// <summary>Animated tiles (EvBlockAnim): the display tile shows Frames[i] for Ticks[i] game ticks (20/s).</summary>
+        public sealed class Anim { public ushort Display; public ushort[] Frames, Ticks; public int Total, Current = -1; public int FrameAt(long tick) { if (Total <= 0) return 0; long t = tick % Total; for (int i = 0; i < Ticks.Length; i++) { t -= Ticks[i]; if (t < 0) return i; } return 0; } }
+        public readonly Dictionary<ushort, Anim> Anims = new Dictionary<ushort, Anim>();
 
         static int I(byte[] b, int o) => BitConverter.ToInt32(b, o);
         static ushort U(byte[] b, int o) => BitConverter.ToUInt16(b, o);
@@ -43,7 +46,7 @@ namespace ValCraft.Protocol
             {
                 case ValCraftLink.EvBlocksReset:
                     foreach (var k in Sections.Keys) Dirty.Add(k);
-                    Sections.Clear(); _pending.Clear(); Palette.Clear(); ResetRequested = true; return true;
+                    Sections.Clear(); _pending.Clear(); Palette.Clear(); Anims.Clear(); ResetRequested = true; return true;
                 case ValCraftLink.EvBlockPalette:
                 {
                     var e = new BlockPaletteEntry { Flags = p[2] };
@@ -64,16 +67,17 @@ namespace ValCraft.Protocol
                     for (int i = 0; i < n && 6 + (i + 1) * 44 <= p.Length; i++)
                     {
                         int o = 6 + i * 44;
-                        var q = new BlockPaletteEntry.Q { Tile = U(p, o), Dir = p[o + 2], Cull = p[o + 3] };
-                        for (int v = 0; v < 4; v++)
-                        {
-                            int vo = o + 4 + v * 10;
-                            for (int c = 0; c < 3; c++) q.Pos[v * 3 + c] = BitConverter.ToInt16(p, vo + c * 2) / 1024f;
-                            for (int c = 0; c < 2; c++) q.Uv[v * 2 + c] = U(p, vo + 6 + c * 2) / 65535f;
-                        }
-                        e.Quads.Add(q);
+                        e.Quads.Add(ReadQuad(p, o));
                     }
                     if (p[5] != 0) e.QuadsComplete = true;
+                    return true;
+                }
+                case ValCraftLink.EvBlockAnim:
+                {
+                    int n = U(p, 2);
+                    var a = new Anim { Display = U(p, 0), Frames = new ushort[n], Ticks = new ushort[n] };
+                    for (int i = 0; i < n && 4 + i * 4 + 4 <= p.Length; i++) { a.Frames[i] = U(p, 4 + i * 4); a.Ticks[i] = Math.Max((ushort)1, U(p, 6 + i * 4)); a.Total += a.Ticks[i]; }
+                    Anims[a.Display] = a;
                     return true;
                 }
                 case ValCraftLink.EvSectionBegin:
@@ -105,6 +109,18 @@ namespace ValCraft.Protocol
                     return true;
             }
             return false;
+        }
+
+        public static BlockPaletteEntry.Q ReadQuad(byte[] p, int o)
+        {
+            var q = new BlockPaletteEntry.Q { Tile = U(p, o), Dir = p[o + 2], Cull = p[o + 3] };
+            for (int v = 0; v < 4; v++)
+            {
+                int vo = o + 4 + v * 10;
+                for (int c = 0; c < 3; c++) q.Pos[v * 3 + c] = BitConverter.ToInt16(p, vo + c * 2) / 1024f;
+                for (int c = 0; c < 2; c++) q.Uv[v * 2 + c] = U(p, vo + 6 + c * 2) / 65535f;
+            }
+            return q;
         }
 
         /// <summary>Palette id at MC block coords (0 = nothing we draw).</summary>
@@ -165,7 +181,12 @@ namespace ValCraft.Protocol
                 {
                     foreach (var q in e.Quads)
                     {
-                        if (q.Cull < 6 && Occludes(wx + Dir[q.Cull, 0], wy + Dir[q.Cull, 1], wz + Dir[q.Cull, 2])) continue;
+                        if (q.Cull < 6)
+                        {
+                            int qx = wx + Dir[q.Cull, 0], qy = wy + Dir[q.Cull, 1], qz = wz + Dir[q.Cull, 2];
+                            if (Occludes(qx, qy, qz)) continue;
+                            if (e.FullBox && (e.Flags & BlockPaletteEntry.FullOpaque) == 0 && At(qx, qy, qz) == id) continue; // glass-glass
+                        }
                         ModelQuad(m, tris, q, lx, ly, lz, g, eps);
                     }
                     if (!collides) continue;
@@ -208,7 +229,7 @@ namespace ValCraft.Protocol
         }
 
         /// <summary>A baked-model quad: positions block-local MC, uv = sprite fractions (v down).</summary>
-        static void ModelQuad(MeshData m, List<int> tris, BlockPaletteEntry.Q q, int lx, int ly, int lz, float g, float eps)
+        public static void ModelQuad(MeshData m, List<int> tris, BlockPaletteEntry.Q q, int lx, int ly, int lz, float g, float eps)
         {
             float col = q.Tile % (int)g, row = q.Tile / (int)g, span = 1 - 2 * eps, vTop = 1f - row / g;
             int start = m.Pos.Count / 3;
@@ -290,6 +311,44 @@ namespace ValCraft.Protocol
             // Unity's Vector3.Cross formula (same as right-handed math formula)
             float cx = ey * fz - ez * fy, cy = ez * fx - ex * fz, cz = ex * fy - ey * fx;
             return cx * nx + cy * ny + cz * nz > 0;
+        }
+    }
+
+    /// <summary>Entities (EvEntMesh / EvEntUpdate): cached meshes by id + the latest full snapshot.</summary>
+    public sealed class EntityStore
+    {
+        public readonly Dictionary<uint, List<BlockPaletteEntry.Q>> Meshes = new Dictionary<uint, List<BlockPaletteEntry.Q>>();
+        public readonly HashSet<uint> CompleteMeshes = new HashSet<uint>(), NewMeshes = new HashSet<uint>();
+        public struct Ent { public uint Id, Mesh; public float X, Y, Z; public byte Flags; }
+        public Dictionary<uint, Ent> Current = new Dictionary<uint, Ent>();
+        Dictionary<uint, Ent> _building;
+        public int Snapshots;
+
+        public bool Handle(ushort type, byte[] p)
+        {
+            if (type == ValCraftLink.EvBlocksReset) { Meshes.Clear(); CompleteMeshes.Clear(); NewMeshes.Clear(); Current.Clear(); _building = null; return false; }
+            if (type == ValCraftLink.EvEntMesh)
+            {
+                uint id = BitConverter.ToUInt32(p, 0); int first = BitConverter.ToUInt16(p, 4), n = p[6];
+                if (first == 0 || !Meshes.TryGetValue(id, out var list)) { list = new List<BlockPaletteEntry.Q>(); Meshes[id] = list; CompleteMeshes.Remove(id); }
+                for (int i = 0; i < n && 8 + (i + 1) * 44 <= p.Length; i++) list.Add(BlockStore.ReadQuad(p, 8 + i * 44));
+                if (p[7] != 0) { CompleteMeshes.Add(id); NewMeshes.Add(id); }
+                return true;
+            }
+            if (type == ValCraftLink.EvEntUpdate)
+            {
+                bool first = p[0] != 0, last = p[1] != 0; int n = BitConverter.ToUInt16(p, 2);
+                if (first || _building == null) _building = new Dictionary<uint, Ent>();
+                for (int i = 0; i < n && 4 + (i + 1) * 21 <= p.Length; i++)
+                {
+                    int o = 4 + i * 21;
+                    var e = new Ent { Id = BitConverter.ToUInt32(p, o), Mesh = BitConverter.ToUInt32(p, o + 4), X = BitConverter.ToSingle(p, o + 8), Y = BitConverter.ToSingle(p, o + 12), Z = BitConverter.ToSingle(p, o + 16), Flags = p[o + 20] };
+                    _building[e.Id] = e;
+                }
+                if (last) { Current = _building; _building = null; Snapshots++; }
+                return true;
+            }
+            return false;
         }
     }
 }

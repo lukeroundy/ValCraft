@@ -57,17 +57,61 @@ public final class BlockCodec {
 			ByteBuffer b = le(6 + n * QUAD_BYTES);
 			b.putShort((short) paletteId).putShort((short) off).put((byte) n).put((byte) (off + n >= q.size() ? 1 : 0));
 			for (int i = 0; i < n; i++) {
-				Quad x = q.get(off + i);
-				b.putShort((short) x.tile()).put((byte) x.dir()).put((byte) x.cull());
-				for (int v = 0; v < 4; v++) {
-					for (int c = 0; c < 3; c++) b.putShort((short) Math.max(-32768, Math.min(32767, Math.round(x.pos()[v * 3 + c] * 1024))));
-					for (int c = 0; c < 2; c++) b.putShort((short) Math.max(0, Math.min(65535, Math.round(x.uv()[v * 2 + c] * 65535))));
-				}
+				putQuad(b, q.get(off + i));
 			}
 			out.add(new ValCraftLink.Event(ValCraftLink.EV_BLOCK_QUADS, b.array()));
 			if (q.isEmpty()) break;
 		}
 		return out;
+	}
+
+	/** EV_BLOCK_ANIM: u16 displayTile, u16 n (<= 61), n x (u16 frameTile, u16 ticks). */
+	public static ValCraftLink.Event anim(int displayTile, int[] frameTiles, int[] ticks) {
+		int n = Math.min(frameTiles.length, (ValCraftLink.SLOT_PAYLOAD - 4) / 4);
+		ByteBuffer b = le(4 + n * 4).putShort((short) displayTile).putShort((short) n);
+		for (int i = 0; i < n; i++) b.putShort((short) frameTiles[i]).putShort((short) Math.max(1, ticks[i]));
+		return new ValCraftLink.Event(ValCraftLink.EV_BLOCK_ANIM, b.array());
+	}
+
+	public static final int ENT_QUADS_PER_MSG = (ValCraftLink.SLOT_PAYLOAD - 8) / QUAD_BYTES, ENT_PER_MSG = (ValCraftLink.SLOT_PAYLOAD - 4) / 21;
+
+	/** EV_ENT_MESH: u32 meshId, u16 firstIndex, u8 n, u8 last, n quads (same 44-byte layout as EV 37, positions relative to the entity origin). */
+	public static List<ValCraftLink.Event> entityMesh(int meshId, List<Quad> q) {
+		List<ValCraftLink.Event> out = new ArrayList<>();
+		int off = 0;
+		do {
+			int n = Math.min(ENT_QUADS_PER_MSG, q.size() - off);
+			ByteBuffer b = le(8 + n * QUAD_BYTES);
+			b.putInt(meshId).putShort((short) off).put((byte) n).put((byte) (off + n >= q.size() ? 1 : 0));
+			for (int i = 0; i < n; i++) putQuad(b, q.get(off + i));
+			out.add(new ValCraftLink.Event(ValCraftLink.EV_ENT_MESH, b.array()));
+			off += n;
+		} while (off < q.size());
+		return out;
+	}
+
+	public record Ent(int id, int meshId, float x, float y, float z, int flags) {}
+	/** EV_ENT_UPDATE: u8 first, u8 last, u16 n, n x (u32 entityId, u32 meshId, f32 x,y,z MC, u8 flags: 1 = dropped item (Valheim spins/bobs)). first..last = one full snapshot. */
+	public static List<ValCraftLink.Event> entityUpdate(List<Ent> ents) {
+		List<ValCraftLink.Event> out = new ArrayList<>();
+		int off = 0;
+		do {
+			int n = Math.min(ENT_PER_MSG, ents.size() - off);
+			ByteBuffer b = le(4 + n * 21);
+			b.put((byte) (off == 0 ? 1 : 0)).put((byte) (off + n >= ents.size() ? 1 : 0)).putShort((short) n);
+			for (int i = 0; i < n; i++) { Ent e = ents.get(off + i); b.putInt(e.id()).putInt(e.meshId()).putFloat(e.x()).putFloat(e.y()).putFloat(e.z()).put((byte) e.flags()); }
+			out.add(new ValCraftLink.Event(ValCraftLink.EV_ENT_UPDATE, b.array()));
+			off += n;
+		} while (off < ents.size());
+		return out;
+	}
+
+	private static void putQuad(ByteBuffer b, Quad x) {
+		b.putShort((short) x.tile()).put((byte) x.dir()).put((byte) x.cull());
+		for (int v = 0; v < 4; v++) {
+			for (int c = 0; c < 3; c++) b.putShort((short) Math.max(-32768, Math.min(32767, Math.round(x.pos()[v * 3 + c] * 1024))));
+			for (int c = 0; c < 2; c++) b.putShort((short) Math.max(0, Math.min(65535, Math.round(x.uv()[v * 2 + c] * 65535))));
+		}
 	}
 
 	public static ValCraftLink.Event atlas(int revision, int tiles, int tilesPerRow, int tileSize, String path) {

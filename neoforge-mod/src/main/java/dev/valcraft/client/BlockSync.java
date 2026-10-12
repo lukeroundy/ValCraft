@@ -92,6 +92,23 @@ public final class BlockSync {
 	@SubscribeEvent public static void onPlace(BlockEvent.EntityPlaceEvent e) { if (enabled) markDirty(e.getPos().getX(), e.getPos().getY(), e.getPos().getZ()); }
 	@SubscribeEvent public static void onNotify(BlockEvent.NeighborNotifyEvent e) { if (enabled) markDirty(e.getPos().getX(), e.getPos().getY(), e.getPos().getZ()); }
 
+	/** 0.7.3: explosions lower Valheim terrain: per column, the lowest destroyed terrain-type block goes through the dig path. */
+	@SubscribeEvent
+	public static void onExplosion(net.neoforged.neoforge.event.level.ExplosionEvent.Detonate e) {
+		if (!ValCraftClient.active()) return;
+		java.util.Map<Long, BlockPos> lowest = new java.util.HashMap<>();
+		java.util.Map<Long, BlockState> st = new java.util.HashMap<>();
+		for (BlockPos p : e.getAffectedBlocks()) {
+			BlockState s = e.getLevel().getBlockState(p);
+			if (!TerrainSync.isTerrainBlock(s)) continue;
+			long k = ((long) p.getX() << 32) ^ (p.getZ() & 0xFFFFFFFFL);
+			BlockPos cur = lowest.get(k);
+			if (cur == null || p.getY() < cur.getY()) { lowest.put(k, p.immutable()); st.put(k, s); }
+		}
+		for (var en : lowest.entrySet()) TerrainSync.forward(en.getValue(), 0, st.get(en.getKey()));
+		if (!lowest.isEmpty()) ValCraft.LOG.info("[terrain] explosion: {} columns -> Valheim dig", lowest.size());
+	}
+
 	@SubscribeEvent
 	public static void onServerTick(ServerTickEvent.Post e) {
 		if (resetServer) { resetServer = false; sentHash.clear(); dirty.clear(); dirtyQ.clear(); lastCenter = Long.MIN_VALUE; cursor = 0; totalSent = 0; }
@@ -193,6 +210,7 @@ public final class BlockSync {
 		if (en != enabled || r != radius) ValCraft.LOG.info("[blocks] Valheim block rendering {} (radius {})", en ? "on" : "off", r);
 		if (en && !enabled) reset();
 		radius = r; enabled = en;
+		if (p.length >= 12) EntitySync.maxEntities = b.getInt(8);
 	}
 
 	/** On (re)link / disconnect: forget everything sent; Valheim is told to clear on next send. */
@@ -200,6 +218,7 @@ public final class BlockSync {
 		outbox.clear(); fromServer.clear(); paletteOf.clear(); tileOf.clear();
 		nextPalette = 1; nextTile = 1; atlasDirty = false;
 		if (atlas != null) { atlas.close(); atlas = null; }
+		Capture.clearImages(); EntitySync.reset();
 		resetServer = true;
 		outbox.add(new ValCraftLink.Event(ValCraftLink.EV_BLOCKS_RESET, new byte[0]));
 	}
@@ -215,6 +234,7 @@ public final class BlockSync {
 			for (int i = 0; i < so.count; i++) pid[i] = (short) paletteFor(mc, so.state[i]);
 			outbox.addAll(BlockCodec.section(so.sx, so.sy, so.sz, so.local, pid, so.count));
 		}
+		if (enabled && outbox.size() < OUTBOX_MAX) EntitySync.tick(mc, outbox);
 		long now = System.currentTimeMillis();
 		if (atlasDirty && now >= nextAtlasWrite) writeAtlas();
 		ValCraftLink.Event ev;
@@ -255,7 +275,13 @@ public final class BlockSync {
 		try {
 			BakedModel model = mc.getBlockRenderer().getBlockModel(s);
 			boolean fullBox = boxes.length == 6 && boxes[0] == 0 && boxes[1] == 0 && boxes[2] == 0 && boxes[3] == 16 && boxes[4] == 16 && boxes[5] == 16;
-			if ((flags & BlockCodec.FLAG_CROSS) == 0 && (!fullBox || (flags & BlockCodec.FLAG_COLLIDES) == 0)) quads = modelQuads(mc, s, model);
+			// 0.7.3: always the real model quads (fixes rotated UVs e.g. pistons/logs); boxes = collision (+ fallback)
+			if ((flags & BlockCodec.FLAG_CROSS) == 0) {
+				quads = s.getRenderShape() == net.minecraft.world.level.block.RenderShape.MODEL ? modelQuads(mc, s, model) : new java.util.ArrayList<>();
+				var ber = berQuads(mc, s);
+				if (!ber.isEmpty()) { quads.addAll(ber); flags |= BlockCodec.FLAG_CUTOUT; flags &= ~BlockCodec.FLAG_FULL_OPAQUE; }
+				if (quads.size() > 255) quads = quads.subList(0, 255);
+			}
 			RandomSource rand = RandomSource.create(42);
 			List<BakedQuad> general = model.getQuads(s, null, rand);
 			for (Direction d : Direction.values()) {
@@ -322,6 +348,26 @@ public final class BlockSync {
 		return out;
 	}
 
+	/** Geometry of a BlockEntityRenderer (chest, bed, sign, banner, skull, shulker box, decorated pot, bell, conduit, ...) for this state. */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private static java.util.List<BlockCodec.Quad> berQuads(Minecraft mc, BlockState s) {
+		if (!s.hasBlockEntity() || !(s.getBlock() instanceof net.minecraft.world.level.block.EntityBlock eb)) return java.util.List.of();
+		for (int attempt = 0; attempt < 2; attempt++) {
+			try {
+				var be = eb.newBlockEntity(BlockPos.ZERO, s);
+				if (be == null) return java.util.List.of();
+				var r = (net.minecraft.client.renderer.blockentity.BlockEntityRenderer) mc.getBlockEntityRenderDispatcher().getRenderer(be);
+				if (r == null) return java.util.List.of();
+				if (attempt == 0 && mc.level != null) be.setLevel(mc.level); // chests need a level to use their ChestType
+				Capture cap = new Capture();
+				r.render(be, 0f, new com.mojang.blaze3d.vertex.PoseStack(), cap, 0xF000F0, net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY);
+				var q = Capture.toTileQuads(cap.quads());
+				if (!q.isEmpty() || attempt == 1) { if (!q.isEmpty()) ValCraft.LOG.info("[blocks] captured {} block-entity quads for {}", q.size(), s); return q; }
+			} catch (Throwable t) { if (attempt == 1) ValCraft.LOG.warn("[blocks] block-entity capture for {} failed: {}", s, t.toString()); }
+		}
+		return java.util.List.of();
+	}
+
 	/** Blocks MC draws with the "cross" (X-shaped) / crop model. */
 	static boolean isCross(BlockState s) {
 		var b = s.getBlock();
@@ -353,16 +399,58 @@ public final class BlockSync {
 		if (nextTile >= ATLAS_TILES) return 0;
 		int tile = nextTile++;
 		tileOf.put(key, tile);
+		NativeImage src = sprite.contents().getOriginalImage();
+		int w = sprite.contents().width(), hgt = sprite.contents().height();
+		blit(src, 0, 0, w, hgt, tile, tint);
+		// animated sprite: frames into extra tiles, Valheim copies the current one into `tile`
+		try {
+			Object anim = animF().get(sprite.contents());
+			if (anim != null) {
+				java.util.List<?> frames = (java.util.List<?>) framesF().get(anim);
+				int rowSize = rowF().getInt(anim);
+				if (frames.size() > 1) {
+					int n = Math.min(frames.size(), 61);
+					int[] ft = new int[n], ticks = new int[n];
+					Map<Integer, Integer> byIndex = new HashMap<>();
+					for (int i = 0; i < n && nextTile < ATLAS_TILES; i++) {
+						Object f = frames.get(i);
+						int idx = idxF().getInt(f);
+						ticks[i] = timeF().getInt(f);
+						Integer t2 = byIndex.get(idx);
+						if (t2 == null) { t2 = nextTile++; byIndex.put(idx, t2); blit(src, (idx % rowSize) * w, (idx / rowSize) * hgt, w, hgt, t2, tint); }
+						ft[i] = t2;
+					}
+					outbox.add(BlockCodec.anim(tile, ft, ticks));
+				}
+			}
+		} catch (Throwable ex) { if (!animWarned) { animWarned = true; ValCraft.LOG.warn("[blocks] sprite animation lookup unavailable: {}", ex.toString()); } }
+		return tile;
+	}
+
+	private static boolean animWarned;
+	private static java.lang.reflect.Field fAnim, fFrames, fRow, fIdx, fTime;
+	private static java.lang.reflect.Field acc(java.lang.reflect.Field f) { f.setAccessible(true); return f; }
+	private static java.lang.reflect.Field animF() throws Exception { return fAnim != null ? fAnim : (fAnim = acc(net.minecraft.client.renderer.texture.SpriteContents.class.getDeclaredField("animatedTexture"))); }
+	private static java.lang.reflect.Field framesF() throws Exception { return fFrames != null ? fFrames : (fFrames = acc(Class.forName("net.minecraft.client.renderer.texture.SpriteContents$AnimatedTexture").getDeclaredField("frames"))); }
+	private static java.lang.reflect.Field rowF() throws Exception { return fRow != null ? fRow : (fRow = acc(Class.forName("net.minecraft.client.renderer.texture.SpriteContents$AnimatedTexture").getDeclaredField("frameRowSize"))); }
+	private static java.lang.reflect.Field idxF() throws Exception { return fIdx != null ? fIdx : (fIdx = acc(Class.forName("net.minecraft.client.renderer.texture.SpriteContents$FrameInfo").getDeclaredField("index"))); }
+	private static java.lang.reflect.Field timeF() throws Exception { return fTime != null ? fTime : (fTime = acc(Class.forName("net.minecraft.client.renderer.texture.SpriteContents$FrameInfo").getDeclaredField("time"))); }
+
+	private static void ensureAtlas() {
 		if (atlas == null) {
 			atlas = new NativeImage(ATLAS_PER_ROW * ATLAS_TILE, ATLAS_PER_ROW * ATLAS_TILE, true);
 			for (int y = 0; y < ATLAS_TILE; y++) for (int x = 0; x < ATLAS_TILE; x++) atlas.setPixelRGBA(x, y, ((x ^ y) & 4) != 0 ? 0xFFFF00FF : 0xFF000000); // tile 0 = missing
 		}
-		NativeImage src = sprite.contents().getOriginalImage();
-		int w = sprite.contents().width(), hgt = Math.min(sprite.contents().height(), w);
+	}
+
+	/** Copy (nearest-resampled) a source pixel rectangle into a tile, multiplying by tint (0xRRGGBB, -1 = none). */
+	private static void blit(NativeImage src, int sx, int sy, int sw, int sh, int tile, int tint) {
+		ensureAtlas();
 		int ox = (tile % ATLAS_PER_ROW) * ATLAS_TILE, oy = (tile / ATLAS_PER_ROW) * ATLAS_TILE;
 		int tr = (tint >> 16) & 0xFF, tg = (tint >> 8) & 0xFF, tb = tint & 0xFF;
 		for (int y = 0; y < ATLAS_TILE; y++) for (int x = 0; x < ATLAS_TILE; x++) {
-			int p = src.getPixelRGBA(x * w / ATLAS_TILE, y * hgt / ATLAS_TILE); // ABGR
+			int px = Math.min(src.getWidth() - 1, sx + x * sw / ATLAS_TILE), py = Math.min(src.getHeight() - 1, sy + y * sh / ATLAS_TILE);
+			int p = src.getPixelRGBA(px, py); // ABGR
 			if (tint != -1) {
 				int r = (p & 0xFF) * tr / 255, g = ((p >> 8) & 0xFF) * tg / 255, b = ((p >> 16) & 0xFF) * tb / 255;
 				p = (p & 0xFF000000) | (b << 16) | (g << 8) | r;
@@ -370,6 +458,17 @@ public final class BlockSync {
 			atlas.setPixelRGBA(ox + x, oy + y, p);
 		}
 		atlasDirty = true;
+	}
+
+	/** Tile for an arbitrary image region (captured entity / block-entity textures). */
+	static int tileForRegion(NativeImage img, String key, int x, int y, int w, int h, int tint) {
+		String k = key + "#" + tint;
+		Integer t = tileOf.get(k);
+		if (t != null) return t;
+		if (nextTile >= ATLAS_TILES) return 0;
+		int tile = nextTile++;
+		tileOf.put(k, tile);
+		blit(img, x, y, w, h, tile, tint);
 		return tile;
 	}
 

@@ -144,3 +144,13 @@ Version = **6** (layout unchanged).
   `u16 tile, u8 dir (facing, MC Direction ordinal), u8 cull (0-5 cull face, 6 never)`, 4 × (`i16 x,y,z` in 1/1024 block, block-local MC coords; `u16 u,v` sprite fractions × 65535, v down).
   Sent right after the palette entry for non-cube/no-collision models (torches, lanterns, chains, doors, rails, stairs, slabs, ...). Max 255 quads.
 - Valheim submeshes: 0 opaque, 1 cutout, 2 translucent, 3 emissive (light > 0, otherwise-opaque), 4 shiny.
+
+
+## v7 changes (ValCraft 0.7.3)
+Version = **7** (layout unchanged).
+- **30 BlockSyncConfig** gains a third u32: max entities.
+- Block palette: every non-cross, non-fluid block now sends model quads (EV 37); block-entity renderer geometry (chests, beds, signs, banners, skulls, shulker boxes, decorated pots, bells, conduits, ...) is captured and appended as quads whose tiles are crops of the entity textures. Boxes stay the collision shape.
+- **38 BlockAnim** MC→V: `u16 displayTile, u16 n (≤61), n × (u16 frameTile, u16 ticks)`. Valheim copies `frameTile` into `displayTile` on the GPU (20 ticks/s).
+- **39 EntMesh** MC→V: `u32 meshId, u16 firstIndex (0 = replace), u8 n (≤5), u8 last`, then n quads in the EV 37 44-byte layout, positions relative to the entity origin.
+- **40 EntUpdate** MC→V: `u8 first, u8 last, u16 n (≤11)`, n × (`u32 entityId, u32 meshId, f32 x, y, z` MC position, `u8 flags`: 1 = dropped item, Valheim spins/bobs). A first..last run is one complete snapshot (every 100 ms); entities missing from it are removed.
+- Explosions: per column, the lowest destroyed terrain-type block is sent as EV 24 BlockChanged (kind 0), so Valheim lowers its terrain.

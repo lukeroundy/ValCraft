@@ -105,7 +105,8 @@ namespace ValCraft
             var cfgL = Config.Bind("Blocks", "Lights", true, "Light-emitting Minecraft blocks (torches, lava, glowstone, lanterns...) cast Valheim point lights.");
             var cfgML = Config.Bind("Blocks", "MaxLights", 32, "Maximum number of point lights from Minecraft blocks (nearest/brightest first; nearby light blocks are merged).");
             var cfgRf = Config.Bind("Blocks", "Reflections", true, "Glossy/reflective material for glass, water, ice, metal and polished blocks + one low-res realtime reflection probe at the player (restart to apply).");
-            void ApplyBlocks() { BlockRender.Lights = cfgL.Value; BlockRender.MaxLights = Mathf.Clamp(cfgML.Value, 0, 256); BlockRender.Reflections = cfgRf.Value; BlockRender.Enabled = cfgBr.Value; BlockRender.Radius = Mathf.Clamp(cfgBrR.Value, 16, 160); BlockRender.Collision = cfgBrC.Value; }
+            var cfgME = Config.Bind("Blocks", "MaxEntities", 64, "Maximum number of Minecraft entities (dropped items, armor stands, item frames, minecarts, boats, TNT, falling blocks) drawn in Valheim.");
+            void ApplyBlocks() { BlockRender.MaxEntities = Mathf.Clamp(cfgME.Value, 0, 512); BlockRender.Lights = cfgL.Value; BlockRender.MaxLights = Mathf.Clamp(cfgML.Value, 0, 256); BlockRender.Reflections = cfgRf.Value; BlockRender.Enabled = cfgBr.Value; BlockRender.Radius = Mathf.Clamp(cfgBrR.Value, 16, 160); BlockRender.Collision = cfgBrC.Value; }
             ApplyBlocks();
             Config.SettingChanged += (_, __) => ApplyBlocks();
             var cfgYOff = Config.Bind("Terrain", "YOffset", 32f, "MC Y = Valheim Y + YOffset (sea level 30 -> MC 62; Valheim -96..288 fits MC -64..320).");

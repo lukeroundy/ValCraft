@@ -32,10 +32,10 @@ static unsafe class Program
     static bool nodsCheck;
     static int BlocksTest(string file)
     {
-        var st = new BlockStore();
+        var st = new BlockStore(); var es = new EntityStore();
         var b = System.IO.File.ReadAllBytes(file);
         int n = 0;
-        for (int o = 0; o < b.Length;) { ushort t = BitConverter.ToUInt16(b, o); int len = BitConverter.ToInt32(b, o + 2); var p = new byte[len]; Array.Copy(b, o + 6, p, 0, len); o += 6 + len; if (!st.Handle(t, p)) return Fail("unhandled type " + t); n++; }
+        for (int o = 0; o < b.Length;) { ushort t = BitConverter.ToUInt16(b, o); int len = BitConverter.ToInt32(b, o + 2); var p = new byte[len]; Array.Copy(b, o + 6, p, 0, len); o += 6 + len; if (!es.Handle(t, p) && !st.Handle(t, p)) return Fail("unhandled type " + t); n++; }
         var m = new BlockStore.MeshData();
         bool ok = true;
         void Expect((int, int, int) k, int faces) { st.Build(k, m); Console.WriteLine($"[cs] section {k}: {m.Faces} faces (expected {faces}), {m.ColTris.Count / 6} collider quads"); if (m.Faces != faces) ok = false;
@@ -75,6 +75,11 @@ static unsafe class Program
         st.Build((8, 4, 0), m);
         Console.WriteLine($"[cs] iron: layer4 (shiny) {m.Sub[4].Count / 6}");
         if (m.Sub[4].Count != 36) ok = false;
+        var an = st.Anims.TryGetValue(20, out var aa) ? aa : null;
+        Console.WriteLine($"[cs] anim: {(an == null ? "missing" : $"{an.Frames.Length} frames, total {an.Total} ticks, frame@0={an.FrameAt(0)} @3={an.FrameAt(3)} @5={an.FrameAt(5)} @8={an.FrameAt(8)}")}");
+        if (an == null || an.Total != 8 || an.FrameAt(0) != 0 || an.FrameAt(3) != 1 || an.FrameAt(5) != 2 || an.FrameAt(8) != 0) ok = false;
+        Console.WriteLine($"[cs] entities: mesh quads {(es.Meshes.TryGetValue(5, out var mq) ? mq.Count : -1)}, complete {es.CompleteMeshes.Contains(5)}, snapshot {es.Current.Count} (snapshots {es.Snapshots})");
+        if (mq == null || mq.Count != 12 || !es.CompleteMeshes.Contains(5) || es.Current.Count != 15 || es.Snapshots != 1 || es.Current[100].Flags != 1 || es.Current[114].X != 14 || Math.Abs(mq[3].Pos[1] - 0.03f) > 2e-3f) ok = false;
         Console.WriteLine($"[cs] blocks test: {n} messages, {(ok ? "PASS" : "FAIL")}");
         return ok ? 0 : 1;
     }

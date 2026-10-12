@@ -147,7 +147,7 @@ public final class TerrainSync {
 	@SubscribeEvent
 	public static void onPlace(BlockEvent.EntityPlaceEvent e) { forward(e.getPos(), 1, e.getPlacedBlock()); }
 
-	private static void forward(BlockPos p, int kind, BlockState s) {
+	static void forward(BlockPos p, int kind, BlockState s) {
 		if (!ValCraftClient.active()) return;
 		long k = key(p.getX(), p.getZ());
 		// keep the server-side column cache honest so a later Valheim resend restores/overrides correctly

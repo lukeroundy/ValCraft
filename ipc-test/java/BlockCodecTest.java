@@ -44,6 +44,14 @@ public class BlockCodecTest {
 		for (int i = 0; i < 16; i++) { lv[i] = (short) (((i >> 2) << 8) | ((i >> 1 & 1) << 4) | (i & 1)); lp[i] = 8; }
 		ev.addAll(BlockCodec.section(7, 4, 0, lv, lp, 16));
 		ev.addAll(BlockCodec.section(8, 4, 0, new short[] { 0 }, new short[] { 9 }, 1));
+		// 0.7.3: animation, entity mesh (12 quads -> 3 messages) + two-part snapshot
+		ev.add(BlockCodec.anim(20, new int[] { 21, 22, 23 }, new int[] { 2, 2, 4 }));
+		List<BlockCodec.Quad> eq = new ArrayList<>();
+		for (int i = 0; i < 12; i++) eq.add(new BlockCodec.Quad(30, 1, 6, new float[] { -0.25f, i * 0.01f, -0.25f, 0.25f, i * 0.01f, -0.25f, 0.25f, i * 0.01f, 0.25f, -0.25f, i * 0.01f, 0.25f }, new float[] { 0, 0, 1, 0, 1, 1, 0, 1 }));
+		ev.addAll(BlockCodec.entityMesh(5, eq));
+		List<BlockCodec.Ent> ents = new ArrayList<>();
+		for (int i = 0; i < 15; i++) ents.add(new BlockCodec.Ent(100 + i, 5, i, 64.5f, -i, i == 0 ? 1 : 0));
+		ev.addAll(BlockCodec.entityUpdate(ents));
 		ev.add(BlockCodec.atlas(3, 10, 64, 16, "C:/x/blocks-atlas.png"));
 		try (var out = new DataOutputStream(new FileOutputStream(a[0]))) {
 			for (var e : ev) {

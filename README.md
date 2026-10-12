@@ -306,3 +306,9 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
 - Non-cube blocks (torches, lanterns, chains, doors, rails, stairs, slabs, ...) use their real Minecraft model quads and UVs; collision still from the block shape.
 - Light-emitting blocks: pooled Unity point lights (nearby same-colour light blocks merged per 8³ cell, nearest/brightest `[Blocks] MaxLights`=32, no shadows) + emissive material. `[Blocks] Lights`.
 - `[Blocks] Reflections`: glossy material for metal/polished/glass/ice/water and one 64 px realtime reflection probe at the player (every 3 s).
+
+## 0.7.3 (protocol v7)
+- Block entities (chests, ender chests, beds, signs, banners, skulls, shulker boxes, decorated pots, bells, conduits...) captured from their renderers; all blocks now use real model quads (fixes piston/rotated textures); beacons render (no beam).
+- Animated textures (water, lava, fire, sea lantern, prismarine, magma, portal...) via GPU tile copies.
+- Entities: dropped items (spin/bob), armor stands, item frames, falling blocks, primed TNT, minecarts, boats; `[Blocks] MaxEntities`=64.
+- TNT/explosions lower Valheim terrain (one dig per column).

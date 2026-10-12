@@ -31,11 +31,18 @@ namespace ValCraft
         static int _loadedRevision = -1, _layer = -1, _messages, _built;
         static float _nextAtlasTry, _nextStat;
         static bool _sentEnabled, _configSent;
-        static int _sentRadius;
+        static int _sentRadius, _sentMaxEnt;
 
         /// <summary>Called with every M2V event; true if it was a block message.</summary>
+        internal static int MaxEntities = 64;
+        static readonly EntityStore Ents = new EntityStore();
+        static readonly Dictionary<uint, Mesh> EntMeshes = new Dictionary<uint, Mesh>();
+        static readonly Dictionary<uint, GameObject> EntObjs = new Dictionary<uint, GameObject>();
+        static Texture2D _frames; static bool _copyOk;
+
         internal static bool Handle(LinkEvent ev)
         {
+            if (Ents.Handle(ev.Type, ev.Payload)) { _messages++; return true; }
             if (!Store.Handle(ev.Type, ev.Payload)) return false;
             _messages++;
             if (Store.ResetRequested) { Store.ResetRequested = false; ValCraftPlugin.Log.LogInfo("[blocks] Minecraft reset block stream (new link)"); }
@@ -50,15 +57,19 @@ namespace ValCraft
             foreach (var go in Objects.Values) if (go != null) DestroyGo(go);
             Objects.Clear(); Store.Dirty.Clear(); SectionLights.Clear();
             foreach (var l in LightPool) if (l != null) l.enabled = false;
+            Ents.Handle(ValCraftLink.EvBlocksReset, new byte[0]);
+            foreach (var go in EntObjs.Values) if (go != null) UnityEngine.Object.Destroy(go);
+            foreach (var m in EntMeshes.Values) if (m != null) UnityEngine.Object.Destroy(m);
+            EntObjs.Clear(); EntMeshes.Clear();
         }
 
         internal static void Update(ValCraftLink link, bool connected)
         {
-            if (connected && (!_configSent || _sentEnabled != Enabled || _sentRadius != Radius))
+            if (connected && (!_configSent || _sentEnabled != Enabled || _sentRadius != Radius || _sentMaxEnt != MaxEntities))
             {
-                if (link.TrySend(ValCraftLink.EvBlockSyncConfig, Payload.U32(Enabled ? 1u : 0u, (uint)Radius)))
+                if (link.TrySend(ValCraftLink.EvBlockSyncConfig, Payload.U32(Enabled ? 1u : 0u, (uint)Radius, (uint)MaxEntities)))
                 {
-                    _configSent = true; _sentEnabled = Enabled; _sentRadius = Radius;
+                    _configSent = true; _sentEnabled = Enabled; _sentRadius = Radius; _sentMaxEnt = MaxEntities;
                     ValCraftPlugin.Log.LogInfo($"[blocks] sent config to Minecraft: render={(Enabled ? "on" : "off")}, radius {Radius}");
                 }
             }
@@ -90,6 +101,8 @@ namespace ValCraft
             foreach (var k in done) Store.Dirty.Remove(k);
             UpdateLights();
             UpdateProbe();
+            Animate();
+            UpdateEntities();
 
             float t = Time.unscaledTime;
             if (t >= _nextStat && (_messages > 0 || Objects.Count > 0))
@@ -297,6 +310,78 @@ namespace ValCraft
                 foreach (var m in _mats) if (m.HasProperty("_Cube")) m.SetTexture("_Cube", _probe.realtimeTexture);
         }
 
+        /// <summary>Animated tiles: GPU-copy the current frame tile (from an untouched copy of the atlas) into the display tile.</summary>
+        static void Animate()
+        {
+            if (_atlas == null || _frames == null || !_copyOk || Store.Anims.Count == 0) return;
+            long tick = (long)(Time.time * 20f);
+            int ts = Store.AtlasTileSize, per = Store.AtlasPerRow, h = _atlas.height;
+            foreach (var a in Store.Anims.Values)
+            {
+                int f = a.FrameAt(tick);
+                if (f == a.Current) continue;
+                a.Current = f;
+                int src = a.Frames[f], dst = a.Display;
+                try
+                {
+                    Graphics.CopyTexture(_frames, 0, 0, (src % per) * ts, h - (src / per + 1) * ts, ts, ts, _atlas, 0, 0, (dst % per) * ts, h - (dst / per + 1) * ts);
+                }
+                catch (Exception e) { _copyOk = false; ValCraftPlugin.Log.LogWarning($"[blocks] texture animation disabled: {e.Message}"); return; }
+            }
+        }
+
+        static void UpdateEntities()
+        {
+            foreach (var id in Ents.NewMeshes)
+            {
+                if (!Ents.Meshes.TryGetValue(id, out var quads)) continue;
+                Md.Clear();
+                float g = Store.AtlasPerRow, eps = 0.5f / Math.Max(1, Store.AtlasTileSize);
+                foreach (var q in quads) BlockStore.ModelQuad(Md, Md.Sub[1], q, 0, 0, 0, g, eps);
+                if (EntMeshes.TryGetValue(id, out var old) && old != null) UnityEngine.Object.Destroy(old);
+                int nv = Md.Pos.Count / 3;
+                var v = new Vector3[nv]; var n = new Vector3[nv]; var uv = new Vector2[nv]; var col = new Color32[nv];
+                for (int i = 0; i < nv; i++) { v[i] = new Vector3(Md.Pos[i * 3], Md.Pos[i * 3 + 1], Md.Pos[i * 3 + 2]); n[i] = new Vector3(Md.Nrm[i * 3], Md.Nrm[i * 3 + 1], Md.Nrm[i * 3 + 2]); uv[i] = new Vector2(Md.Uv[i * 2], Md.Uv[i * 2 + 1]); col[i] = new Color32(255, 255, 255, 255); }
+                var mesh = new Mesh { name = "mc_entity_" + id, indexFormat = IndexFormat.UInt32 };
+                mesh.vertices = v; mesh.normals = n; mesh.uv = uv; mesh.colors32 = col; mesh.SetTriangles(Md.Sub[1], 0); mesh.RecalculateBounds();
+                EntMeshes[id] = mesh;
+                foreach (var go in EntObjs.Values) if (go != null && go.name.EndsWith("#" + id)) go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            }
+            Ents.NewMeshes.Clear();
+            var seen = new HashSet<uint>();
+            int count = 0;
+            float t = Time.time;
+            foreach (var e in Ents.Current.Values)
+            {
+                if (count++ >= MaxEntities) break;
+                seen.Add(e.Id);
+                if (!EntObjs.TryGetValue(e.Id, out var go) || go == null)
+                {
+                    go = new GameObject($"mc_entity {e.Id}#{e.Mesh}");
+                    go.transform.SetParent(_root, false);
+                    go.AddComponent<MeshFilter>();
+                    var mr = go.AddComponent<MeshRenderer>(); mr.sharedMaterial = _matCutout;
+                    go.transform.localPosition = new Vector3(e.X, e.Y, -e.Z);
+                    EntObjs[e.Id] = go;
+                }
+                if (!go.name.EndsWith("#" + e.Mesh)) go.name = $"mc_entity {e.Id}#{e.Mesh}";
+                var mf = go.GetComponent<MeshFilter>();
+                EntMeshes.TryGetValue(e.Mesh, out var m);
+                if (mf.sharedMesh != m) mf.sharedMesh = m;
+                var target = new Vector3(e.X, e.Y, -e.Z);
+                if ((e.Flags & 1) != 0) target.y += Mathf.Sin(t * 2f + e.Id) * 0.1f + 0.1f;
+                var lp = go.transform.localPosition;
+                go.transform.localPosition = (lp - target).sqrMagnitude > 16f ? target : Vector3.Lerp(lp, target, Mathf.Clamp01(Time.deltaTime * 12f));
+                go.transform.localRotation = (e.Flags & 1) != 0 ? Quaternion.Euler(0, (t * 60f + e.Id * 37) % 360f, 0) : Quaternion.identity;
+            }
+            if (EntObjs.Count > seen.Count)
+            {
+                var gone = new List<uint>();
+                foreach (var id in EntObjs.Keys) if (!seen.Contains(id)) gone.Add(id);
+                foreach (var id in gone) { if (EntObjs[id] != null) UnityEngine.Object.Destroy(EntObjs[id]); EntObjs.Remove(id); }
+            }
+        }
+
         static void LoadAtlasIfChanged()
         {
             if (Store.AtlasRevision == _loadedRevision || string.IsNullOrEmpty(Store.AtlasPath)) return;
@@ -308,6 +393,9 @@ namespace ValCraft
                 var bytes = File.ReadAllBytes(Store.AtlasPath);
                 if (_atlas == null) _atlas = new Texture2D(2, 2, TextureFormat.RGBA32, false) { name = "ValCraftAtlas" };
                 if (!ImageConversion.LoadImage(_atlas, bytes, false)) throw new Exception("LoadImage failed");
+                if (_frames == null) _frames = new Texture2D(2, 2, TextureFormat.RGBA32, false) { name = "ValCraftAtlasFrames" };
+                _copyOk = ImageConversion.LoadImage(_frames, bytes, false) && SystemInfo.copyTextureSupport != CopyTextureSupport.None && _frames.format == _atlas.format;
+                foreach (var a in Store.Anims.Values) a.Current = -1;
                 _atlas.filterMode = FilterMode.Point; _atlas.wrapMode = TextureWrapMode.Clamp; _atlas.anisoLevel = 0;
                 foreach (var m in _mats) { m.mainTexture = _atlas; if (m.HasProperty("_EmissionMap")) m.SetTexture("_EmissionMap", _atlas); if (m.HasProperty("_Illum")) m.SetTexture("_Illum", _atlas); }
                 _loadedRevision = Store.AtlasRevision;
