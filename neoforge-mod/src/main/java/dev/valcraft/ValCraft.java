@@ -10,6 +10,6 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft() {
-		LOG.info("ValCraft loaded (0.8.0: Valheim item bridge)");
+		LOG.info("ValCraft loaded (0.8.1: health link + combat)");
 	}
 }

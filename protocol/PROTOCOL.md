@@ -182,3 +182,13 @@ All integers are little-endian; ids are UTF-8 Minecraft item ids (`minecraft:oak
 | 46 EvInvReq | V→MC | empty. Asks for EvInvSnapshot. |
 
 Mapping (Valheim side only): `BepInEx/config/valcraft-items.json`, `{ "ValheimPrefab": ["mc:id_given", "mc:also_accepted", ...] }`. Keys starting with `_` are comments; ids without a namespace get `minecraft:`. Reloaded within 2 s of being saved.
+
+## v11 (0.8.1) — health link + combat
+
+| Type | Dir | Payload |
+|---|---|---|
+| 28 EvAttack (extended) | MC→V | i32 kind, i32 tier, **f32 mcAttackDamage** (ATTACK_DAMAGE attribute incl. held item), **f32 strength** (attack cooldown scale 0..1). On a Valheim Character: damage = dmg × (0.2 + 0.8·str²) × [Combat] DamageScale, slash (sword/axe), pierce (pickaxe) or blunt (other/fist). |
+| 47 EvHealth | MC→V | f32 hp, f32 maxHp, u8 food, u8 flags (1 = dead). Sent on change and every 20 ticks. |
+| 48 EvDamage | V→MC | f32 amount (MC hp), u8 Valheim HitData.HitType, f32 dirX, f32 dirZ (MC axes), f32 pushForce. |
+
+Valheim player hp = mcHp / mcMax × Valheim max every frame. Damage reaching the hidden player in Character.ApplyDamage (after armor) is cancelled and forwarded as `amount = dmg / valheimMax × mcMax`. Fall hits (HitType 3) are dropped. When MC dies, Valheim gets Character.OnDeath; when MC respawns, Valheim re-anchors.

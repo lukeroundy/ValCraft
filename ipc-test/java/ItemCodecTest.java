@@ -15,6 +15,7 @@ public class ItemCodecTest {
                 for (int i = from; i < to; i++) { byte[] b = ids[i].getBytes(StandardCharsets.UTF_8); s.putShort((short)cs[i]).put((byte)b.length).put(b); }
                 w(o, s);
             }
+            var h = bb(10); h.putFloat(13.5f).putFloat(20f).put((byte)17).put((byte)1); w(o, h); // EV_HEALTH (HealthLink.java layout)
         }
         System.out.println("java items ok");
     }

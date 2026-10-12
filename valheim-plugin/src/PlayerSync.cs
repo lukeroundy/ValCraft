@@ -169,6 +169,9 @@ namespace ValCraft
             if (!connected) _haveState = false;
             else if (link.TryReadPlayerState(out var fresh)) { _state = fresh; _haveState = (fresh.Flags & ValCraftLink.PsHasPlayer) != 0; }
             var player = LocalPlayer();
+            // 0.8.1: Valheim destroys the local player on death/respawn; drop the dead reference at once (Unity null)
+            // instead of driving a destroyed object for a second, and pick up the respawned player when it appears.
+            if (Following && (_player == null || player == null || !ReferenceEquals(player, _player))) { Stop(player == null ? "local player destroyed (death/respawn)" : "local player changed (respawn)"); _wantFalseSince = -1f; }
             bool want = Enabled && _haveState && player != null && (link.PeerFlags & ValCraftLink.McFlagWorldLoaded) != 0;
             if (want) _wantFalseSince = -1f;
             else if (_wantFalseSince < 0) _wantFalseSince = Time.unscaledTime;

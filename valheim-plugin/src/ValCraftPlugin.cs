@@ -65,6 +65,7 @@ namespace ValCraft
             InputBlock.Apply(_harmony);
             PlayerSync.Apply(_harmony);
             ItemBridge.Apply(_harmony);
+            HealthLink.Apply(_harmony);
             _overlay = new Overlay(gameObject, Config.Bind("Overlay", "PremultipliedShader", false, "(Minecraft 0.4.0+ already sends straight alpha; leave off.) Use a premultiplied-alpha material for the Minecraft overlay if a suitable shader is found (turn off if the overlay looks wrong or invisible).").Value);
             _input = new InputForwarder(this);
             InputForwarder.ExcludeKeys(_cfgToggleInput.Value, _cfgToggleOverlay.Value, _cfgReAnchor.Value);
@@ -115,6 +116,10 @@ namespace ValCraft
             Config.SettingChanged += (_, __) => ApplyBlocks();
             var cfgItems = Config.Bind("Items", "Enabled", true, "Phase C item bridge: Valheim resources you gather go to your Minecraft inventory (mapping: valcraft-items.json in the config folder); Minecraft items work in Valheim fires, smelters, cooking stations and crafting.");
             ItemBridge.Enabled = cfgItems.Value;
+            HealthLink.Enabled = Config.Bind("Health", "LinkHealth", true, "Minecraft health drives the Valheim player: Valheim damage (mobs, fire, drowning...) goes to Minecraft instead, Valheim fall damage is off, and a Minecraft death kills the Valheim player (tombstone + respawn).").Value;
+            ValheimHit.Combat = Config.Bind("Combat", "Enabled", true, "Minecraft left-click on Valheim creatures damages them (attacker = your Valheim player, so aggro, skills and drops work).").Value;
+            ValheimHit.CombatScale = Config.Bind("Combat", "DamageScale", 6f, "Valheim damage per point of Minecraft attack damage at full swing (iron sword 6 -> 36, about a bronze/iron sword).").Value;
+            ValheimHit.CombatPush = Config.Bind("Combat", "Knockback", 30f, "Valheim push force of a full-strength hit.").Value;
             var cfgYOff = Config.Bind("Terrain", "YOffset", 32f, "MC Y = Valheim Y + YOffset (sea level 30 -> MC 62; Valheim -96..288 fits MC -64..320).");
             void ApplyTerrain() { TerrainExport.Enabled = cfgTerrain.Value; TerrainExport.Radius = Mathf.Clamp(cfgTerrainR.Value, 16f, 128f); PlayerSync.FixedAnchorY = cfgTerrain.Value ? -cfgYOff.Value : (float?)null; }
             ApplyTerrain();
@@ -224,7 +229,8 @@ namespace ValCraft
                         InteractBridge.Interact();
                         break;
                     default:
-                        if (!ItemBridge.Handle(ev)) BlockRender.Handle(ev);
+                        if (ev.Type == ValCraftLink.EvHealth) HealthLink.Receive(ev.Payload);
+                        else if (!ItemBridge.Handle(ev)) BlockRender.Handle(ev);
                         break;
                 }
             }
@@ -245,7 +251,7 @@ namespace ValCraft
             if (_connected && !alive)
             {
                 Log.LogInfo("[link] Minecraft heartbeat lost for 20 s; waiting for it to reconnect");
-                _connected = false; ValheimHit.Reset(); BlockRender.Clear();
+                _connected = false; ValheimHit.Reset(); HealthLink.Reset(); BlockRender.Clear();
                 SetInputActive(false);
                 PlayerSync.Stop("Minecraft disconnected");
             }
@@ -268,19 +274,20 @@ namespace ValCraft
             }
             if (kb.GetKeyDown(_cfgToggleOverlay.Value)) _overlayVisible = !_overlayVisible;
             if (kb.GetKeyDown(_cfgReAnchor.Value)) PlayerSync.ReAnchor();
-            PlayerSync.Update(Link, _connected);
-            TerrainExport.Update(Link, _connected);
-            BlockRender.Update(Link, _connected);
-            ItemBridge.Update(Link, _connected);
-            if (_connected) InteractBridge.Update(Link, PlayerSync.Following && _inputActive);
-            if (_connected) ValheimHit.Update(Link, PlayerSync.Following && _inputActive);
+            try { PlayerSync.Update(Link, _connected); } catch (Exception e) { Diag.Warn("sync", "[sync] update error: " + e.GetBaseException().Message); }
+            try { TerrainExport.Update(Link, _connected); } catch (Exception e) { Diag.Warn("terrain", "[terrain] update error: " + e.GetBaseException().Message); }
+            try { BlockRender.Update(Link, _connected); } catch (Exception e) { Diag.Warn("blocks", "[blocks] update error: " + e.GetBaseException().Message); }
+            try { ItemBridge.Update(Link, _connected); } catch (Exception e) { Diag.Warn("items", "[items] update error: " + e.GetBaseException().Message); }
+            try { HealthLink.Update(Link); } catch (Exception e) { Diag.Warn("health", "[health] update error: " + e.GetBaseException().Message); }
+            try { if (_connected) InteractBridge.Update(Link, PlayerSync.Following && _inputActive); } catch (Exception e) { Diag.Warn("interact", "[interact] update error: " + e.GetBaseException().Message); }
+            try { if (_connected) ValheimHit.Update(Link, PlayerSync.Following && _inputActive); } catch (Exception e) { Diag.Warn("hit", "[hit] update error: " + e.GetBaseException().Message); }
             if (_cfgAutoInput.Value)
             {
                 // Automatic: Minecraft gets input whenever we're in-game following MC and no Valheim UI is open.
                 bool want = _connected && PlayerSync.Following && !_valheimOverride && !ValheimUi.AnyOpen();
                 if (want != _inputActive) SetInputActive(want);
             }
-            ColliderExport.Update(Link, PlayerSync.Anchored);
+            try { ColliderExport.Update(Link, PlayerSync.Anchored); } catch (Exception e) { Diag.Warn("collision", "[collision] update error: " + e.GetBaseException().Message); }
 
             uint flags = 0;
             if (InputBlock.LocalPlayerExists()) flags |= ValCraftLink.VFlagInGame;

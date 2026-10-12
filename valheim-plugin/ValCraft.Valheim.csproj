@@ -34,11 +34,12 @@
     <Compile Include="../protocol/ValCraftLink.cs" Link="Protocol/ValCraftLink.cs" />
     <Compile Include="../protocol/BlockMesh.cs" Link="Protocol/BlockMesh.cs" />
     <Compile Include="../protocol/ItemMap.cs" Link="Protocol/ItemMap.cs" />
+    <Compile Include="../protocol/HealthCodec.cs" Link="Protocol/HealthCodec.cs" />
   </ItemGroup>
 
   <PropertyGroup>
     <BepInExPluginGuid>dev.valcraft.valheim</BepInExPluginGuid>
     <BepInExPluginName>ValCraft</BepInExPluginName>
-    <Version>0.8.0</Version>
+    <Version>0.8.1</Version>
   </PropertyGroup>
 </Project>

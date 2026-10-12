@@ -125,7 +125,7 @@ namespace ValCraft
             if (!_ok) return;
             float t = Time.unscaledTime;
             if (t >= _nextFileCheck) { _nextFileCheck = t + 2f; try { LoadMap(); } catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[items] {e.Message}"); } }
-            if (!PlayerSync.Following || PlayerSync.Player == null) return;
+            if (!PlayerSync.Following || PlayerSync.Player == null) { _spawned.Clear(); return; }
 
             // crafting session
             bool craftUi = false;
@@ -141,7 +141,7 @@ namespace ValCraft
                     if (go == null) { _spawned.Remove(go); continue; }
                     var drop = go.GetComponent(_itemDrop);
                     var nv = go.GetComponent(_znv);
-                    if (nv != null && _isOwner != null && !(bool)_isOwner.Invoke(nv, null)) { _spawned.Remove(go); continue; }
+                    if (nv == null || _isOwner == null || _sceneDestroy == null || _znsInst?.GetValue(null) == null || !(bool)_isOwner.Invoke(nv, null)) { _spawned.Remove(go); continue; }
                     var data = _itemDataF.GetValue(drop);
                     string prefab = data == null ? null : PrefabOf(data) ?? go.name.Replace("(Clone)", "");
                     string mc = Map.McFor(prefab);
@@ -150,7 +150,8 @@ namespace ValCraft
                     int n = (int)_stack.GetValue(data);
                     if (Give(mc, n, prefab, "drop"))
                     {
-                        try { if (_sceneDestroy != null && _znsInst?.GetValue(null) != null) _sceneDestroy.Invoke(_znsInst.GetValue(null), new object[] { go }); else UnityEngine.Object.Destroy(go); } catch { UnityEngine.Object.Destroy(go); }
+                        // always through ZNetScene.Destroy (a plain Object.Destroy leaves a dead entry in ZNetScene.m_instances)
+                        try { _sceneDestroy.Invoke(_znsInst.GetValue(null), new object[] { go }); } catch (Exception e) { Diag.Warn("dropdestroy", "[items] could not remove converted drop: " + e.GetBaseException().Message); }
                     }
                 }
             }

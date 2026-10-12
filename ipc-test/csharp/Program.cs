@@ -243,6 +243,10 @@ static unsafe class Program
             var snap = new ValCraft.Protocol.ItemMap.Snapshot();
             Check(!snap.Add(Next()), "snapshot part1 not final");
             Check(snap.Add(Next()) && snap.Result.Count == 3 && snap.Result["minecraft:iron_ingot"] == 300 && snap.Result["minecraft:oak_log"] == 64, "snapshot");
+            var (hp, mx, food, dead) = ValCraft.Protocol.HealthCodec.ReadHealth(Next());
+            Check(hp == 13.5f && mx == 20f && food == 17 && dead, "health");
+            var dm = ValCraft.Protocol.HealthCodec.Damage(2.5f, 1, 0.6f, -0.8f, 30f);
+            Check(dm.Length == 17 && BitConverter.ToSingle(dm, 0) == 2.5f && dm[4] == 1 && BitConverter.ToSingle(dm, 9) == -0.8f && BitConverter.ToSingle(dm, 13) == 30f, "damage");
         }
         Console.WriteLine(fail == 0 ? "items OK" : $"items {fail} failures");
         return fail == 0 ? 0 : 1;
