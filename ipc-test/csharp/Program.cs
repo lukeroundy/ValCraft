@@ -50,6 +50,23 @@ static unsafe class Program
         }
         var sw = Stopwatch.StartNew();
         var link = new ValCraftLink(path, isHost: true);
+        // collision snapshots hammered from a background thread for the whole run (reader validates consistency)
+        var collStop = false;
+        var collThread = new Thread(() =>
+        {
+            var buf = new float[ValCraftLink.CollMaxBoxes * 6];
+            int snap = 0;
+            while (!Volatile.Read(ref collStop))
+            {
+                snap++;
+                int count = 1000 + (snap * 977) % 30000;
+                for (int i = 0; i < count; i++) for (int k = 0; k < 6; k++) buf[i * 6 + k] = snap + i + (k >= 3 ? 1 : 0);
+                link.PublishCollision(buf, count);
+                Thread.Sleep(2);
+            }
+            Console.WriteLine($"[cs] published {snap} collision snapshots");
+        }) { IsBackground = true };
+        collThread.Start();
         Console.WriteLine($"[cs] created {path} ({ValCraftLink.FileSize} bytes), session {link.Session:x}");
 
         // 1. acked hello
@@ -123,6 +140,7 @@ static unsafe class Program
 
         // 5. reconnect: host restarts (re-initialises the same file, new session)
         uint oldSession = link.Session;
+        Volatile.Write(ref collStop, true); collThread.Join();
         link.Dispose();
         Thread.Sleep(300);
         link = new ValCraftLink(path, isHost: true);

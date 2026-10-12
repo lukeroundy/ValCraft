@@ -18,6 +18,7 @@ public final class IpcTestPeer {
 		}
 		System.out.println("[java] opened " + path);
 		ByteBuffer pixels = ByteBuffer.allocateDirect(ValCraftLink.FRAME_BYTES);
+		int collSeen = 0, collGood = 0, collBad = 0;
 		int session = 0; boolean acked = false; long nextHello = 0, lastHb = 0, frame = 0, frameNo = 0, lastFrameMs = 0;
 		int keys = 0, reconnects = 0;
 		while (true) {
@@ -25,6 +26,18 @@ public final class IpcTestPeer {
 			if (now - lastHb > 100) { link.heartbeat(); lastHb = now; }
 			if (!link.isReady()) { acked = false; Thread.sleep(1); continue; }
 			int s = link.session();
+			int cs = link.collisionSnapshotCount();
+			if (cs != collSeen) {
+				collSeen = cs;
+				float[] b = link.readCollision();
+				if (b != null && b.length > 0) {
+					boolean ok = b.length % 6 == 0;
+					float base = b[0];
+					for (int i = 0; ok && i < b.length / 6; i++)
+						for (int k = 0; k < 6; k++) if (b[i * 6 + k] != base + i + (k >= 3 ? 1 : 0)) { ok = false; break; }
+					if (ok) collGood++; else collBad++;
+				}
+			}
 			if (s != session) { if (session != 0) reconnects++; session = s; acked = false; nextHello = 0; }
 			if (!acked && now >= nextHello) {
 				link.trySend(ValCraftLink.EV_HELLO, ValCraftLink.ints((int) ProcessHandle.current().pid(), ValCraftLink.VERSION, session));
@@ -55,7 +68,8 @@ public final class IpcTestPeer {
 					case ValCraftLink.EV_PING -> { while (!link.trySend(ValCraftLink.EV_PONG, ev.payload())) Thread.onSpinWait(); }
 					case ValCraftLink.EV_KEY -> keys++;
 					case ValCraftLink.EV_RELEASE_ALL -> { link.trySend(ValCraftLink.EV_PONG, ByteBuffer.allocate(8).order(java.nio.ByteOrder.LITTLE_ENDIAN).putLong(-keys).array()); keys = 0; }
-					case ValCraftLink.EV_QUIT -> { System.out.println("[java] quit; frames " + frameNo + ", reconnects " + reconnects + "; PASS"); link.close(); return; }
+					case ValCraftLink.EV_QUIT -> { System.out.println("[java] collision snapshots good=" + collGood + " torn/bad=" + collBad);
+						System.out.println("[java] quit; frames " + frameNo + ", reconnects " + reconnects + (collBad == 0 && collGood > 0 ? "; PASS" : "; FAIL")); link.close(); return; }
 					default -> { }
 				}
 			}

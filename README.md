@@ -119,3 +119,30 @@ Windows test (0.3.0)
 6. Sprint: FOV widens like MC. Turn MC View Bobbing on/off: Valheim camera bobs / doesn't.
 7. F9 re-anchors. Disconnect MC: body/HUD come back, normal Valheim control.
 8. Send the new LogOutput.log (especially the `[overlay] shaders with _SrcBlend...` line).
+
+
+## 0.4.0 — crash fix + Milestone 5 part 1: Valheim collision in Minecraft
+
+**Fixed:** pressing E (inventory) crashed MC in 0.3.0 (`NullPointerException: this.camera is null` in
+`EntityRenderDispatcher.distanceToSqr` from `InventoryScreen.renderEntityInInventory`). Cause: ValCraft cancels
+`LevelRenderer.renderLevel`, which is also where MC hands the camera to the entity renderers; the inventory's player doll
+then had no camera. ValCraft now does those `prepare()` calls itself. Also fixed from Luke's log: ZoneSystem singleton
+lookup; overlay alpha (MC now sends straight alpha because Valheim has no premultiplied UI shader).
+
+**Collision:** Valheim exports colliders within `Radius` (32 m) — building pieces, doors, rocks, trees, static props — plus
+a 1 m terrain heightfield (24 m) as boxes in MC coordinates; MC's player collides with them (step-up 0.6 works, so stairs
+and 0.5 m steps are walkable) and *ignores Minecraft's own blocks* while linked (no suffocation, no server rubber-banding).
+Until the first snapshot arrives the MC player hovers. `VerticalMode` default is now `FollowMinecraft` (height comes from
+MC physics on Valheim geometry). Config `[Collision] ExportCollision`, `Radius`.
+
+**Minecraft world:** any world works (MC blocks are ignored for the player), but a *Superflat/Void* world avoids MC mobs,
+water and lava (those still act on you). The jar is client/singleplayer only — don't put it on a dedicated server.
+
+Windows test (0.4.0) — both sides must be 0.4.0 (protocol v4):
+1. Install DLL + jar. In Valheim, stand inside/near your base, start MC world.
+2. Log should show `[collision] masks ...` and `[collision] exported N boxes (...)`; MC latest.log `[collision] N Valheim boxes`.
+3. Press E, T (chat), Esc in MC: no crash. Open a crafting table/chest if you have one.
+4. Walk into walls (blocked), through open doors (pass) and closed doors (blocked), up stairs (should step), onto floors and
+   upper floors, around rocks/trees. Jump onto a 1 m ledge. Walk off a ledge (fall).
+5. Open/close a door in Valheim with input back (F7) and check it updates in MC within ~0.25 s.
+6. Send both logs; note any place you fall through or get stuck (and the piece type).

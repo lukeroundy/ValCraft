@@ -10,6 +10,6 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft() {
-		LOG.info("ValCraft loaded (milestone 3: Valheim camera + player follow Minecraft)");
+		LOG.info("ValCraft loaded (milestone 5 (part 1): Valheim collision)");
 	}
 }

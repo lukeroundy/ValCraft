@@ -71,6 +71,16 @@ static unsafe class FakeValheim
                             Console.WriteLine($"[host] MC frame {ps.FrameId} eye ({ps.X:F2},{ps.Y:F2},{ps.Z:F2}) feet ({ps.FeetX:F2},{ps.FeetY:F2},{ps.FeetZ:F2}) eyeH {ps.EyeHeight:F2} yaw {ps.Yaw:F1} pitch {ps.Pitch:F1} fov {ps.FovDeg:F1} flags {ps.Flags} bob ({ps.BobX:F3},{ps.BobY:F3},{ps.BobRollDeg:F2},{ps.BobPitchDeg:F2}) -> unity feet ({ux:F2},{uy:F2},{uz:F2}) yaw {CoordMap.YawToUnity(ps.Yaw):F1}");
                         }
                         break;
+                    case "coll": // coll <file>: 6 floats per line (MC coords minX minY minZ maxX maxY maxZ); empty file = "no collision"
+                        {
+                            var vals = new List<float>();
+                            foreach (var line in File.ReadAllLines(a[0]))
+                                foreach (var tok in line.Split(new[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries))
+                                    vals.Add(float.Parse(tok, System.Globalization.CultureInfo.InvariantCulture));
+                            link.PublishCollision(vals.ToArray(), vals.Count / 6);
+                            Console.WriteLine($"[host] published {vals.Count / 6} collision boxes");
+                            break;
+                        }
                     case "quit": goto done;
                 }
                 Console.WriteLine($"[host] {string.Join(" ", c)}");

@@ -3,7 +3,7 @@
   "minVersion": "0.8",
   "package": "dev.valcraft.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [],
+  "mixins": ["EntityCollisionMixin", "ServerMoveCheckMixin"],
   "client": [
     "GameRendererAccessor",
     "GlStateManagerMixin",

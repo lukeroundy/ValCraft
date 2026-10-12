@@ -24,7 +24,7 @@ namespace ValCraft
     {
         // config (set by plugin)
         internal static bool Enabled = true, HidePlayer = true, HideHud = true, ViewBob = true;
-        internal static VerticalMode Vertical = VerticalMode.GroundSnap;
+        internal static VerticalMode Vertical = VerticalMode.FollowMinecraft;
 
         internal static bool Following { get; private set; }
         static PlayerState _state;
@@ -38,7 +38,24 @@ namespace ValCraft
         static Quaternion _targetRot;
 
         // reflection
-        static FieldInfo _localPlayerField, _bodyField, _gcInstanceField, _gcCameraField, _hudInstanceField, _hudRootField, _zoneInstanceField;
+        static FieldInfo _localPlayerField, _bodyField, _gcInstanceField, _gcCameraField, _hudInstanceField, _hudRootField;
+        static Func<object> _zoneInstance;
+
+        internal static Func<object> FindSingleton(Type t)
+        {
+            const BindingFlags F = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+            foreach (var n in new[] { "m_instance", "s_instance", "instance", "Instance", "_instance" })
+            {
+                var f = t.GetField(n, F);
+                if (f != null) return () => f.GetValue(null);
+                var p = t.GetProperty(n, F);
+                if (p != null && p.GetGetMethod(true) != null) return () => p.GetValue(null, null);
+            }
+            return null;
+        }
+        internal static Vector3 Anchor => _anchor;
+        internal static bool Anchored => Following && _anchored;
+        internal static Component Player => _player;
         static MethodInfo _groundHeight;
         static Component _player;          // Player (MonoBehaviour)
         static Rigidbody _body;
@@ -61,11 +78,12 @@ namespace ValCraft
             _gcCameraField = gcT != null ? AccessTools.Field(gcT, "m_camera") : null;
             _hudInstanceField = hudT != null ? AccessTools.Field(hudT, "m_instance") : null;
             _hudRootField = hudT != null ? AccessTools.Field(hudT, "m_rootObject") : null;
-            _zoneInstanceField = zoneT != null ? AccessTools.Field(zoneT, "m_instance") : null;
+            // 0.3.0 log: ZoneSystem has no m_instance field. Try the usual singleton spellings quietly.
+            _zoneInstance = zoneT == null ? null : FindSingleton(zoneT);
             _groundHeight = zoneT != null ? AccessTools.Method(zoneT, "GetGroundHeight", new[] { typeof(Vector3) }) : null;
             ValCraftPlugin.Log.LogInfo($"[sync] reflection: Player.m_localPlayer={_localPlayerField != null}, Character.m_body={_bodyField != null}, " +
                 $"GameCamera.instance={_gcInstanceField != null}, GameCamera.m_camera={_gcCameraField != null}, Hud.m_rootObject={_hudRootField != null && _hudInstanceField != null}, " +
-                $"ZoneSystem.GetGroundHeight={_groundHeight != null && _zoneInstanceField != null}");
+                $"ZoneSystem.GetGroundHeight={_groundHeight != null && _zoneInstance != null}");
 
             int n = 0;
             // Camera last: after Valheim positioned it this frame.
@@ -180,7 +198,7 @@ namespace ValCraft
             if (!float.IsNegativeInfinity(best)) return best;
             try
             {
-                var zs = _zoneInstanceField?.GetValue(null);
+                var zs = _zoneInstance?.Invoke();
                 if (zs != null && _groundHeight != null) return (float)_groundHeight.Invoke(zs, new object[] { p });
             }
             catch { }

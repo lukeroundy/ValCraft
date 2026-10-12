@@ -38,6 +38,8 @@ namespace ValCraft
         internal ConfigEntry<float> CfgMouseScale;
         ConfigEntry<bool> _cfgFollow, _cfgHidePlayer, _cfgHideHud, _cfgViewBob;
         ConfigEntry<VerticalMode> _cfgVertical;
+        ConfigEntry<bool> _cfgCollision;
+        ConfigEntry<float> _cfgCollRadius;
         ConfigEntry<KeyCode> _cfgReAnchor;
 
         void Awake()
@@ -59,7 +61,7 @@ namespace ValCraft
             _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
             InputBlock.Apply(_harmony);
             PlayerSync.Apply(_harmony);
-            _overlay = new Overlay(gameObject, Config.Bind("Overlay", "PremultipliedShader", true, "Use a premultiplied-alpha material for the Minecraft overlay if a suitable shader is found (turn off if the overlay looks wrong or invisible).").Value);
+            _overlay = new Overlay(gameObject, Config.Bind("Overlay", "PremultipliedShader", false, "(Minecraft 0.4.0+ already sends straight alpha; leave off.) Use a premultiplied-alpha material for the Minecraft overlay if a suitable shader is found (turn off if the overlay looks wrong or invisible).").Value);
             _input = new InputForwarder(this);
             InputForwarder.ExcludeKeys(_cfgToggleInput.Value, _cfgToggleOverlay.Value, _cfgReAnchor.Value);
         }
@@ -80,7 +82,12 @@ namespace ValCraft
             _cfgHidePlayer = Config.Bind("Sync", "HideValheimPlayer", true, "Hide the local Valheim character's body, gear and shadow while following (it stays an invisible proxy for physics/damage/networking).");
             _cfgHideHud = Config.Bind("Sync", "HideValheimHud", true, "Hide Valheim's HUD (health, hotbar, crosshair) while following; Minecraft's HUD is shown instead.");
             _cfgViewBob = Config.Bind("Sync", "ViewBob", true, "Apply Minecraft's view bobbing to the Valheim camera (only if Minecraft's View Bobbing option is on).");
-            _cfgVertical = Config.Bind("Sync", "VerticalMode", VerticalMode.GroundSnap, "GroundSnap: stand on Valheim's ground (MC jumps/falls are added on top). FollowMinecraft: use Minecraft's height as-is (use with a flat/superflat MC world or flying).");
+            _cfgVertical = Config.Bind("Sync", "VerticalMode", VerticalMode.FollowMinecraft, "FollowMinecraft (default since 0.4.0): Minecraft's height as-is; MC collides with exported Valheim terrain + buildings. GroundSnap: 0.3.0 behaviour, stand on Valheim's ground + MC jump height (use with ExportCollision=false).");
+            _cfgCollision = Config.Bind("Collision", "ExportCollision", true, "Send nearby Valheim colliders (building pieces, rocks, trees, terrain) to Minecraft as invisible collision boxes.");
+            _cfgCollRadius = Config.Bind("Collision", "Radius", 32f, "Export radius around the player (m).");
+            void ApplyColl() { ColliderExport.Enabled = _cfgCollision.Value; ColliderExport.Radius = Mathf.Clamp(_cfgCollRadius.Value, 8f, 96f); }
+            ApplyColl();
+            Config.SettingChanged += (_, __) => ApplyColl();
             void ApplySync() { PlayerSync.Enabled = _cfgFollow.Value; PlayerSync.HidePlayer = _cfgHidePlayer.Value; PlayerSync.HideHud = _cfgHideHud.Value; PlayerSync.ViewBob = _cfgViewBob.Value; PlayerSync.Vertical = _cfgVertical.Value; }
             ApplySync();
             Config.SettingChanged += (_, __) => ApplySync();
@@ -173,6 +180,7 @@ namespace ValCraft
             if (kb.GetKeyDown(_cfgToggleOverlay.Value)) _overlayVisible = !_overlayVisible;
             if (kb.GetKeyDown(_cfgReAnchor.Value)) PlayerSync.ReAnchor();
             PlayerSync.Update(Link, _connected);
+            ColliderExport.Update(Link, PlayerSync.Anchored);
 
             uint flags = 0;
             if (InputBlock.LocalPlayerExists()) flags |= ValCraftLink.VFlagInGame;

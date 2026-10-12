@@ -94,3 +94,18 @@ PlayerState slot (0x100, seqlocked as before) extended. Offsets relative to slot
 MC: X east, Y up, Z south, right-handed; yaw 0 = facing +Z (south), +90 = facing -X (west); pitch + = down.
 Valheim/Unity: X east, Y up, Z north, left-handed. 1 block = 1 m.
 `unity = anchor + (x, y, -z)`, `unityYaw = mcYaw + 180`, `unityPitch = mcPitch`. Implemented once in `CoordMap` (ValCraftLink.cs) and unit-tested by the IPC test.
+
+
+## v4 changes (ValCraft 0.4.0)
+File grows to 0x1174040 bytes. Collision region at `OffColl = 0xFF4000` (Valheim writes, MC reads):
+
+| off | type | field |
+|---|---|---|
+| +0 | i32 | latest buffer index (0/1, -1 = none) |
+| +4 | i32 | snapshot counter (0 = nothing published yet) |
+| +16 + i*16 | u32, i32 | buffer i: seq (odd = writing), box count |
+| +0x40 + i*32768*24 | f32[6] x count | AABBs in MC coords: minX minY minZ maxX maxY maxZ |
+
+Writer fills the non-latest buffer (seq odd -> data -> count -> seq even), then publishes index and bumps the counter.
+Reader copies the latest buffer and re-checks seq (retry if changed). A snapshot with 0 boxes means "Valheim collision off".
+MC also converts exported frames to straight (non-premultiplied) alpha by default (`-Dvalcraft.unpremultiply=false` to disable).

@@ -49,7 +49,7 @@ namespace ValCraft.Protocol
     public sealed unsafe class ValCraftLink : IDisposable
     {
         public const uint Magic = 0x434C4156; // "VALC"
-        public const uint Version = 3;
+        public const uint Version = 4;
         // header
         public const int OffMagic = 0x0, OffVersion = 0x4, OffSize = 0x8, OffValheimPid = 0x10, OffMcPid = 0x14;
         public const int OffValheimHeartbeat = 0x18, OffMcHeartbeat = 0x20, OffValheimFlags = 0x28, OffMcFlags = 0x2C;
@@ -69,7 +69,11 @@ namespace ValCraft.Protocol
         // frame pixel buffers
         public const long OffFrameData = 0x22000;
         public const long FrameBytes = (long)FrameMaxW * FrameMaxH * 4;          // 0x7E9000
-        public const long FileSize = OffFrameData + 2 * FrameBytes;              // 0xFF4000 (16,728,064)
+        // v4: collision snapshot region (Valheim -> MC), double-buffered, boxes as 6 x f32 AABBs in MC coordinates.
+        public const long OffColl = OffFrameData + 2 * FrameBytes;               // 0xFF4000
+        public const int CollMaxBoxes = 32768, CollBoxBytes = 24;
+        public const long OffCollData = OffColl + 0x40;
+        public const long FileSize = OffCollData + 2L * CollMaxBoxes * CollBoxBytes; // 0x1174040
 
         // Valheim flags
         public const uint VFlagInGame = 1, VFlagMenuOpen = 2, VFlagLoading = 4, VFlagInputActive = 8, VFlagQuitting = 16;
@@ -122,7 +126,8 @@ namespace ValCraft.Protocol
             if ((uint)Volatile.Read(ref *(int*)(_base + OffMagic)) == Magic) PreviousPeerHeartbeatMs = ReadI64(OffMcHeartbeat);
             WriteU32(OffMagic, 0);
             Thread.MemoryBarrier();
-            for (long i = 4; i < OffFrameData; i++) _base[i] = 0; // pixel data need not be cleared
+            for (long i = 4; i < OffFrameData; i++) _base[i] = 0;
+            *(int*)(_base + OffColl) = -1; *(int*)(_base + OffColl + 4) = 0; // pixel data need not be cleared
             WriteU32(OffVersion, Version);
             *(long*)(_base + OffSize) = FileSize;
             WriteU32(OffValheimPid, (uint)System.Diagnostics.Process.GetCurrentProcess().Id);
@@ -209,6 +214,26 @@ namespace ValCraft.Protocol
         public long LatestFrameSeq => ReadI64(OffFrameLatestSeq);
 
         /// <summary>Returns the newest complete frame if its seq is newer than <paramref name="lastSeen"/>.</summary>
+        /// <summary>Host: publish a full collision snapshot (MC-coordinate AABBs: minX,minY,minZ,maxX,maxY,maxZ). Returns boxes written.</summary>
+        public int PublishCollision(float[] boxes, int count)
+        {
+            if (count > CollMaxBoxes) count = CollMaxBoxes;
+            uint latest = (uint)Volatile.Read(ref *(int*)(_base + OffColl));
+            int idx = latest == 0 ? 1 : 0;
+            int* ctl = (int*)(_base + OffColl + 16 + idx * 16);
+            uint seq = (uint)Volatile.Read(ref ctl[0]);
+            seq = (seq & 1) == 0 ? seq + 1 : seq;
+            Volatile.Write(ref ctl[0], (int)seq);                 // odd = writing
+            float* dst = (float*)(_base + OffCollData + (long)idx * CollMaxBoxes * CollBoxBytes);
+            for (int i = 0; i < count * 6; i++) dst[i] = boxes[i];
+            ctl[1] = count;
+            Volatile.Write(ref ctl[0], (int)(seq + 1));            // even = stable
+            Volatile.Write(ref *(int*)(_base + OffColl), idx);
+            Volatile.Write(ref *(int*)(_base + OffColl + 4), *(int*)(_base + OffColl + 4) + 1); // snapshot counter
+            return count;
+        }
+        public int CollisionSnapshotCount => Volatile.Read(ref *(int*)(_base + OffColl + 4));
+
         public bool TryGetLatestFrame(long lastSeen, out FrameView v)
         {
             v = default;

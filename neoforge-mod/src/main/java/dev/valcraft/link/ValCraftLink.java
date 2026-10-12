@@ -18,7 +18,7 @@ import java.nio.file.StandardOpenOption;
  * standalone IPC test compiles this exact file.
  */
 public final class ValCraftLink implements AutoCloseable {
-	public static final int MAGIC = 0x434C4156, VERSION = 3;
+	public static final int MAGIC = 0x434C4156, VERSION = 4;
 	static final int OFF_MAGIC = 0x0, OFF_VERSION = 0x4, OFF_VALHEIM_PID = 0x10, OFF_MC_PID = 0x14;
 	static final int OFF_VALHEIM_HB = 0x18, OFF_MC_HB = 0x20, OFF_VALHEIM_FLAGS = 0x28, OFF_MC_FLAGS = 0x2C;
 	static final int OFF_SESSION = 0x30, OFF_MC_ACKED_SESSION = 0x34;
@@ -31,7 +31,29 @@ public final class ValCraftLink implements AutoCloseable {
 	static final int OFF_RING_V2M = 0x1000, OFF_RING_M2V = OFF_RING_V2M + RING_BYTES;
 	static final int OFF_FRAME_DATA = 0x22000;
 	public static final int FRAME_BYTES = FRAME_MAX_W * FRAME_MAX_H * 4;
-	public static final long FILE_SIZE = OFF_FRAME_DATA + 2L * FRAME_BYTES;
+	static final int OFF_COLL = OFF_FRAME_DATA + 2 * FRAME_BYTES;
+	public static final int COLL_MAX_BOXES = 32768, COLL_BOX_BYTES = 24;
+	static final int OFF_COLL_DATA = OFF_COLL + 0x40;
+	public static final long FILE_SIZE = OFF_COLL_DATA + 2L * COLL_MAX_BOXES * COLL_BOX_BYTES;
+
+	/** Number of collision snapshots Valheim has published (0 = none yet). */
+	public int collisionSnapshotCount() { return (int) I32.getAcquire(buf, OFF_COLL + 4); }
+
+	/** Copy the latest collision snapshot (6 floats per box, MC coords). Returns null if none or torn twice. */
+	public float[] readCollision() {
+		for (int attempt = 0; attempt < 4; attempt++) {
+			int idx = (int) I32.getAcquire(buf, OFF_COLL);
+			if (idx != 0 && idx != 1) return null;
+			int ctl = OFF_COLL + 16 + idx * 16;
+			int seq = (int) I32.getAcquire(buf, ctl);
+			if ((seq & 1) != 0) continue;
+			int count = Math.min(Math.max(buf.getInt(ctl + 4), 0), COLL_MAX_BOXES);
+			float[] out = new float[count * 6];
+			buf.slice(OFF_COLL_DATA + idx * COLL_MAX_BOXES * COLL_BOX_BYTES, count * COLL_BOX_BYTES).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(out);
+			if ((int) I32.getAcquire(buf, ctl) == seq) return out;
+		}
+		return null;
+	}
 
 	public static final int VFLAG_IN_GAME = 1, VFLAG_MENU_OPEN = 2, VFLAG_LOADING = 4, VFLAG_INPUT_ACTIVE = 8, VFLAG_QUITTING = 16;
 	public static final int MCFLAG_WORLD_LOADED = 1, MCFLAG_HIDDEN = 2, MCFLAG_SCREEN_OPEN = 4;
@@ -131,6 +153,24 @@ public final class ValCraftLink implements AutoCloseable {
 	 * Publishes one RGBA8 bottom-up frame into the buffer the reader is not on. {@code frameNo} must increase from 1.
 	 * {@code src} position..position+w*h*4 is copied (position untouched).
 	 */
+	/**
+	 * MC's exported colour is premultiplied by coverage alpha; Valheim has no premultiplied UI shader (0.3.0 log:
+	 * "shaders with _SrcBlend/_DstBlend: none"), so convert partially transparent pixels to straight alpha here.
+	 * -Dvalcraft.unpremultiply=false disables it.
+	 */
+	public static final boolean UNPREMULTIPLY = !"false".equals(System.getProperty("valcraft.unpremultiply"));
+
+	private void unpremultiply(int off, int bytes) {
+		for (int i = off, end = off + bytes; i < end; i += 4) {
+			int a = buf.get(i + 3) & 0xFF;
+			if (a == 0 || a == 255) continue;
+			for (int c = 0; c < 3; c++) {
+				int v = (buf.get(i + c) & 0xFF) * 255 / a;
+				buf.put(i + c, (byte) Math.min(255, v));
+			}
+		}
+	}
+
 	public boolean publishFrame(long frameNo, int w, int h, ByteBuffer src) {
 		int bytes = w * h * 4;
 		if (w <= 0 || h <= 0 || w > FRAME_MAX_W || h > FRAME_MAX_H || src.remaining() < bytes) return false;
@@ -140,6 +180,7 @@ public final class ValCraftLink implements AutoCloseable {
 		I64.setOpaque(buf, hdr, frameNo * 2 - 1);
 		VarHandle.fullFence();
 		buf.put(OFF_FRAME_DATA + idx * FRAME_BYTES, src, src.position(), bytes);
+		if (UNPREMULTIPLY) unpremultiply(OFF_FRAME_DATA + idx * FRAME_BYTES, bytes);
 		buf.putInt(hdr + 8, w); buf.putInt(hdr + 12, h); buf.putInt(hdr + 16, w * 4); buf.putInt(hdr + 20, FRAME_FORMAT_RGBA8_BOTTOM_UP);
 		I64.setRelease(buf, hdr, frameNo * 2);
 		I32.setRelease(buf, OFF_FRAME_LATEST_INDEX, idx);

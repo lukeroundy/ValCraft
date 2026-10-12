@@ -32,6 +32,10 @@ public final class ValCraftClient {
 
 	/** True while connected to Valheim and the Hello was acknowledged: hidden window, no world render, injected input. */
 	public static boolean active() { return link != null && acked && !stopping; }
+	/** Valheim collision replaces MC's blocks for players (only once Valheim sent a non-empty snapshot). */
+	public static boolean collisionActive() { return active() && CollisionWorld.boxCount() > 0; }
+	private static boolean heldForCollision;
+	private static int loggedBoxes = -1;
 
 	/** True while Valheim forwards input to us (F7). */
 	public static boolean inputActive() { return active() && (link.peerFlags() & ValCraftLink.VFLAG_INPUT_ACTIVE) != 0; }
@@ -108,6 +112,21 @@ public final class ValCraftClient {
 	public static void onClientTick(ClientTickEvent.Post e) {
 		// Rendering may be skipped (noRender); keep the heartbeat alive from the tick too.
 		if (link != null && System.currentTimeMillis() >= nextHeartbeat) { link.heartbeat(); nextHeartbeat = System.currentTimeMillis() + 100; }
+		Minecraft mc = Minecraft.getInstance();
+		if (active()) {
+			CollisionWorld.poll(link);
+			if (CollisionWorld.boxCount() != loggedBoxes && (loggedBoxes <= 0 || Math.abs(CollisionWorld.boxCount() - loggedBoxes) > 500)) {
+				loggedBoxes = CollisionWorld.boxCount();
+				ValCraft.LOG.info("[collision] {} Valheim boxes", loggedBoxes);
+			}
+		}
+		// Until Valheim's first collision snapshot arrives, hover so we don't fall through MC's (ignored/void) world.
+		boolean hold = active() && mc.player != null && link.collisionSnapshotCount() == 0;
+		if (mc.player != null && hold != heldForCollision) {
+			mc.player.setNoGravity(hold);
+			heldForCollision = hold;
+		}
+		if (hold) mc.player.setDeltaMovement(mc.player.getDeltaMovement().multiply(1, 0, 1));
 	}
 
 	private static boolean ensureOpen(long now) {
@@ -128,6 +147,10 @@ public final class ValCraftClient {
 		Minecraft mc = Minecraft.getInstance();
 		VirtualInput.releaseAll(mc);
 		FrameExporter.reset();
+		CollisionWorld.clear();
+		loggedBoxes = -1;
+		if (heldForCollision && mc.player != null) mc.player.setNoGravity(false);
+		heldForCollision = false;
 		acked = false;
 		peerWasAlive = false;
 		peerGoneSince = 0;

@@ -6,7 +6,7 @@ Remove-Item $shm -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force build\java | Out-Null
 javac -d build\java ..\neoforge-mod\src\main\java\dev\valcraft\link\ValCraftLink.java java\IpcTestPeer.java
 dotnet build csharp -c Release -o build\cs -v q --nologo | Out-Null
-$j = Start-Process java -ArgumentList "-cp","build\java","IpcTestPeer",$shm -NoNewWindow -PassThru
+$j = Start-Process java -ArgumentList "-Dvalcraft.unpremultiply=false","-cp","build\java","IpcTestPeer",$shm -NoNewWindow -PassThru
 dotnet build\cs\IpcTest.dll $shm 20000
 $cs = $LASTEXITCODE
 $j.WaitForExit()
