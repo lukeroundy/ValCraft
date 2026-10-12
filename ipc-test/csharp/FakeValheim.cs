@@ -106,6 +106,7 @@ static unsafe class FakeValheim
                     case "release": link.TrySend(ValCraftLink.EvKey, Payload.I32((int)F(0), 0, 0, 0)); break;
                     case "type": foreach (char ch2 in c[1]) link.TrySend(ValCraftLink.EvChar, Payload.I32(ch2, 0)); break;
                     case "move": link.TrySend(ValCraftLink.EvMouseMove, Payload.F32(F(0), F(1), 0.5f, 0.5f)); break;
+                    case "world": { var nb = System.Text.Encoding.UTF8.GetBytes(a.Length > 1 ? string.Join(" ", a, 1, a.Length - 1) : "World"); var wp = new byte[9 + nb.Length]; BitConverter.GetBytes(long.Parse(a[0])).CopyTo(wp, 0); wp[8] = (byte)nb.Length; Array.Copy(nb, 0, wp, 9, nb.Length); Console.WriteLine($"[host] world identity {a[0]} sent={link.TrySend(ValCraftLink.EvWorldInfo, wp)} at {sw.Elapsed.TotalSeconds:F1}s"); break; }
                     case "scroll": link.TrySend(ValCraftLink.EvScroll, Payload.F32(0, F(0))); break;
                     case "input": input = a[0] == "on"; if (!input) link.TrySend(ValCraftLink.EvReleaseAll, null); break;
                     case "size": reqW = (int)F(0); reqH = (int)F(1); break;

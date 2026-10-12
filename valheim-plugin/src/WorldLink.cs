@@ -216,7 +216,7 @@ namespace ValCraft
     /// <summary>0.9.4: tell MC which Valheim world is loaded (i64 uid, utf8 name) every 2 s, so it opens the matching MC world.</summary>
     internal static class WorldInfo
     {
-        static float _next; static FieldInfo _world, _uid, _name;
+        static float _next; static FieldInfo _world, _uid, _name; static bool _loggedWait; static long _sentUid = long.MinValue;
         internal static void Update(ValCraftLink link)
         {
             if (link == null || Time.unscaledTime < _next) return;
@@ -224,11 +224,11 @@ namespace ValCraft
             if (_world == null) { _world = AccessTools.Field(AccessTools.TypeByName("ZNet"), "m_world"); var wt = AccessTools.TypeByName("World"); _uid = AccessTools.Field(wt, "m_uid"); _name = AccessTools.Field(wt, "m_name"); }
             try
             {
-                var w = _world?.GetValue(null); if (w == null || PlayerSync.Player == null) return; // only while actually in a world
+                var w = _world?.GetValue(null); if (w == null || !PlayerSync.HasLocalPlayer) { if (!_loggedWait) { _loggedWait = true; ValCraftPlugin.Log.LogInfo($"[world] no Valheim world yet (ZNet.m_world {(w == null ? "null" : "set")}, local player {PlayerSync.HasLocalPlayer})"); } return; } // 0.9.5: not Player (only set while following = chicken-and-egg)
                 long uid = (long)_uid.GetValue(w); var name = (string)_name.GetValue(w) ?? "";
                 var nb = System.Text.Encoding.UTF8.GetBytes(name); int nl = Math.Min(nb.Length, 200);
                 var p = new byte[8 + 1 + nl]; BitConverter.GetBytes(uid).CopyTo(p, 0); p[8] = (byte)nl; Array.Copy(nb, 0, p, 9, nl);
-                link.TrySend(ValCraftLink.EvWorldInfo, p);
+                if (link.TrySend(ValCraftLink.EvWorldInfo, p) && uid != _sentUid) { _sentUid = uid; _loggedWait = false; ValCraftPlugin.Log.LogInfo($"[world] sending Valheim world identity '{name}' (uid {uid})"); }
             }
             catch (Exception e) { Diag.Warn("worldinfo", "[world] " + e.GetBaseException().Message); }
         }

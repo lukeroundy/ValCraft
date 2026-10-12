@@ -45,7 +45,8 @@ final class AutoWorld {
 		return props;
 	}
 
-	static void reset() { tried = false; vUid = null; vName = null; }
+	static void reset() { tried = false; vUid = null; vName = null; waitSince = 0; }
+	private static long waitSince, lastWaitLog;
 
 	// ---------- 0.9.4: one MC world per Valheim world ----------
 	private static volatile Long vUid; private static volatile String vName;
@@ -121,10 +122,20 @@ final class AutoWorld {
 		if (!Boolean.parseBoolean(cfg0.getProperty("autoWorld", "true"))) return;
 		if (mc.level != null) { checkSwitch(mc, cfg0); return; }
 		if (tried || !(mc.screen instanceof TitleScreen)) return;
-		if (vUid == null) return; // 0.9.4: wait until Valheim has a world loaded
 		var cfg = cfg0;
+		String name;
+		if (vUid == null) {
+			// 0.9.5: wait for Valheim's world identity, but never forever: after 20 s open the legacy/default world
+			long now = System.currentTimeMillis();
+			if (waitSince == 0) { waitSince = now; ValCraft.LOG.info("[autoworld] waiting for Valheim world identity..."); }
+			if (now - waitSince < 20000) { if (now - lastWaitLog > 5000) { lastWaitLog = now; ValCraft.LOG.info("[autoworld] still waiting for Valheim world ({} s)", (now - waitSince) / 1000); } return; }
+			name = cfg.getProperty("worldName", "ValCraft").trim();
+			ValCraft.LOG.warn("[autoworld] no Valheim world identity after 20 s: opening default world '{}'", name);
+		} else {
+			name = folderFor(mc, cfg);
+			ValCraft.LOG.info("[autoworld] got identity '{}' (uid {}) -> MC world '{}'", vName, vUid, name);
+		}
 		tried = true;
-		String name = folderFor(mc, cfg);
 		try {
 			if (mc.getLevelSource().levelExists(name)) {
 				ValCraft.LOG.info("[autoworld] opening world '{}'", name);
