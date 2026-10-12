@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "C": { "item": "minecraft:cobblestone" },
+    "S": { "item": "minecraft:stick" }
+  },
+  "pattern": [
+    "CCC",
+    "CSC",
+    " S "
+  ],
+  "result": { "count": 1, "id": "minecraft:mace" }
+}
