@@ -16,7 +16,6 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.common.SimpleTier;
-import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -83,18 +82,15 @@ public final class ModContent {
 	}
 
 	public static void register(IEventBus bus) {
-		BLOCKS.register(bus); ITEMS.register(bus); ARMOR.register(bus);
-		bus.addListener(ModContent::tabs);
+		BLOCKS.register(bus); ITEMS.register(bus); ARMOR.register(bus); TABS.register(bus);
 	}
 
-	private static void tabs(BuildCreativeModeTabContentsEvent e) {
-		var k = e.getTabKey();
-		var gen = GenItems.BY_TAB.get(k == CreativeModeTabs.INGREDIENTS ? "ingredients" : k == CreativeModeTabs.COMBAT ? "combat" : k == CreativeModeTabs.TOOLS_AND_UTILITIES ? "tools" : k == CreativeModeTabs.FOOD_AND_DRINKS ? "food" : "");
-		if (gen != null) for (var g : gen) e.accept(g);
-		if (k == CreativeModeTabs.INGREDIENTS) { e.accept(RAW_TIN); e.accept(TIN_NUGGET); e.accept(TIN_INGOT); e.accept(BRONZE_INGOT); }
-		else if (k == CreativeModeTabs.NATURAL_BLOCKS) e.accept(TIN_ORE_ITEM);
-		else if (k == CreativeModeTabs.BUILDING_BLOCKS) e.accept(BRONZE_BLOCK_ITEM);
-		else if (k == CreativeModeTabs.TOOLS_AND_UTILITIES) { for (var t : TOOLS) if (!(t.get() instanceof SwordItem)) e.accept(t); }
-		else if (k == CreativeModeTabs.COMBAT) { for (var t : TOOLS) if (t.get() instanceof SwordItem || t.get() instanceof AxeItem) e.accept(t); for (var a : ARMOR_ITEMS) e.accept(a); }
-	}
+	public static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, ValCraft.MOD_ID);
+	/** 0.11.1: one ValCraft tab with every ValCraft item (not in vanilla tabs); the valheim_item placeholder is internal. */
+	public static final DeferredHolder<CreativeModeTab, CreativeModeTab> TAB = TABS.register("valcraft", () -> CreativeModeTab.builder()
+		.title(net.minecraft.network.chat.Component.translatable("itemGroup.valcraft")).icon(() -> new ItemStack(BRONZE_SWORD()))
+		.displayItems((params, out) -> {
+			for (var h : ITEMS.getEntries()) if (h.get() != VALHEIM_ITEM.get()) out.accept(h.get());
+		}).build());
+	private static Item BRONZE_SWORD() { for (var t : TOOLS) if (t.getId().getPath().equals("bronze_sword")) return t.get(); return Items.IRON_SWORD; }
 }

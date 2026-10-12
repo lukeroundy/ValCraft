@@ -11,7 +11,7 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft(IEventBus modBus) {
-		LOG.info("ValCraft loaded (0.11.0: lore stones, all Valheim items, nether/end biomes, MC combat damage, boat clamp)");
+		LOG.info("ValCraft loaded (0.11.1: ValCraft creative tab; 0.11.0: lore stones, all Valheim items, nether/end biomes, MC combat damage, boat clamp)");
 		dev.valcraft.mobs.MobSync.register(modBus);
 		dev.valcraft.content.ModContent.register(modBus);
 		if (net.neoforged.fml.loading.FMLEnvironment.dist.isClient())
