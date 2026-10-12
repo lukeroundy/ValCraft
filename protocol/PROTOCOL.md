@@ -237,3 +237,8 @@ Proxies: Valheim instantiates [Mobs] ProxyPrefab (Greyling) per MC mob with AI/a
 | 58 EvWater | V→MC | layout unchanged; now 18 m tiles (9×9 cells, 2 m): tile (tx,tz) has x0 = tx·18+1, z0 = tz·18+1. Player's tile every 0.2 s + 5 round-robin tiles of the surrounding 5×5 (≈ ±36 m). Dry tiles sent once. MC keys tiles by floor(x/18), floor(z/18); wet tiles expire after 3 s, dry after 15 s. Applies to all MC entities and boats. |
 | 59 EvLevelGround | MC→V | empty. Shift + right-click with a hoe. Valheim raycasts the camera to terrain (≤ 8 m), checks wards, levels to the player's feet Y, r 2 m (full inside 1 m, linear falloff), then re-sends the terrain tiles. MC damages the hoe by 1. |
 | 60 EvDayTime | V→MC | f32 EnvMan.GetDayFraction(), every second. MC time = (f·24000 + 18000) % 24000 on the current MC day (monotonic). doDaylightCycle off while linked, restored on unlink. |
+
+## v16 (0.9.4) — per-Valheim-world MC worlds
+| Event | Dir | Payload |
+|---|---|---|
+| 61 EvWorldInfo | V→MC | i64 ZNet.m_world.m_uid, u8 len, utf8 world name (≤200 B). Every 2 s while a Valheim world is loaded. MC maps uid → save folder in config/valcraft-worlds.properties ("ValCraft - <name>", sanitized, uid suffix on clash); the legacy "ValCraft" world is adopted by the first Valheim world seen. If MC is in another world it saves, leaves to the title screen and opens the mapped one. |

@@ -291,6 +291,7 @@ namespace ValCraft
             try { TerrainExport.Update(Link, _connected); } catch (Exception e) { Diag.Warn("terrain", "[terrain] update error: " + e.GetBaseException().Message); }
             try { BlockRender.Update(Link, _connected); } catch (Exception e) { Diag.Warn("blocks", "[blocks] update error: " + e.GetBaseException().Message); }
             try { ItemBridge.Update(Link, _connected); } catch (Exception e) { Diag.Warn("items", "[items] update error: " + e.GetBaseException().Message); }
+            try { if (_connected) WorldInfo.Update(Link); } catch (Exception e) { Diag.Warn("world", "[world] " + e.GetBaseException().Message); }
             try { if (_connected && PlayerSync.Following) DayLink.Update(Link); } catch (Exception e) { Diag.Warn("day", "[time] update error: " + e.GetBaseException().Message); }
             try { if (_connected) Hazards.Update(Link); } catch (Exception e) { Diag.Warn("hazard", "[hazard] update error: " + e.GetBaseException().Message); }
             try { if (_connected) MobBridge.Update(Link); else MobBridge.Clear("disconnected"); } catch (Exception e) { Diag.Warn("mobs", "[mobs] update error: " + e.GetBaseException().Message); }

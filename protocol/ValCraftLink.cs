@@ -49,7 +49,7 @@ namespace ValCraft.Protocol
     public sealed unsafe class ValCraftLink : IDisposable
     {
         public const uint Magic = 0x434C4156; // "VALC"
-        public const uint Version = 15;
+        public const uint Version = 16;
         // header
         public const int OffMagic = 0x0, OffVersion = 0x4, OffSize = 0x8, OffValheimPid = 0x10, OffMcPid = 0x14;
         public const int OffValheimHeartbeat = 0x18, OffMcHeartbeat = 0x20, OffValheimFlags = 0x28, OffMcFlags = 0x2C;
@@ -111,7 +111,7 @@ namespace ValCraft.Protocol
         public const ushort EvHealth = 47, EvDamage = 48;
         public const ushort EvBuildMenu = 49, EvBuildAction = 50, EvBuildState = 51, EvBuildPieces = 52, EvBuildSelect = 53;
         public const ushort EvMobList = 54, EvMobHurt = 55, EvVMobList = 56, EvVMobHurt = 57, EvWater = 58;
-        public const ushort EvLevelGround = 59, EvDayTime = 60;
+        public const ushort EvLevelGround = 59, EvDayTime = 60, EvWorldInfo = 61;
         public const int TerrainTile = 8;
         public const uint VFlagTerrainBlocks = 32;
 

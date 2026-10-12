@@ -62,6 +62,13 @@ namespace ValCraft
             return 0f;
         }
 
+        static MethodInfo _findBiome;
+        static bool IsAshlands(Vector3 p)
+        {
+            if (_findBiome == null) _findBiome = AccessTools.TypeByName("Heightmap")?.GetMethod("FindBiome", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(Vector3) }, null);
+            try { return _findBiome != null && Convert.ToInt32(_findBiome.Invoke(null, new object[] { p })) == 32; } catch { return false; }
+        }
+
         static void FireCheck(ValCraftLink link)
         {
             var pl = PlayerSync.Player; var p = pl.transform.position;
@@ -85,8 +92,8 @@ namespace ValCraft
                 {
                     try
                     {
-                        var ea = _inArea.Invoke(null, new object[] { probe, Enum.ToObject(_inArea.GetParameters()[1].ParameterType, 8 | 2), 0.3f }) as Component;
-                        if (ea != null) { float d = Math.Max(5f, FireDamage(ea)); if (d > best) { best = d; src = ea.gameObject.name + " (area)"; } break; }
+                        var ea = _inArea.Invoke(null, new object[] { probe, Enum.ToObject(_inArea.GetParameters()[1].ParameterType, 8), 0f }) as Component; // 0.9.4: Burning only (type Fire = FireWarmth comfort areas -> false burns)
+                        if (ea != null && !ea.transform.IsChildOf(pl.transform)) { float d = FireDamage(ea); if (d <= 0) continue; if (d > best) { best = d; src = ea.gameObject.name + " (area)"; } break; }
                     }
                     catch { }
                 }
@@ -113,10 +120,10 @@ namespace ValCraft
                 try
                 {
                     var fp = pl.transform.position; var hm = _hmFind.Invoke(null, new object[] { fp });
-                    if (hm != null && (bool)_hmIsLava.Invoke(hm, new object[] { fp, 0.4f }))
+                    if (hm != null && IsAshlands(fp) && (bool)_hmIsLava.Invoke(hm, new object[] { fp, 0.6f }))
                     {
                         var args = new object[] { fp, 0f };
-                        bool near = _hmHeight == null || !(bool)_hmHeight.Invoke(null, args) || fp.y - (float)args[1] < 1.0f;
+                        bool near = _hmHeight == null || !(bool)_hmHeight.Invoke(null, args) || fp.y - (float)args[1] < 0.3f;
                         lava = near;
                     }
                 }
@@ -203,6 +210,27 @@ namespace ValCraft
                 link.TrySend(ValCraftLink.EvDayTime, BitConverter.GetBytes(f));
             }
             catch (Exception e) { Diag.Warn("time", "[time] " + e.GetBaseException().Message); }
+        }
+    }
+
+    /// <summary>0.9.4: tell MC which Valheim world is loaded (i64 uid, utf8 name) every 2 s, so it opens the matching MC world.</summary>
+    internal static class WorldInfo
+    {
+        static float _next; static FieldInfo _world, _uid, _name;
+        internal static void Update(ValCraftLink link)
+        {
+            if (link == null || Time.unscaledTime < _next) return;
+            _next = Time.unscaledTime + 2f;
+            if (_world == null) { _world = AccessTools.Field(AccessTools.TypeByName("ZNet"), "m_world"); var wt = AccessTools.TypeByName("World"); _uid = AccessTools.Field(wt, "m_uid"); _name = AccessTools.Field(wt, "m_name"); }
+            try
+            {
+                var w = _world?.GetValue(null); if (w == null || PlayerSync.Player == null) return; // only while actually in a world
+                long uid = (long)_uid.GetValue(w); var name = (string)_name.GetValue(w) ?? "";
+                var nb = System.Text.Encoding.UTF8.GetBytes(name); int nl = Math.Min(nb.Length, 200);
+                var p = new byte[8 + 1 + nl]; BitConverter.GetBytes(uid).CopyTo(p, 0); p[8] = (byte)nl; Array.Copy(nb, 0, p, 9, nl);
+                link.TrySend(ValCraftLink.EvWorldInfo, p);
+            }
+            catch (Exception e) { Diag.Warn("worldinfo", "[world] " + e.GetBaseException().Message); }
         }
     }
 
