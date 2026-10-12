@@ -49,7 +49,7 @@ namespace ValCraft.Protocol
     public sealed unsafe class ValCraftLink : IDisposable
     {
         public const uint Magic = 0x434C4156; // "VALC"
-        public const uint Version = 5;
+        public const uint Version = 6;
         // header
         public const int OffMagic = 0x0, OffVersion = 0x4, OffSize = 0x8, OffValheimPid = 0x10, OffMcPid = 0x14;
         public const int OffValheimHeartbeat = 0x18, OffMcHeartbeat = 0x20, OffValheimFlags = 0x28, OffMcFlags = 0x2C;
@@ -106,7 +106,7 @@ namespace ValCraft.Protocol
         /// <summary>M->V: i32 toolKind (0 hand/other, 1 pickaxe, 2 axe, 3 sword, 4 shovel, 5 hoe), i32 mcTier (-1 none, 0 wood, 1 stone, 2 iron, 3 gold, 4 diamond, 5 netherite).</summary>
         public const ushort EvAttack = 28;
         /// <summary>v5 (0.7.0) block rendering, see PROTOCOL.md: V2M config {u32 enabled, u32 radius}; M2V palette, section begin/blocks/end, atlas, reset.</summary>
-        public const ushort EvBlockSyncConfig = 30, EvBlockPalette = 31, EvSectionBegin = 32, EvSectionBlocks = 33, EvSectionEnd = 34, EvBlockAtlas = 35, EvBlocksReset = 36;
+        public const ushort EvBlockSyncConfig = 30, EvBlockPalette = 31, EvSectionBegin = 32, EvSectionBlocks = 33, EvSectionEnd = 34, EvBlockAtlas = 35, EvBlocksReset = 36, EvBlockQuads = 37;
         public const int TerrainTile = 8;
         public const uint VFlagTerrainBlocks = 32;
 

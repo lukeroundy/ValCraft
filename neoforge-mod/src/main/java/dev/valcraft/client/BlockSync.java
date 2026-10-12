@@ -251,8 +251,11 @@ public final class BlockSync {
 				for (int j = 0; j < 3; j++) if (boxes[i * 6 + j + 3] <= boxes[i * 6 + j]) { if (boxes[i * 6 + j] >= 16) boxes[i * 6 + j]--; boxes[i * 6 + j + 3] = (byte) (boxes[i * 6 + j] + 1); }
 			}
 		} catch (Throwable t) { boxes = new byte[] { 0, 0, 0, 16, 16, 16 }; }
+		java.util.List<BlockCodec.Quad> quads = null;
 		try {
 			BakedModel model = mc.getBlockRenderer().getBlockModel(s);
+			boolean fullBox = boxes.length == 6 && boxes[0] == 0 && boxes[1] == 0 && boxes[2] == 0 && boxes[3] == 16 && boxes[4] == 16 && boxes[5] == 16;
+			if ((flags & BlockCodec.FLAG_CROSS) == 0 && (!fullBox || (flags & BlockCodec.FLAG_COLLIDES) == 0)) quads = modelQuads(mc, s, model);
 			RandomSource rand = RandomSource.create(42);
 			List<BakedQuad> general = model.getQuads(s, null, rand);
 			for (Direction d : Direction.values()) {
@@ -266,8 +269,57 @@ public final class BlockSync {
 				tiles[d.ordinal()] = tileFor(sprite, tint);
 			}
 		} catch (Throwable t) { ValCraft.LOG.warn("[blocks] textures for {}: {}", s, t.toString()); }
-		outbox.add(BlockCodec.palette(id, flags, tiles, boxes));
+		int light = 0;
+		try { light = s.getLightEmission(EmptyBlockGetter.INSTANCE, BlockPos.ZERO); } catch (Throwable t) { }
+		String name = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(s.getBlock()).getPath();
+		if (isShiny(name)) flags |= BlockCodec.FLAG_SHINY;
+		if (quads != null && !quads.isEmpty()) flags |= BlockCodec.FLAG_QUADS;
+		outbox.add(BlockCodec.palette(id, flags, tiles, boxes, light, lightColor(name)));
+		if ((flags & BlockCodec.FLAG_QUADS) != 0) outbox.addAll(BlockCodec.quads(id, quads));
 		return id;
+	}
+
+	static boolean isShiny(String n) {
+		return n.endsWith("glass") || n.endsWith("glass_pane") || n.contains("ice") || n.equals("iron_block") || n.equals("gold_block") || n.equals("diamond_block")
+				|| n.equals("emerald_block") || n.equals("netherite_block") || n.contains("copper") || n.startsWith("polished_") || n.contains("quartz")
+				|| n.contains("amethyst") || n.contains("prismarine") || n.equals("obsidian") || n.contains("glazed_terracotta");
+	}
+
+	/** Light colour (0xRRGGBB) by block name. */
+	static int lightColor(String n) {
+		if (n.contains("soul")) return 0x66E0FF;
+		if (n.contains("sea_lantern") || n.contains("end_rod") || n.contains("beacon") || n.contains("froglight") && n.startsWith("pearlescent")) return 0xD8F0FF;
+		if (n.contains("lava") || n.contains("magma")) return 0xFF7A30;
+		if (n.contains("redstone") || n.contains("crying")) return 0xFF5040;
+		if (n.contains("glowstone") || n.contains("shroomlight") || n.contains("lamp")) return 0xFFD890;
+		return 0xFFB060; // torches, lanterns, campfires, jack o'lanterns, ...
+	}
+
+	/** All model quads (directional + general) with sprite-relative UVs; vertex format BLOCK (8 ints/vertex). */
+	private static java.util.List<BlockCodec.Quad> modelQuads(Minecraft mc, BlockState s, BakedModel model) {
+		var out = new java.util.ArrayList<BlockCodec.Quad>();
+		RandomSource rand = RandomSource.create(42);
+		for (int d = 0; d <= 6; d++) {
+			Direction side = d < 6 ? Direction.values()[d] : null;
+			rand.setSeed(42);
+			for (BakedQuad q : model.getQuads(s, side, rand)) {
+				int[] v = q.getVertices();
+				int stride = v.length / 4;
+				TextureAtlasSprite sp = q.getSprite();
+				float u0 = sp.getU0(), u1 = sp.getU1(), v0 = sp.getV0(), v1 = sp.getV1();
+				float[] pos = new float[12], uv = new float[8];
+				for (int i = 0; i < 4; i++) {
+					int o = i * stride;
+					pos[i * 3] = Float.intBitsToFloat(v[o]); pos[i * 3 + 1] = Float.intBitsToFloat(v[o + 1]); pos[i * 3 + 2] = Float.intBitsToFloat(v[o + 2]);
+					uv[i * 2] = (Float.intBitsToFloat(v[o + 4]) - u0) / Math.max(1e-6f, u1 - u0);
+					uv[i * 2 + 1] = (Float.intBitsToFloat(v[o + 5]) - v0) / Math.max(1e-6f, v1 - v0);
+				}
+				int tint = q.isTinted() ? mc.getBlockColors().getColor(s, null, null, q.getTintIndex()) : -1;
+				out.add(new BlockCodec.Quad(tileFor(sp, tint), q.getDirection().ordinal(), d, pos, uv));
+				if (out.size() >= 255) return out;
+			}
+		}
+		return out;
 	}
 
 	/** Blocks MC draws with the "cross" (X-shaped) / crop model. */
@@ -288,8 +340,10 @@ public final class BlockSync {
 		int still = tileFor(atlasFn.apply(ext.getStillTexture()), tint), flow = tileFor(atlasFn.apply(ext.getFlowingTexture()), tint);
 		boolean lava = fs.is(net.minecraft.tags.FluidTags.LAVA);
 		int h = Math.max(1, Math.min(16, Math.round(fs.getOwnHeight() * 16)));
-		int flags = BlockCodec.FLAG_FLUID | (lava ? 0 : BlockCodec.FLAG_TRANSLUCENT);
-		return BlockCodec.palette(id, flags, new int[] { still, still, flow, flow, flow, flow }, new byte[] { 0, 0, 0, 16, (byte) h, 16 });
+		int flags = BlockCodec.FLAG_FLUID | (lava ? 0 : BlockCodec.FLAG_TRANSLUCENT | BlockCodec.FLAG_SHINY);
+		int light = 0; try { light = s.getLightEmission(EmptyBlockGetter.INSTANCE, BlockPos.ZERO); } catch (Throwable t) { }
+		if (lava && light == 0) light = 15;
+		return BlockCodec.palette(id, flags, new int[] { still, still, flow, flow, flow, flow }, new byte[] { 0, 0, 0, 16, (byte) h, 16 }, light, lava ? 0xFF7A30 : 0);
 	}
 
 	private static int tileFor(TextureAtlasSprite sprite, int tint) {

@@ -301,3 +301,8 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
 ## 0.7.1
 - Water/lava drawn (sloped surfaces, still/flow textures, water tinted + translucent, no collision); glass/stained glass/ice/slime/honey on a translucent material with same-block face culling; plants (flowers, grass, saplings, crops, sugar cane, ...) as X-shaped cutout quads without collision.
 - Valheim picks separate opaque / cutout / translucent shaders and logs every loaded shader name once (for tuning).
+
+## 0.7.2 (protocol v6)
+- Non-cube blocks (torches, lanterns, chains, doors, rails, stairs, slabs, ...) use their real Minecraft model quads and UVs; collision still from the block shape.
+- Light-emitting blocks: pooled Unity point lights (nearby same-colour light blocks merged per 8³ cell, nearest/brightest `[Blocks] MaxLights`=32, no shadows) + emissive material. `[Blocks] Lights`.
+- `[Blocks] Reflections`: glossy material for metal/polished/glass/ice/water and one 64 px realtime reflection probe at the player (every 3 s).

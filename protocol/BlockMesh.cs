@@ -6,10 +6,15 @@ namespace ValCraft.Protocol
     /// <summary>One MC block state as Valheim draws it (EvBlockPalette).</summary>
     public sealed class BlockPaletteEntry
     {
-        public const byte FullOpaque = 1, Collides = 2, Cutout = 4, Translucent = 8, Cross = 16, Fluid = 32;
+        public const byte FullOpaque = 1, Collides = 2, Cutout = 4, Translucent = 8, Cross = 16, Fluid = 32, Shiny = 64, HasQuads = 128;
+        public byte Light; public int LightRgb;
+        public sealed class Q { public ushort Tile; public byte Dir, Cull; public float[] Pos = new float[12], Uv = new float[8]; }
+        public readonly List<Q> Quads = new List<Q>();
+        public bool QuadsComplete;
         public bool FullBox => Boxes.Length == 6 && Boxes[0] == 0 && Boxes[1] == 0 && Boxes[2] == 0 && Boxes[3] == 16 && Boxes[4] == 16 && Boxes[5] == 16;
-        /// <summary>Submesh: 0 opaque, 1 cutout (alpha test), 2 translucent (blended).</summary>
-        public int Layer => (Flags & Fluid) != 0 ? ((Flags & Translucent) != 0 ? 2 : 0) : (Flags & Cross) != 0 ? 1 : (Flags & Translucent) != 0 ? 2 : (Flags & Cutout) != 0 ? 1 : 0;
+        /// <summary>Submesh: 0 opaque, 1 cutout (alpha test), 2 translucent (blended), 3 emissive (opaque, glowing), 4 shiny (opaque, glossy/reflective).</summary>
+        public int Layer { get { int l = BaseLayer; if (l == 0 && Light > 0) return 3; if (l == 0 && (Flags & Shiny) != 0) return 4; return l; } }
+        public int BaseLayer => (Flags & Fluid) != 0 ? ((Flags & Translucent) != 0 ? 2 : 0) : (Flags & Cross) != 0 ? 1 : (Flags & Translucent) != 0 ? 2 : (Flags & Cutout) != 0 ? 1 : 0;
         public byte Flags;
         public ushort[] Tiles = new ushort[6]; // MC Direction order: down, up, north, south, west, east
         public byte[] Boxes = { 0, 0, 0, 16, 16, 16 }; // n*6, 1/16 block
@@ -46,7 +51,29 @@ namespace ValCraft.Protocol
                     for (int i = 0; i < 6; i++) e.Tiles[i] = U(p, 4 + i * 2);
                     if (n > 0 && p.Length >= 16 + n * 6) { e.Boxes = new byte[n * 6]; Array.Copy(p, 16, e.Boxes, 0, n * 6); }
                     else if (n == 0) e.Boxes = new byte[0];
+                    int lo = 16 + n * 6;
+                    if (p.Length >= lo + 4) { e.Light = p[lo]; e.LightRgb = (p[lo + 1] << 16) | (p[lo + 2] << 8) | p[lo + 3]; }
                     Palette[U(p, 0)] = e;
+                    return true;
+                }
+                case ValCraftLink.EvBlockQuads:
+                {
+                    if (!Palette.TryGetValue(U(p, 0), out var e)) return true;
+                    int first = U(p, 2), n = p[4];
+                    if (first == 0) e.Quads.Clear();
+                    for (int i = 0; i < n && 6 + (i + 1) * 44 <= p.Length; i++)
+                    {
+                        int o = 6 + i * 44;
+                        var q = new BlockPaletteEntry.Q { Tile = U(p, o), Dir = p[o + 2], Cull = p[o + 3] };
+                        for (int v = 0; v < 4; v++)
+                        {
+                            int vo = o + 4 + v * 10;
+                            for (int c = 0; c < 3; c++) q.Pos[v * 3 + c] = BitConverter.ToInt16(p, vo + c * 2) / 1024f;
+                            for (int c = 0; c < 2; c++) q.Uv[v * 2 + c] = U(p, vo + 6 + c * 2) / 65535f;
+                        }
+                        e.Quads.Add(q);
+                    }
+                    if (p[5] != 0) e.QuadsComplete = true;
                     return true;
                 }
                 case ValCraftLink.EvSectionBegin:
@@ -96,11 +123,14 @@ namespace ValCraft.Protocol
         public sealed class MeshData
         {
             public readonly List<float> Pos = new List<float>(), Nrm = new List<float>(), Uv = new List<float>();
-            public readonly List<int>[] Sub = { new List<int>(), new List<int>(), new List<int>() };
+            public readonly List<int>[] Sub = MakeSubs();
+            static List<int>[] MakeSubs() { var a = new List<int>[5]; for (int i = 0; i < 5; i++) a[i] = new List<int>(); return a; }
             public readonly List<int> ColTris = new List<int>();
-            public int Faces => (Sub[0].Count + Sub[1].Count + Sub[2].Count) / 6;
-            public int TriCount => Sub[0].Count + Sub[1].Count + Sub[2].Count;
-            public void Clear() { Pos.Clear(); Nrm.Clear(); Uv.Clear(); foreach (var t in Sub) t.Clear(); ColTris.Clear(); }
+            /// <summary>Clustered light sources: section-local Unity position, max level, colour, block count.</summary>
+            public readonly List<(float x, float y, float z, int level, int rgb, int count)> Lights = new List<(float, float, float, int, int, int)>();
+            public int Faces => TriCount / 6;
+            public int TriCount { get { int n = 0; foreach (var t in Sub) n += t.Count; return n; } }
+            public void Clear() { Pos.Clear(); Nrm.Clear(); Uv.Clear(); foreach (var t in Sub) t.Clear(); ColTris.Clear(); Lights.Clear(); }
         }
 
         // MC directions: normal (MC coords)
@@ -115,6 +145,7 @@ namespace ValCraft.Protocol
             float g = AtlasPerRow, eps = 0.5f / Math.Max(1, AtlasTileSize);
             var c = new float[12];
             var hc = new float[4];
+            var clusters = new Dictionary<(int, int, int, int), (float x, float y, float z, int level, int count)>();
             for (int i = 0; i < 4096; i++)
             {
                 ushort id = arr[i];
@@ -123,6 +154,23 @@ namespace ValCraft.Protocol
                 int wx = bx + lx, wy = by + ly, wz = bz + lz;
                 var tris = m.Sub[e.Layer];
                 bool collides = (e.Flags & BlockPaletteEntry.Collides) != 0;
+                if (e.Light > 0)
+                {
+                    var ck = (lx >> 3, ly >> 3, lz >> 3, e.LightRgb);
+                    clusters.TryGetValue(ck, out var cl);
+                    clusters[ck] = (cl.x + lx + 0.5f, cl.y + ly + 0.5f, cl.z - (lz + 0.5f), Math.Max(cl.level, e.Light), cl.count + 1);
+                }
+                bool useQuads = (e.Flags & BlockPaletteEntry.HasQuads) != 0 && e.Quads.Count > 0;
+                if (useQuads)
+                {
+                    foreach (var q in e.Quads)
+                    {
+                        if (q.Cull < 6 && Occludes(wx + Dir[q.Cull, 0], wy + Dir[q.Cull, 1], wz + Dir[q.Cull, 2])) continue;
+                        ModelQuad(m, tris, q, lx, ly, lz, g, eps);
+                    }
+                    if (!collides) continue;
+                    tris = null; // boxes below: collision only
+                }
                 if ((e.Flags & BlockPaletteEntry.Cross) != 0) { Cross(m, tris, e.Tiles[2], lx, ly, lz, g, eps); continue; }
                 bool fluid = (e.Flags & BlockPaletteEntry.Fluid) != 0;
                 if (fluid)
@@ -156,7 +204,26 @@ namespace ValCraft.Protocol
                     }
                 }
             }
+            foreach (var kv in clusters) { var v = kv.Value; m.Lights.Add((v.x / v.count, v.y / v.count, v.z / v.count, v.level, kv.Key.Item4, v.count)); }
         }
+
+        /// <summary>A baked-model quad: positions block-local MC, uv = sprite fractions (v down).</summary>
+        static void ModelQuad(MeshData m, List<int> tris, BlockPaletteEntry.Q q, int lx, int ly, int lz, float g, float eps)
+        {
+            float col = q.Tile % (int)g, row = q.Tile / (int)g, span = 1 - 2 * eps, vTop = 1f - row / g;
+            int start = m.Pos.Count / 3;
+            int d = Math.Min((int)q.Dir, 5);
+            for (int k = 0; k < 4; k++)
+            {
+                m.Pos.Add(lx + q.Pos[k * 3]); m.Pos.Add(ly + q.Pos[k * 3 + 1]); m.Pos.Add(-(lz + q.Pos[k * 3 + 2]));
+                m.Nrm.Add(Dir[d, 0]); m.Nrm.Add(Dir[d, 1]); m.Nrm.Add(-Dir[d, 2]);
+                m.Uv.Add((col + eps + Clamp01(q.Uv[k * 2]) * span) / g); m.Uv.Add(vTop - (eps + Clamp01(q.Uv[k * 2 + 1]) * span) / g);
+            }
+            int a0 = start, a1 = start + 1, a2 = start + 2, a3 = start + 3;
+            if (!Front(m.Pos, a0, a1, a2, Dir[d, 0], Dir[d, 1], -Dir[d, 2])) { int t = a1; a1 = a3; a3 = t; }
+            tris.Add(a0); tris.Add(a1); tris.Add(a2); tris.Add(a0); tris.Add(a2); tris.Add(a3);
+        }
+        static float Clamp01(float v) => v < 0 ? 0 : v > 1 ? 1 : v;
 
         bool SameFluid(BlockPaletteEntry e, int x, int y, int z)
         {
@@ -209,7 +276,7 @@ namespace ValCraft.Protocol
                 m.Uv.Add(U0); m.Uv.Add(V0); m.Uv.Add(U1); m.Uv.Add(V0); m.Uv.Add(U1); m.Uv.Add(V1); m.Uv.Add(U0); m.Uv.Add(V1);
                 int a0 = start, a1 = start + 1, a2 = start + 2, a3 = start + 3;
                 if (!Front(m.Pos, a0, a1, a2, nx * sn, ny * sn, nz * sn)) { int t = a1; a1 = a3; a3 = t; }
-                tris.Add(a0); tris.Add(a1); tris.Add(a2); tris.Add(a0); tris.Add(a2); tris.Add(a3);
+                tris?.Add(a0); tris?.Add(a1); tris?.Add(a2); tris?.Add(a0); tris?.Add(a2); tris?.Add(a3);
                 if (collides) { m.ColTris.Add(a0); m.ColTris.Add(a1); m.ColTris.Add(a2); m.ColTris.Add(a0); m.ColTris.Add(a2); m.ColTris.Add(a3); }
             }
         }

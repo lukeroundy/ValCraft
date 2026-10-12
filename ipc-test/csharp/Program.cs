@@ -66,6 +66,15 @@ static unsafe class Program
         nodsCheck = true; st.Build((5, 4, 0), m); nodsCheck = false;
         Console.WriteLine($"[cs] plant: {m.Faces} quads, cutout {m.Sub[1].Count / 6}, collider {m.ColTris.Count}");
         if (m.Faces != 4 || m.Sub[1].Count != 24 || m.ColTris.Count != 0) ok = false;
+        st.Build((6, 4, 0), m);
+        Console.WriteLine($"[cs] torch: {m.Faces} quads (layer1 {m.Sub[1].Count / 6}), collider {m.ColTris.Count}, lights {m.Lights.Count}, palette quads {st.Palette[7].Quads.Count}, light {st.Palette[7].Light} rgb {st.Palette[7].LightRgb:X6}");
+        if (st.Palette[7].Quads.Count != 7 || !st.Palette[7].QuadsComplete || m.Sub[1].Count != 42 || m.ColTris.Count != 0 || m.Lights.Count != 1 || m.Lights[0].level != 14 || st.Palette[7].LightRgb != 0xFFB060) ok = false;
+        st.Build((7, 4, 0), m);
+        Console.WriteLine($"[cs] lava: {m.Faces} faces, layer3 (emissive) {m.Sub[3].Count / 6}, lights {m.Lights.Count} (count {(m.Lights.Count > 0 ? m.Lights[0].count : 0)})");
+        if (m.Lights.Count != 1 || m.Lights[0].count != 16 || m.Sub[3].Count == 0 || m.ColTris.Count != 0) ok = false;
+        st.Build((8, 4, 0), m);
+        Console.WriteLine($"[cs] iron: layer4 (shiny) {m.Sub[4].Count / 6}");
+        if (m.Sub[4].Count != 36) ok = false;
         Console.WriteLine($"[cs] blocks test: {n} messages, {(ok ? "PASS" : "FAIL")}");
         return ok ? 0 : 1;
     }

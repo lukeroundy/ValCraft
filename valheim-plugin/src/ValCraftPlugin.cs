@@ -102,7 +102,10 @@ namespace ValCraft
             var cfgBr = Config.Bind("Blocks", "RenderBlocks", true, "Draw Minecraft blocks that aren't Valheim terrain (your builds, placed blocks) inside Valheim.");
             var cfgBrR = Config.Bind("Blocks", "Radius", 64, "Radius (m = blocks) around the player in which Minecraft blocks are drawn (16-160).");
             var cfgBrC = Config.Bind("Blocks", "Collision", true, "Give drawn Minecraft blocks Valheim colliders (piece layer), so Valheim physics/raycasts see them.");
-            void ApplyBlocks() { BlockRender.Enabled = cfgBr.Value; BlockRender.Radius = Mathf.Clamp(cfgBrR.Value, 16, 160); BlockRender.Collision = cfgBrC.Value; }
+            var cfgL = Config.Bind("Blocks", "Lights", true, "Light-emitting Minecraft blocks (torches, lava, glowstone, lanterns...) cast Valheim point lights.");
+            var cfgML = Config.Bind("Blocks", "MaxLights", 32, "Maximum number of point lights from Minecraft blocks (nearest/brightest first; nearby light blocks are merged).");
+            var cfgRf = Config.Bind("Blocks", "Reflections", true, "Glossy/reflective material for glass, water, ice, metal and polished blocks + one low-res realtime reflection probe at the player (restart to apply).");
+            void ApplyBlocks() { BlockRender.Lights = cfgL.Value; BlockRender.MaxLights = Mathf.Clamp(cfgML.Value, 0, 256); BlockRender.Reflections = cfgRf.Value; BlockRender.Enabled = cfgBr.Value; BlockRender.Radius = Mathf.Clamp(cfgBrR.Value, 16, 160); BlockRender.Collision = cfgBrC.Value; }
             ApplyBlocks();
             Config.SettingChanged += (_, __) => ApplyBlocks();
             var cfgYOff = Config.Bind("Terrain", "YOffset", 32f, "MC Y = Valheim Y + YOffset (sea level 30 -> MC 62; Valheim -96..288 fits MC -64..320).");

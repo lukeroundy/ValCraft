@@ -10,6 +10,6 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft() {
-		LOG.info("ValCraft loaded (0.7.1: fluids, glass, plants)");
+		LOG.info("ValCraft loaded (0.7.2: model quads, block lights, reflections)");
 	}
 }

@@ -29,6 +29,21 @@ public class BlockCodecTest {
 		ev.addAll(BlockCodec.section(3, 4, 0, new short[] { 0, 1 }, new short[] { 3, 3 }, 2));
 		ev.addAll(BlockCodec.section(4, 4, 0, new short[] { 0, 1 }, new short[] { 4, 5 }, 2));
 		ev.addAll(BlockCodec.section(5, 4, 0, new short[] { 0 }, new short[] { 6 }, 1));
+		// 0.7.2: torch as 7 model quads (multi-message), light 14; lava cluster; shiny iron block
+		ev.add(BlockCodec.palette(7, BlockCodec.FLAG_CUTOUT | BlockCodec.FLAG_QUADS, new int[] { 9, 9, 9, 9, 9, 9 }, new byte[] { 7, 0, 7, 9, 10, 9 }, 14, 0xFFB060));
+		List<BlockCodec.Quad> q = new ArrayList<>();
+		for (int i = 0; i < 7; i++) {
+			float x = 7 / 16f + i * 0.01f;
+			q.add(new BlockCodec.Quad(9, 4, 6, new float[] { x, 0, 0.4375f, x, 0, 0.5625f, x, 0.625f, 0.5625f, x, 0.625f, 0.4375f }, new float[] { 0.4375f, 1, 0.5625f, 1, 0.5625f, 0.375f, 0.4375f, 0.375f }));
+		}
+		ev.addAll(BlockCodec.quads(7, q));
+		ev.add(BlockCodec.palette(8, BlockCodec.FLAG_FULL_OPAQUE | BlockCodec.FLAG_FLUID, new int[] { 10, 10, 11, 11, 11, 11 }, new byte[] { 0, 0, 0, 16, 14, 16 }, 15, 0xFF7A30));
+		ev.add(BlockCodec.palette(9, BlockCodec.FLAG_FULL_OPAQUE | BlockCodec.FLAG_COLLIDES | BlockCodec.FLAG_SHINY, new int[] { 12, 12, 12, 12, 12, 12 }, new byte[] { 0, 0, 0, 16, 16, 16 }));
+		ev.addAll(BlockCodec.section(6, 4, 0, new short[] { 0 }, new short[] { 7 }, 1));
+		short[] lv = new short[16], lp = new short[16];
+		for (int i = 0; i < 16; i++) { lv[i] = (short) (((i >> 2) << 8) | ((i >> 1 & 1) << 4) | (i & 1)); lp[i] = 8; }
+		ev.addAll(BlockCodec.section(7, 4, 0, lv, lp, 16));
+		ev.addAll(BlockCodec.section(8, 4, 0, new short[] { 0 }, new short[] { 9 }, 1));
 		ev.add(BlockCodec.atlas(3, 10, 64, 16, "C:/x/blocks-atlas.png"));
 		try (var out = new DataOutputStream(new FileOutputStream(a[0]))) {
 			for (var e : ev) {

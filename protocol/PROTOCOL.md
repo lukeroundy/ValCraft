@@ -135,3 +135,12 @@ BlockPalette flags gain **8 translucent** (alpha-blended submesh), **16 cross** 
 neighbours, full height when the same fluid is above; faces against the same fluid are culled; no collision).
 Fluids are identified as "the same fluid" by equal tile[1]. Full-box non-opaque blocks cull faces against the same palette id (glass-glass).
 Valheim uses 3 submeshes/materials: 0 opaque, 1 cutout, 2 translucent.
+
+
+## v6 changes (ValCraft 0.7.2)
+Version = **6** (layout unchanged).
+- **BlockPalette** gains 4 trailing bytes after the boxes: `u8 lightLevel (0-15), u8 r, g, b` light colour. New flags: **64 shiny** (glossy/reflective submesh), **128 has model quads** (render from EV 37 quads; boxes are then used for collision only).
+- **37 BlockQuads** MC→V: `u16 paletteId, u16 firstIndex (0 = replace), u8 n (≤5), u8 last`, then n × 44 bytes:
+  `u16 tile, u8 dir (facing, MC Direction ordinal), u8 cull (0-5 cull face, 6 never)`, 4 × (`i16 x,y,z` in 1/1024 block, block-local MC coords; `u16 u,v` sprite fractions × 65535, v down).
+  Sent right after the palette entry for non-cube/no-collision models (torches, lanterns, chains, doors, rails, stairs, slabs, ...). Max 255 quads.
+- Valheim submeshes: 0 opaque, 1 cutout, 2 translucent, 3 emissive (light > 0, otherwise-opaque), 4 shiny.
