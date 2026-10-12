@@ -56,6 +56,7 @@ namespace ValCraft
         internal static Vector3 Anchor => _anchor;
         internal static bool Anchored => Following && _anchored;
         internal static Component Player => _player;
+        internal static bool HasLocalPlayer => LocalPlayer() != null;
         static MethodInfo _groundHeight;
         static Component _player;          // Player (MonoBehaviour)
         static Rigidbody _body;

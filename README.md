@@ -180,3 +180,15 @@ Phase B: MC break/place -> Valheim. MC sends BlockChanged(x,y,z,old,new); Valhei
 Phase C: Valheim -> MC terrain edits (other players digging) re-sync the affected chunks; drops/item mapping.
 Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs later), chunk volume (send on demand),
   multiplayer authority (Valheim owns terrain; MC edits are requests).
+
+
+## 0.4.2 — fixes for the 0.4.1 regression
+- **No overlay / Valheim body visible:** MC's render thread is blocked for a few seconds while the auto-world opens. Valheim
+  declared MC dead after 2 s without a heartbeat and then only accepted a fresh Hello, which an already-linked MC never sends
+  -> stuck unlinked forever. Fixed both ends: MC heartbeats from a background thread (max gap in test: 118 ms during world
+  load), Valheim only logs "not responding" after 2 s, drops after 20 s, and re-links automatically when the same MC's
+  heartbeat resumes. A `[link] status:` line is logged every 30 s while not connected/following, saying why.
+- **Prism opened but didn't launch:** `--launch` takes the instance *ID* = folder name (Luke's is `1.21.1`, display name
+  `valcraft`); config said `ValCraft`. The plugin now lists Prism's instances and resolves `PrismInstance` by folder name,
+  case-insensitive folder name, display name (instance.cfg `name=`), or the only instance with a valcraft jar, and logs
+  `[launch] instance "X" -> ID "Y" (why)`. Honours portable installs and `InstanceDir=` in prismlauncher.cfg.

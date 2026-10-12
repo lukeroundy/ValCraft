@@ -18,7 +18,7 @@ static unsafe class FakeValheim
         Console.WriteLine($"[host] created {path}, session {link.Session:x8}; commands from {cmdFile}");
         File.WriteAllText(cmdFile, "");
         var sw = Stopwatch.StartNew();
-        bool connected = false, input = true; uint mcPid = 0; int cmdLine = 0;
+        long maxHbAge = 0; bool connected = false, input = true; uint mcPid = 0; int cmdLine = 0;
         long lastSeq = 0, frames = 0, rejected = 0, waitUntil = 0;
         int reqW = 1280, reqH = 720;
         var pending = new Queue<string>();
@@ -28,6 +28,11 @@ static unsafe class FakeValheim
             link.Heartbeat();
             link.RequestFrameSize(reqW, reqH);
             link.Flags = ValCraftLink.VFlagInGame | (input ? ValCraftLink.VFlagInputActive : 0);
+            if (connected && link.PeerHeartbeatMs != 0)
+            {
+                long age = ValCraftLink.NowMs() - link.PeerHeartbeatMs;
+                if (age > maxHbAge) { maxHbAge = age; if (age > 1000) Console.WriteLine($"[host] MC heartbeat gap {age} ms at {sw.Elapsed.TotalSeconds:F1}s"); }
+            }
             while (link.TryReceive(out var ev))
                 if (ev.Type == ValCraftLink.EvHello && Payload.GetU32(ev.Payload, 2) == link.Session)
                 {
@@ -64,6 +69,7 @@ static unsafe class FakeValheim
                     case "size": reqW = (int)F(0); reqH = (int)F(1); break;
                     case "dump": Dump(copy, cw, ch, a[0]); Console.WriteLine($"[host] dump {a[0]} {cw}x{ch} frames={frames} rejected={rejected} mcFlags={link.PeerFlags}"); break;
                     case "wait": waitUntil = sw.ElapsedMilliseconds + (long)F(0); break;
+                    case "hb": Console.WriteLine($"[host] max MC heartbeat gap so far: {maxHbAge} ms"); break;
                     case "state":
                         if (link.TryReadPlayerState(out var ps))
                         {

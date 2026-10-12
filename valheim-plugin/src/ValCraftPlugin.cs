@@ -35,7 +35,8 @@ namespace ValCraft
         ConfigEntry<string> _cfgPrismExe, _cfgInstance, _cfgExtraArgs;
         ConfigEntry<KeyCode> _cfgToggleInput, _cfgToggleOverlay;
         ConfigEntry<bool> _cfgAutoInput;
-        bool _valheimOverride;
+        bool _valheimOverride, _stallLogged;
+        float _nextLinkStatus;
         ConfigEntry<int> _cfgQuitGrace;
         internal ConfigEntry<float> CfgMouseScale;
         ConfigEntry<bool> _cfgFollow, _cfgHidePlayer, _cfgHideHud, _cfgViewBob;
@@ -143,7 +144,9 @@ namespace ValCraft
             if (!File.Exists(exe)) { Log.LogWarning($"[launch] PrismExe not found: {exe}"); return; }
             if (Link != null && Link.PreviousPeerHeartbeatMs != 0 && ValCraftLink.NowMs() - Link.PreviousPeerHeartbeatMs < 3000)
             { Log.LogInfo("[launch] a ValCraft Minecraft is already running; it will reconnect, not launching another"); return; }
-            string args = $"--launch \"{_cfgInstance.Value}\" {_cfgExtraArgs.Value}".Trim();
+            string id = PrismInstances.Resolve(exe, (_cfgInstance.Value ?? "").Trim());
+            if (id == null) return;
+            string args = $"--launch \"{id}\" {_cfgExtraArgs.Value}".Trim();
             try
             {
                 Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });
@@ -177,13 +180,34 @@ namespace ValCraft
                 }
             }
 
-            bool alive = Link.PeerAlive();
+            // 0.4.1 bug: MC's render thread stalls for >2 s while opening/joining a world. Valheim dropped the link after
+            // 2 s and only re-linked on a new Hello, but MC (still acked) never re-sends one -> no overlay, no follow, forever.
+            // Now: a stall is only reported; the link drops after 20 s; and a resumed heartbeat from the same acked MC
+            // re-links without a Hello.
+            long hbAge = Link.PeerHeartbeatMs == 0 ? long.MaxValue : ValCraftLink.NowMs() - Link.PeerHeartbeatMs;
+            bool alive = hbAge < 20000;
+            if (_connected && hbAge > 2000 && !_stallLogged) { _stallLogged = true; Log.LogInfo("[link] Minecraft not responding (busy loading?) — keeping the link"); }
+            if (hbAge < 1000 && _stallLogged) { _stallLogged = false; if (_connected) Log.LogInfo("[link] Minecraft responding again"); }
+            if (!_connected && hbAge < 1000 && _mcPid != 0 && Link.McAckedSession == Link.Session)
+            {
+                _connected = true;
+                Log.LogInfo($"[link] Minecraft pid {_mcPid} heartbeat resumed; re-linked (same session)");
+            }
             if (_connected && !alive)
             {
-                Log.LogInfo("[link] Minecraft heartbeat lost; waiting for it to reconnect");
+                Log.LogInfo("[link] Minecraft heartbeat lost for 20 s; waiting for it to reconnect");
                 _connected = false;
                 SetInputActive(false);
                 PlayerSync.Stop("Minecraft disconnected");
+            }
+
+            if (t >= _nextLinkStatus)
+            {
+                _nextLinkStatus = t + 30f;
+                if (!_connected)
+                    Log.LogInfo($"[link] status: not connected (MC heartbeat age {(Link.PeerHeartbeatMs == 0 ? "never" : (ValCraftLink.NowMs() - Link.PeerHeartbeatMs) + " ms")}, MC acked session {Link.McAckedSession:x8}, ours {Link.Session:x8})");
+                else if (!PlayerSync.Following)
+                    Log.LogInfo($"[link] status: connected, not following (MC world loaded={(Link.PeerFlags & ValCraftLink.McFlagWorldLoaded) != 0}, Valheim player={(PlayerSync.HasLocalPlayer ? "yes" : "no")}, FollowMinecraft={PlayerSync.Enabled})");
             }
 
             var kb = UnityInput.Current;

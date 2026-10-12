@@ -22,11 +22,12 @@ public final class ValCraftClient {
 	static final boolean EXIT_WITH_VALHEIM = !"false".equalsIgnoreCase(System.getProperty("valcraft.exitWithValheim"));
 	static final long PEER_TIMEOUT_MS = 2000, PEER_GONE_EXIT_MS = 5000;
 
-	private static ValCraftLink link;
+	private static volatile ValCraftLink link;
 	private static int session;
-	private static boolean acked;
+	private static volatile boolean acked;
 	private static long nextOpenAttempt, nextHello, nextHeartbeat, playerFrame, peerGoneSince;
-	private static boolean peerWasAlive, stopping;
+	private static boolean peerWasAlive;
+	private static volatile boolean stopping;
 
 	private ValCraftClient() {}
 
@@ -39,6 +40,23 @@ public final class ValCraftClient {
 		return active() && (link.collisionSnapshotCount() == 0 || CollisionWorld.boxCount() > 0);
 	}
 	private static boolean heldForCollision;
+	/**
+	 * Heartbeat from a daemon thread as well: opening/joining a world blocks the render thread for seconds, which made
+	 * Valheim 0.4.1 drop the link for good (see Valheim log "heartbeat lost" right after "[autoworld] opening world").
+	 */
+	static {
+		Thread t = new Thread(() -> {
+			while (true) {
+				try {
+					ValCraftLink l = link;
+					if (l != null && acked && !stopping) l.heartbeat();
+					Thread.sleep(100);
+				} catch (InterruptedException e) { return; } catch (Throwable ignored) { }
+			}
+		}, "ValCraft heartbeat");
+		t.setDaemon(true);
+		t.start();
+	}
 	private static int loggedBoxes = -1;
 
 	/** True while Valheim forwards input to us (F7). */
