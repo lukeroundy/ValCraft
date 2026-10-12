@@ -96,6 +96,16 @@ public final class BlockSync {
 	@SubscribeEvent
 	public static void onExplosion(net.neoforged.neoforge.event.level.ExplosionEvent.Detonate e) {
 		if (!ValCraftClient.active()) return;
+		// 0.10.0: mob explosions (creepers etc.) don't touch the ground at all: no MC terrain blocks destroyed, no Valheim dig
+		var src = e.getExplosion().getDirectSourceEntity();
+		var causer = e.getExplosion().getIndirectSourceEntity();
+		boolean tnt = src instanceof net.minecraft.world.entity.item.PrimedTnt || src instanceof net.minecraft.world.entity.vehicle.MinecartTNT;
+		if (!tnt && (src instanceof net.minecraft.world.entity.Mob || causer instanceof net.minecraft.world.entity.Mob)) {
+			int before = e.getAffectedBlocks().size();
+			e.getAffectedBlocks().removeIf(p -> TerrainSync.isTerrainBlock(e.getLevel().getBlockState(p)));
+			if (before != e.getAffectedBlocks().size()) ValCraft.LOG.debug("[terrain] mob explosion: {} ground blocks kept", before - e.getAffectedBlocks().size());
+			return;
+		}
 		java.util.Map<Long, BlockPos> lowest = new java.util.HashMap<>();
 		java.util.Map<Long, BlockState> st = new java.util.HashMap<>();
 		for (BlockPos p : e.getAffectedBlocks()) {
@@ -174,7 +184,7 @@ public final class BlockSync {
 				BlockState s = sec.getBlockState(x, y, z);
 				if (s.isAir()) continue;
 				int wx = (sx << 4) + x, wy = (sy << 4) + y, wz = (sz << 4) + z;
-				if (TerrainSync.isTerrainBlock(s)) { int top = TerrainSync.terrainTop(wx, wz); if (top == Integer.MIN_VALUE || wy <= top) continue; }
+				if (TerrainSync.isTerrainBlock(s) || TerrainSync.isLegacyTerrain(s, wy, TerrainSync.terrainTop(wx, wz))) { int top = TerrainSync.terrainTop(wx, wz); if (top == Integer.MIN_VALUE || wy <= top) continue; }
 				if (s.getRenderShape() == net.minecraft.world.level.block.RenderShape.INVISIBLE && s.getFluidState().isEmpty()) continue;
 				int id = Block.getId(s);
 				tmpLocal[n] = (short) ((y << 8) | (z << 4) | x); tmpState[n] = id; n++;
@@ -352,6 +362,19 @@ public final class BlockSync {
 		return out;
 	}
 
+	private static final java.util.Map<net.minecraft.world.level.block.Block, Boolean> liveBe = new java.util.concurrent.ConcurrentHashMap<>();
+	/** 0.10.0: modded block entities with a renderer (Create shafts, cogs, water wheels, belts, presses...): captured from the real
+	 *  in-world block entity per position (they need their level / neighbours / animation state), not from a dummy per state. */
+	static boolean isLiveBe(Minecraft mc, BlockState s) {
+		if (!s.hasBlockEntity() || !(s.getBlock() instanceof net.minecraft.world.level.block.EntityBlock eb)) return false;
+		return liveBe.computeIfAbsent(s.getBlock(), b -> {
+			var id = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(b);
+			if (id == null || "minecraft".equals(id.getNamespace())) return false;
+			try { var be = eb.newBlockEntity(BlockPos.ZERO, s); return be != null && mc.getBlockEntityRenderDispatcher().getRenderer(be) != null; }
+			catch (Throwable t) { ValCraft.LOG.info("[blocks] live-BE probe {} failed: {}", id, t.toString()); return false; }
+		});
+	}
+
 	static boolean isLidBlock(BlockState s) {
 		var b = s.getBlock();
 		return b instanceof net.minecraft.world.level.block.ChestBlock || b instanceof net.minecraft.world.level.block.EnderChestBlock || b instanceof net.minecraft.world.level.block.ShulkerBoxBlock;
@@ -386,6 +409,7 @@ public final class BlockSync {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static java.util.List<BlockCodec.Quad> berQuads(Minecraft mc, BlockState s) {
 		if (!s.hasBlockEntity() || !(s.getBlock() instanceof net.minecraft.world.level.block.EntityBlock eb)) return java.util.List.of();
+		if (isLiveBe(mc, s)) return java.util.List.of(); // 0.10.0: drawn per position from the real block entity (EntitySync)
 		for (int attempt = 0; attempt < 2; attempt++) {
 			try {
 				var be = eb.newBlockEntity(BlockPos.ZERO, s);

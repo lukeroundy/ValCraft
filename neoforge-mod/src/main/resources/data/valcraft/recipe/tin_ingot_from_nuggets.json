@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "NNN",
+    "NNN",
+    "NNN"
+  ],
+  "key": {
+    "N": {
+      "item": "valcraft:tin_nugget"
+    }
+  },
+  "result": {
+    "id": "valcraft:tin_ingot",
+    "count": 1
+  }
+}

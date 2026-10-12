@@ -248,3 +248,13 @@ Proxies: Valheim instantiates [Mobs] ProxyPrefab (Greyling) per MC mob with AI/a
 |---|---|---|
 | 23 EvTerrainTile | V→MC | + 4 trailing bytes: biome code per 4×4-column quadrant (q = qi·2+qj): 1 Meadows 2 Swamp 3 Mountain 4 BlackForest 5 Plains 6 AshLands 7 DeepNorth 8 Ocean 9 Mistlands, 0 unknown. Older 200-byte tiles still accepted. |
 | 62 EvReach | MC→V | f32 blockInteractionRange, f32 entityInteractionRange, every 2 s. Valheim interact/hover + build placement use block reach, hits use entity reach; [Interact] MaxDistance > 0 overrides. |
+
+## v18 (0.10.0) — chests, shields, tin/bronze
+| Event | Dir | Payload |
+|---|---|---|
+| EvDamage | V→MC | + u32 attacker (Valheim Character instance id, 0 = none) → 21 bytes. MC resolves the attacker's proxy entity so shields/armor/knockback treat it as a mob attack; unknown attacker with a direction → positional mob-attack source. Old 17-byte payloads still accepted. |
+| 63 EvChestContents | V→MC | Split over messages: u8 flags (1 first, 2 last), u32 serial; first msg: u8 w, u8 h (w=0 = chest closed), u8 nameLen, name; then entries to the end: u8 slot (y·w+x), u16 count, u16 dur (0xFFFF none), u8 idLen, mc id ("" = unmapped), u8 nameLen, Valheim item name. Re-sent on change (0.25 s poll); closes when out of reach. |
+| 64 EvChestOp | MC→V | u32 serial, u8 op (1 take, 2 deposit, 3 close), u8 slot, u16 count, u16 dur, utf8 mc id (deposit). Stale serial ignored; a failed deposit is given back to MC. |
+
+Block-set notes (no wire change): minecraft:stone and minecraft:farmland are no longer terrain blocks (placeable/visible as normal blocks). Mirrored deep layers use deepslate, mat3 surface andesite, cultivated ground dirt; stone in old saves below the column top is still hidden until the column is rewritten. Mob (non-TNT) explosions no longer remove terrain blocks or edit Valheim terrain; TNT terrain edits save once per frame per TerrainComp.
+Item map: one-time migration of the old tin/bronze placeholder ids (only entries still exactly at the old default) to valcraft:* items.

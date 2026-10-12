@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "M M",
+    "M M"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:tin_ingot"
+    }
+  },
+  "result": {
+    "id": "valcraft:tin_boots",
+    "count": 1
+  }
+}

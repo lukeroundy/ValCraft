@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "BoatWaterMixin",
+    "PathValheimMixin",
     "EntityCollisionMixin",
     "EntityFluidAccessor",
     "McWorldIrrelevantMixin",
@@ -26,7 +27,8 @@
     "MouseHandlerAccessor",
     "WindowMixin",
     "LocalPlayerPushMixin",
-    "MinecraftAttackMixin"
+    "MinecraftAttackMixin",
+    "FlywheelFallbackMixin"
   ],
   "injectors": {
     "defaultRequire": 1

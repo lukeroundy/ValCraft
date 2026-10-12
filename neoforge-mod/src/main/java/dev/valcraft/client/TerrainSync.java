@@ -35,10 +35,14 @@ public final class TerrainSync {
 	private static final Long2IntOpenHashMap colTop = new Long2IntOpenHashMap(); // server thread: column -> mirrored terrain top (kept across MC edits)
 	static int terrainTop(int x, int z) { long k = key(x, z); return colTop.containsKey(k) ? colTop.get(k) : Integer.MIN_VALUE; }
 
+	/** Mirrored-terrain block types (0.10.0: stone and farmland are player blocks; deep layers are deepslate, rock is andesite). */
 	static boolean isTerrainBlock(BlockState s) {
+		if (s.is(Blocks.STONE) || s.is(Blocks.FARMLAND)) return false;
 		for (byte m = 1; m <= 10; m++) if (s == surface(m) || s == sub(m)) return true;
-		return s.is(Blocks.STONE);
+		return s.is(Blocks.DEEPSLATE);
 	}
+	/** Old saves: stone below the mirrored surface is leftover terrain, kept hidden until the column is rewritten. */
+	static boolean isLegacyTerrain(BlockState s, int y, int top) { return s.is(Blocks.STONE) && top != Integer.MIN_VALUE && y < top; }
 	private record Tile(int tx, int tz, short[] top, byte[] mat, byte[] bio) {}
 	private static final ConcurrentLinkedQueue<Tile> pending = new ConcurrentLinkedQueue<>();
 	private static final Long2IntOpenHashMap applied = new Long2IntOpenHashMap(); // server thread: column -> top<<8|mat
@@ -91,7 +95,7 @@ public final class TerrainSync {
 			int packed = (top << 8) | (t.mat[i] & 0xFF);
 			if (applied.containsKey(k) && applied.get(k) == packed) continue;
 			int oldTop = applied.containsKey(k) ? applied.get(k) >> 8 : Integer.MIN_VALUE;
-			BlockState surface = surface(t.mat[i]), sub = sub(t.mat[i]), stone = Blocks.STONE.defaultBlockState();
+			BlockState surface = surface(t.mat[i]), sub = sub(t.mat[i]), stone = Blocks.DEEPSLATE.defaultBlockState();
 			int flags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
 			for (int y = top; y > top - DEPTH; y--) {
 				BlockState s = y == top ? surface : y > top - 4 ? sub : stone;
@@ -119,8 +123,8 @@ public final class TerrainSync {
 	// TerrainMat (Valheim side): 1 grass, 2 cultivated, 3 stone, 4 sand, 5 snow, 6 mud, 7 ash, 8 paved, 9 gravel, 10 dark grass
 	private static BlockState surface(byte m) {
 		return switch (m) {
-			case 2 -> Blocks.FARMLAND.defaultBlockState();
-			case 3 -> Blocks.STONE.defaultBlockState();
+			case 2 -> Blocks.DIRT.defaultBlockState();      // 0.10.0: cultivated (hoe it in MC to get farmland)
+			case 3 -> Blocks.ANDESITE.defaultBlockState();
 			case 4 -> Blocks.SAND.defaultBlockState();
 			case 5 -> Blocks.SNOW_BLOCK.defaultBlockState();
 			case 6 -> Blocks.MUD.defaultBlockState();
@@ -134,7 +138,7 @@ public final class TerrainSync {
 
 	private static BlockState sub(byte m) {
 		return switch (m) {
-			case 3, 5, 8 -> Blocks.STONE.defaultBlockState();
+			case 3, 5, 8 -> Blocks.ANDESITE.defaultBlockState();
 			case 4 -> Blocks.SANDSTONE.defaultBlockState();
 			case 6 -> Blocks.MUD.defaultBlockState();
 			case 7 -> Blocks.BASALT.defaultBlockState();

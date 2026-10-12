@@ -72,6 +72,9 @@ public final class MobSync {
 	private static final List<MobCodec.Mob> pending = new ArrayList<>();
 	private static final Map<Integer, ValheimProxy> proxies = new HashMap<>(); // server thread only
 
+	/** Server thread: proxy of a Valheim creature (instance id), or null. */
+	public static ValheimProxy proxy(int valheimId) { var p = proxies.get(valheimId); return p != null && p.isAlive() ? p : null; }
+
 	public static void receiveVList(Minecraft mc, byte[] p) {
 		if (p[0] != 0) pending.clear();
 		pending.addAll(MobCodec.decodeList(p));

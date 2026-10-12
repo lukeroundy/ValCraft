@@ -28,7 +28,9 @@ import org.lwjgl.opengl.GL11;
  * (works for plain entity textures and for atlases like chest/sign/bed sheets), and each quad's UV rectangle is cropped
  * into its own ValCraft atlas tile, so the result is sent like baked-model quads (EV 37 format). Render thread only.
  */
-final class Capture implements MultiBufferSource {
+public final class Capture implements MultiBufferSource {
+	/** 0.10.0: true while ValCraft captures a renderer: Flywheel-instanced mods (Create) take their non-instanced fallback path. */
+	public static volatile boolean CAPTURING;
 	record CQuad(ResourceLocation tex, float[] pos, float[] uv, int argb, float nx, float ny, float nz) {}
 	private final List<float[]> verts = new ArrayList<>(); // x y z u v argb(bits) nx ny nz + tex index
 	private final List<ResourceLocation> texs = new ArrayList<>();

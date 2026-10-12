@@ -24,7 +24,7 @@ namespace ValCraft
     ///    the table) stay in the Valheim inventory.
     /// Mapping: BepInEx/config/valcraft-items.json (written with defaults, reloaded when it changes).
     /// </summary>
-    internal static class ItemBridge
+    internal static partial class ItemBridge
     {
         internal static bool Enabled = true;
         static readonly ItemMap Map = new ItemMap();
@@ -158,6 +158,7 @@ namespace ValCraft
             {
                 case ValCraftLink.EvHeldItem: { var (c, id) = ItemMap.Held(ev.Payload); _heldCount = c; _heldId = id; return true; }
                 case ValCraftLink.EvConsumeAck: OnAck(ev.Payload); return true;
+                case ValCraftLink.EvChestOp: ChestOp(ev.Payload); return true;
                 case ValCraftLink.EvInvSnapshot: if (Snap.Add(ev.Payload)) OnSnapshot(Snap.Result); return true;
             }
             return false;
@@ -173,6 +174,7 @@ namespace ValCraft
             if (t >= _nextFileCheck) { _nextFileCheck = t + 2f; try { LoadMap(); } catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[items] {e.Message}"); } }
             if (!PlayerSync.Following || PlayerSync.Player == null) { _spawned.Clear(); return; }
 
+            ChestUpdate();
             // crafting session
             bool craftUi = false;
             try { craftUi = _invVisible != null && (bool)_invVisible.Invoke(null, null) && _getStation != null && _getStation.Invoke(PlayerSync.Player, null) != null; } catch { }
@@ -429,6 +431,17 @@ namespace ValCraft
                     var known = _reqModeT == null ? null : Enum.ToObject(_reqModeT, 1);
                     foreach (GameObject go in all) { var pc = go == null ? null : go.GetComponent("Piece"); if (pc == null || !seen.Add(pc)) continue; try { if (_haveReq != null && !(bool)_haveReq.Invoke(pl, new[] { pc, known })) continue; } catch { } _menuPieces.Add(pc); }
                 }
+                // 0.10.0: the hammer's Repair entry first in the picker (select it, then left-click a damaged piece)
+                try
+                {
+                    Component rep = null;
+                    foreach (var pc in _menuPieces) if (IsRepair(pc)) { rep = pc; break; }
+                    if (rep == null && AccessTools.Field(table.GetType(), "m_pieces")?.GetValue(table) is IList allP)
+                        foreach (GameObject go in allP) { var pc = go == null ? null : go.GetComponent("Piece"); if (pc != null && IsRepair(pc)) { rep = pc; break; } }
+                    if (rep != null) { _menuPieces.Remove(rep); _menuPieces.Insert(0, rep); }
+                    else ValCraftPlugin.Log.LogInfo("[build] no Repair entry in this piece table");
+                }
+                catch { }
                 var canMode = _reqModeT == null ? null : Enum.ToObject(_reqModeT, 0);
                 for (int i = 0; i < _menuPieces.Count; i++)
                 {
@@ -445,7 +458,8 @@ namespace ValCraft
                             if (cost.Length > 0) cost.Append(", ");
                             cost.Append(amt).Append(' ').Append(L((string)AccessTools.Field(_sharedF.FieldType, "m_name").GetValue(Shared(_itemDataF.GetValue(drop))))).Append(mc != null ? " (" + mc.Replace("minecraft:", "") + ")" : " (Valheim only)");
                         }
-                    bool can = false; try { can = _haveReq != null && (bool)_haveReq.Invoke(pl, new[] { pc, canMode }); } catch { }
+                    bool can = false; try { can = IsRepair(pc) || _haveReq != null && (bool)_haveReq.Invoke(pl, new[] { pc, canMode }); } catch { }
+                    if (IsRepair(pc)) { name = "Repair (" + name + ")"; cost.Clear(); cost.Append("left-click a damaged piece"); }
                     entries.Add(new BuildCodec.Entry { Index = (ushort)i, Category = (byte)Math.Max(0, Math.Min(255, cat)), CanBuild = can, Name = name, Cost = cost.ToString() });
                 }
                 int sent = 0; foreach (var m in BuildCodec.Encode(entries)) if (_link.TrySend(ValCraftLink.EvBuildPieces, m)) sent++;
@@ -453,6 +467,9 @@ namespace ValCraft
             }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning("[build] piece list failed: " + e.GetBaseException().Message); }
         }
+
+        static bool IsRepair(Component pc) { try { return pc != null && AccessTools.Field(pc.GetType(), "m_repairPiece")?.GetValue(pc) is bool b && b; } catch { return false; } }
+        static MethodInfo _repair, _rightItem;
 
         /// <summary>EvBuildSelect {u16 index} from the MC picker.</summary>
         internal static void BuildSelect(byte[] p)
@@ -603,6 +620,16 @@ namespace ValCraft
                 {
                     var piece = _getSel?.Invoke(pl, null);
                     if (piece == null) { ValCraftPlugin.Log.LogInfo("[build] no piece selected (right-click with the mace opens the menu)"); return; }
+                    if (IsRepair(piece as Component))
+                    {
+                        _repair = _repair ?? AccessTools.Method(_playerT, "Repair");
+                        _rightItem = _rightItem ?? AccessTools.Method(_playerT, "GetRightItem", Type.EmptyTypes);
+                        var tool = _rightItem?.Invoke(pl, null) ?? _virtualHammer;
+                        if (_repair == null || tool == null) { ValCraftPlugin.Log.LogWarning($"[build] repair unavailable (Player.Repair={_repair != null}, tool={tool != null})"); return; }
+                        _repair.Invoke(pl, new[] { tool, piece });
+                        ValCraftPlugin.Log.LogInfo("[build] repair on the aimed piece (Valheim shows the result)");
+                        return;
+                    }
                     bool ok = (bool)_tryPlace.Invoke(pl, new[] { piece });
                     ValCraftPlugin.Log.LogInfo($"[build] place {(piece as Component)?.name}: {(ok ? "placed" : "not placed (invalid spot, no workbench or missing materials)")}");
                 }

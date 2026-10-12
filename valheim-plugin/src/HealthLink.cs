@@ -62,6 +62,7 @@ namespace ValCraft
             {
                 if (hit == null) return true;
                 if (!_init) Init();
+                if (_getAttacker == null) _getAttacker = HarmonyLib.AccessTools.Method(hit.GetType(), "GetAttacker", Type.EmptyTypes);
                 if (MobBridge.IsProxy(__instance))
                 {
                     float vd = _total == null ? 0 : (float)_total.Invoke(hit, null);
@@ -80,7 +81,9 @@ namespace ValCraft
                 var d = _dir == null ? Vector3.zero : (Vector3)_dir.GetValue(hit);
                 float push = _push == null ? 0 : (float)_push.GetValue(hit);
                 // MC +Z = Unity -Z
-                _link.TrySend(ValCraftLink.EvDamage, HealthCodec.Damage(mc, (byte)ht, d.x, -d.z, push));
+                uint att = 0;
+                try { var ac = _getAttacker?.Invoke(hit, null) as Component; if (ac != null && !ReferenceEquals(ac, __instance)) att = (uint)ac.GetInstanceID(); } catch { }
+                _link.TrySend(ValCraftLink.EvDamage, HealthCodec.Damage(mc, (byte)ht, d.x, -d.z, push, att));
                 Diag.Info("dmg", $"[health] Valheim hit ({ht}) {dmg:F1}/{vmax:F0} -> MC {mc:F2}/{_max:F0}");
                 return false;
             }
@@ -112,6 +115,7 @@ namespace ValCraft
             _hp = hp; _max = Mathf.Max(1f, max); _food = food; _mcDead = dead;
         }
 
+        static System.Reflection.MethodInfo _getAttacker;
         internal static void Reset() { _hp = -1; _mcDead = false; _killedForMc = false; }
 
         internal static void Update(ValCraftLink link)

@@ -91,6 +91,8 @@ static unsafe class Program
     {
         if (args.Length == 2 && args[0] == "blocks") return BlocksTest(args[1]);
         if (args.Length == 2 && args[0] == "items") return ItemsTest(args[1]);
+        if (args.Length == 2 && args[0] == "chest") return ChestTest(args[1]);
+        if (args.Length == 2 && args[0] == "chestop") return ChestOpTest(args[1]);
         if (args.Length == 3 && args[0] == "mobs") return MobsTest(args[1], args[2]);
         if (args.Length > 0 && args[0] == "host") return FakeValheim.Run(args.Length > 1 ? args[1] : ValCraftLink.DefaultPath(), args.Length > 2 ? int.Parse(args[2]) : 300, args.Length > 3 ? args[3] : "cmd.txt");
         path = args.Length > 0 ? args[0] : ValCraftLink.DefaultPath();
@@ -240,7 +242,7 @@ static unsafe class Program
         map.Load(ValCraft.Protocol.ItemMap.DefaultJson);
         Check(map.McFor("Hammer") == "minecraft:mace" && map.ValheimFor("minecraft:mace") == "Hammer", "hammer<->mace");
         Check(map.McFor("ArrowBronze") == "minecraft:arrow" && map.ValheimFor("minecraft:arrow") == "ArrowWood", "arrows");
-        Check(map.McFor("AxeBronze") == "minecraft:iron_axe" && map.ValheimFor("minecraft:iron_sword") == "SwordBronze", "tools");
+        Check(map.McFor("AxeBronze") == "valcraft:bronze_axe" && map.ValheimFor("valcraft:bronze_sword") == "SwordBronze" && map.McFor("Tin") == "valcraft:tin_ingot", "tools");
         string user = "{\n  \"Wood\": [\"minecraft:spruce_log\"],\n  \"Stone\": [\"minecraft:deepslate\"]\n}";
         var merged = ValCraft.Protocol.ItemMap.Merge(user, out var added);
         var mm = new ValCraft.Protocol.ItemMap(); mm.Load(merged);
@@ -264,8 +266,8 @@ static unsafe class Program
             Check(snap.Add(Next()) && snap.Result.Count == 3 && snap.Result["minecraft:iron_ingot"] == 300 && snap.Result["minecraft:oak_log"] == 64, "snapshot");
             var (hp, mx, food, dead) = ValCraft.Protocol.HealthCodec.ReadHealth(Next());
             Check(hp == 13.5f && mx == 20f && food == 17 && dead, "health");
-            var dm = ValCraft.Protocol.HealthCodec.Damage(2.5f, 1, 0.6f, -0.8f, 30f);
-            Check(dm.Length == 17 && BitConverter.ToSingle(dm, 0) == 2.5f && dm[4] == 1 && BitConverter.ToSingle(dm, 9) == -0.8f && BitConverter.ToSingle(dm, 13) == 30f, "damage");
+            var dm = ValCraft.Protocol.HealthCodec.Damage(2.5f, 1, 0.6f, -0.8f, 30f, 0xDEADBEEF);
+            Check(dm.Length == 21 && BitConverter.ToUInt32(dm, 17) == 0xDEADBEEF && BitConverter.ToSingle(dm, 0) == 2.5f && dm[4] == 1 && BitConverter.ToSingle(dm, 9) == -0.8f && BitConverter.ToSingle(dm, 13) == 30f, "damage");
         }
         // 0.8.5 build piece list: C# encode/decode + file for the Java decoder test
         var bl = new System.Collections.Generic.List<ValCraft.Protocol.BuildCodec.Entry>();
@@ -279,6 +281,35 @@ static unsafe class Program
         Console.WriteLine($"[cs] build list: {bm.Count} messages");
         Console.WriteLine(fail == 0 ? "items OK" : $"items {fail} failures");
         return fail == 0 ? 0 : 1;
+    }
+
+    // 0.10.0 chest codec (C# encode -> Java decode, Java op -> C# decode) + item map migration
+    static int ChestTest(string outFile)
+    {
+        int fail = 0; void Check(bool c, string m) { if (!c) { fail++; Console.WriteLine("FAIL " + m); } }
+        var es = new System.Collections.Generic.List<ValCraft.Protocol.ChestCodec.Entry>();
+        for (int i = 0; i < 32; i++) es.Add(new ValCraft.Protocol.ChestCodec.Entry { Slot = (byte)i, Count = (ushort)(i + 1), Dur = i % 4 == 0 ? (ushort)0xFFFF : (ushort)(i * 10), McId = i == 7 ? "" : "valcraft:tin_ingot", Name = "$item_tin Ä" + i });
+        var ms = ValCraft.Protocol.ChestCodec.Encode(4242, 8, 4, "Reinforced chest", es);
+        foreach (var m in ms) Check(m.Length <= 248, "chest msg size");
+        Check(ms.Count > 1 && (ms[0][0] & 1) == 1 && (ms[ms.Count - 1][0] & 2) == 2, "chest flags");
+        using (var w = new System.IO.BinaryWriter(System.IO.File.Create(outFile)))
+        { w.Write(System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(ms.Count)); foreach (var m in ms) { w.Write(System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(m.Length)); w.Write(m); } }
+        var old = "{\n  \"Tin\": [\"minecraft:gold_ingot\"],\n  \"Bronze\": [\"minecraft:iron_block\"]\n}";
+        var merged = ValCraft.Protocol.ItemMap.Merge(old, out var added);
+        Check(merged.Contains("\"Tin\": [\"valcraft:tin_ingot\"]"), "migration old default");
+        Check(merged.Contains("\"Bronze\": [\"minecraft:iron_block\"]"), "migration keeps user edit");
+        var again = ValCraft.Protocol.ItemMap.Merge(merged, out var added2);
+        Check(again == merged && added2.Count == 0, "migration idempotent");
+        Console.WriteLine($"[cs] chest: {ms.Count} messages; " + (fail == 0 ? "chest OK" : $"chest {fail} failures"));
+        return fail == 0 ? 0 : 1;
+    }
+    static int ChestOpTest(string file)
+    {
+        var p = System.IO.File.ReadAllBytes(file);
+        var (serial, op, slot, count, dur, id) = ValCraft.Protocol.ChestCodec.Op(p);
+        bool ok = serial == 4242 && op == ValCraft.Protocol.ChestCodec.OpDeposit && slot == 31 && count == 64 && dur == 0xFFFF && id == "valcraft:bronze_ingot";
+        Console.WriteLine("[cs] chest op " + (ok ? "OK" : "FAIL"));
+        return ok ? 0 : 1;
     }
 
     static int MobsTest(string javaFile, string outFile)

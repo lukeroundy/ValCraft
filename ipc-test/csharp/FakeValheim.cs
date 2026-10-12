@@ -132,6 +132,7 @@ static unsafe class FakeValheim
                         }
                     case "hover": link.TrySend(ValCraftLink.EvHoverText, System.Text.Encoding.UTF8.GetBytes(c.Length > 1 ? c[1] : "")); break;
                     case "mbutton": link.TrySend(ValCraftLink.EvMouseButton, Payload.I32((int)F(0), (int)F(1), 0)); break;
+                    case "blocksync": link.TrySend(ValCraftLink.EvBlockSyncConfig, Payload.U32(1u, (uint)F(0), 4000u, 64u)); break;
                     case "terrainflag": terrainFlag = a[0] == "on"; break;
                     case "tp": link.TrySend(ValCraftLink.EvTeleport, Payload.F32(F(0), F(1), F(2))); break;
                     case "attacktarget": link.TrySend(ValCraftLink.EvAttackTarget, new[] { (byte)(a[0] == "on" ? 1 : 0) }); break;

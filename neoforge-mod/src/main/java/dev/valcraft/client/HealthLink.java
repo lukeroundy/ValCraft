@@ -42,13 +42,19 @@ public final class HealthLink {
 			ServerPlayer sp = server.getPlayerList().getPlayer(uuid);
 			if (sp == null || sp.isDeadOrDying()) return;
 			var src = sp.damageSources();
+			int att = pl.length >= 21 ? b.getInt(17) : 0;
+			var proxy = att != 0 ? dev.valcraft.mobs.MobSync.proxy(att) : null;
 			DamageSource ds = switch (type) {
 				case 4 -> src.drown();                // Drowning
 				case 5, 20 -> src.onFire();           // Burning, CinderFire
 				case 6 -> src.freeze();               // Freezing
 				case 7 -> src.magic();                // Poisoned
 				case 10 -> src.fellOutOfWorld();      // EdgeOfWorld
-				default -> src.generic();             // creature hits, impacts, etc.
+				// 0.10.0: creature hits are mob attacks from the Valheim attacker's proxy (or its direction), so MC shields block them
+				default -> proxy != null ? src.mobAttack(proxy)
+					: (dx != 0 || dz != 0) ? new DamageSource(sp.level().registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.DAMAGE_TYPE).getHolderOrThrow(net.minecraft.world.damagesource.DamageTypes.MOB_ATTACK),
+						sp.position().add(-dx * 2, 1, -dz * 2))
+					: src.generic();
 			};
 			sp.invulnerableTime = 0; // Valheim decides hit frequency
 			if (type == 5 || type == 20) sp.setRemainingFireTicks(Math.max(sp.getRemainingFireTicks(), 80)); // 0.9.0: Valheim fire ignites

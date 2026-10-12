@@ -25,7 +25,7 @@ public abstract class EntityCollisionMixin {
 	@Redirect(method = "collide", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;getEntityCollisions(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/phys/AABB;)Ljava/util/List;"))
 	private List<VoxelShape> valcraft$addValheim(Level level, Entity entity, AABB box) {
 		List<VoxelShape> base = level.getEntityCollisions(entity, box);
-		if (!CollisionWorld.appliesTo(entity)) return base;
+		if (!CollisionWorld.solidFor(entity)) return base;
 		List<VoxelShape> extra = CollisionWorld.query(box.expandTowards(0, 1.0, 0)); // include room for step-up
 		if (extra.isEmpty()) return base;
 		List<VoxelShape> all = new ArrayList<>(base.size() + extra.size());

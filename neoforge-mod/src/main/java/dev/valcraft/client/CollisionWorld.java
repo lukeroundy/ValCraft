@@ -56,6 +56,31 @@ public final class CollisionWorld {
 
 	public static boolean appliesTo(Entity e) { return e instanceof Player && ValCraftClient.collisionActive(); }
 
+	/** 0.10.0: Valheim structures are solid for every MC entity (mobs, items, boats...), not just players; MC blocks stay solid for non-players. */
+	public static boolean solidFor(Entity e) {
+		if (index == null || !ValCraftClient.collisionActive()) return false;
+		if (e instanceof Player) return true;
+		return !(e instanceof dev.valcraft.mobs.ValheimProxy) && !e.noPhysics;
+	}
+
+	/** Allocation-free: any Valheim box intersecting [x0,x1]x[y0,y1]x[z0,z1]? (pathfinding) */
+	public static boolean occupied(double x0, double y0, double z0, double x1, double y1, double z1) {
+		Index idx = index;
+		if (idx == null) return false;
+		int cx0 = (int) Math.floor(x0) >> CELL_SHIFT, cx1 = (int) Math.floor(x1) >> CELL_SHIFT;
+		int cz0 = (int) Math.floor(z0) >> CELL_SHIFT, cz1 = (int) Math.floor(z1) >> CELL_SHIFT;
+		for (int x = cx0; x <= cx1; x++)
+			for (int z = cz0; z <= cz1; z++) {
+				List<VoxelShape> l = idx.cells.get(key(x, z));
+				if (l == null) continue;
+				for (int i = 0; i < l.size(); i++) {
+					AABB b = l.get(i).bounds();
+					if (b.minX < x1 && b.maxX > x0 && b.minY < y1 && b.maxY > y0 && b.minZ < z1 && b.maxZ > z0) return true;
+				}
+			}
+		return false;
+	}
+
 	/** Shapes overlapping the query box (may contain duplicates' identity once each). */
 	public static List<VoxelShape> query(AABB q) {
 		Index idx = index;

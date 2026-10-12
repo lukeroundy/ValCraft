@@ -38,7 +38,7 @@ final class EntitySync {
 	private static int nextMesh = 1;
 	private static long nextUpdate;
 
-	static void reset() { meshOf.clear(); nextMesh = 1; lastMobCapture.clear(); }
+	static void reset() { meshOf.clear(); nextMesh = 1; lastMobCapture.clear(); liveMesh.clear(); liveLast.clear(); }
 
 	static void tick(Minecraft mc, java.util.ArrayDeque<dev.valcraft.link.ValCraftLink.Event> outbox) {
 		outboxRef = outbox;
@@ -47,10 +47,11 @@ final class EntitySync {
 		nextUpdate = now + 100;
 		double r = BlockSync.radius, r2 = r * r;
 		List<Entity> list = new ArrayList<>();
-		List<net.minecraft.world.entity.LivingEntity> mobs = new ArrayList<>();
+		List<Entity> mobs = new ArrayList<>();
 		for (Entity e : mc.level.entitiesForRendering()) {
 			if (e == mc.player || e.distanceToSqr(mc.player) > r2) continue;
 			if (e instanceof net.minecraft.world.entity.LivingEntity le && !(e instanceof ArmorStand)) { if (!e.isInvisible()) mobs.add(le); continue; }
+			if (e.getClass().getName().contains("Contraption")) { mobs.add(e); continue; } // 0.10.0: Create contraptions move/rotate: dynamic mesh
 			if (!wanted(e) || e.isInvisible() && !(e instanceof ArmorStand)) continue;
 			list.add(e);
 		}
@@ -85,7 +86,9 @@ final class EntitySync {
 			if ((last == null || now - last >= interval) && mobCaps < 12) {
 				mobCaps++;
 				lastMobCapture.put(e.getId(), now);
-				var q = capture(mc, e);
+				Capture.CAPTURING = true;
+				List<BlockCodec.Quad> q;
+				try { q = capture(mc, e); } finally { Capture.CAPTURING = false; }
 				if (!q.isEmpty()) outbox.addAll(BlockCodec.entityMesh(mesh, q));
 				if (last == null && lastMobCapture.size() <= 10) ValCraft.LOG.info("[entities] mob {} ({} quads)", e.getType().getDescriptionId(), q.size());
 			}
@@ -96,6 +99,7 @@ final class EntitySync {
 		lastMobCapture.keySet().retainAll(live);
 		// chests / ender chests / shulker boxes: live block entities, mesh per (state, lid openness bucket)
 		lidBlocks(mc, ents);
+		liveBlocks(mc, ents, now);
 		outbox.addAll(BlockCodec.entityUpdate(ents));
 	}
 
@@ -133,6 +137,55 @@ final class EntitySync {
 					ents.add(new BlockCodec.Ent(BLOCK_ENTITY_ID | (pos.hashCode() & 0x7FFFFFFF), mesh, pos.getX(), pos.getY(), pos.getZ(), 0));
 				}
 			}
+	}
+
+	// 0.10.0: modded block entities (Create kinetics etc.) from the real BE per position, re-captured while animating
+	private static final java.util.HashMap<Long, int[]> liveMesh = new java.util.HashMap<>(); // pos -> {mesh, lastCaptureMs low bits}
+	private static final java.util.HashMap<Long, Long> liveLast = new java.util.HashMap<>();
+	private static int liveLogged;
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private static void liveBlocks(Minecraft mc, List<BlockCodec.Ent> ents, long now) {
+		var pp = mc.player.blockPosition();
+		int rad = Math.min(BlockSync.radius, 48), rc = (rad >> 4) + 1, caps = 0, n = 0;
+		var seen = new java.util.HashSet<Long>();
+		float pt = mc.getTimer().getGameTimeDeltaPartialTick(false);
+		for (int cx = (pp.getX() >> 4) - rc; cx <= (pp.getX() >> 4) + rc; cx++)
+			for (int cz = (pp.getZ() >> 4) - rc; cz <= (pp.getZ() >> 4) + rc; cz++) {
+				var chunk = mc.level.getChunkSource().getChunk(cx, cz, false);
+				if (chunk == null) continue;
+				for (var be : chunk.getBlockEntities().values()) {
+					var st = be.getBlockState();
+					if (n >= 160 || !BlockSync.isLiveBe(mc, st)) continue;
+					var pos = be.getBlockPos();
+					double d2 = pos.distSqr(pp);
+					if (d2 > (double) rad * rad) continue;
+					long pk = pos.asLong(); seen.add(pk); n++;
+					int[] m = liveMesh.get(pk);
+					if (m == null) { m = new int[] { DYNAMIC_MESH | 0x20000000 | (nextMesh++ & 0x1FFFFFFF) }; liveMesh.put(pk, m); }
+					boolean kinetic = isKinetic(be);
+					long interval = kinetic ? (d2 < 256 ? 100 : 400) : 2000;
+					Long last = liveLast.get(pk);
+					if ((last == null || now - last >= interval) && caps < 10) {
+						caps++; liveLast.put(pk, now);
+						Capture cap = new Capture();
+						Capture.CAPTURING = true;
+						try {
+							var r = (net.minecraft.client.renderer.blockentity.BlockEntityRenderer) mc.getBlockEntityRenderDispatcher().getRenderer(be);
+							if (r != null) r.render(be, pt, new PoseStack(), cap, 0xF000F0, OverlayTexture.NO_OVERLAY);
+						} catch (Throwable t) { if (liveLogged++ < 20) ValCraft.LOG.warn("[entities] block entity {} capture failed: {}", st, t.toString()); }
+						finally { Capture.CAPTURING = false; }
+						var q = Capture.toTileQuads(cap.quads());
+						if (last == null && liveLogged++ < 20) ValCraft.LOG.info("[entities] live block entity {} at {}: {} quads{}", st.getBlock(), pos, q.size(), kinetic ? " (kinetic, re-captured)" : "");
+						outbox().addAll(BlockCodec.entityMesh(m[0], q));
+					}
+					if (liveLast.containsKey(pk)) ents.add(new BlockCodec.Ent(BLOCK_ENTITY_ID | 0x40000000 | ((int) (pk ^ (pk >>> 32)) & 0x3FFFFFFF), m[0], pos.getX(), pos.getY(), pos.getZ(), 0));
+				}
+			}
+		liveMesh.keySet().retainAll(seen); liveLast.keySet().retainAll(seen);
+	}
+	private static final java.util.Map<Class<?>, Boolean> kineticCls = new java.util.concurrent.ConcurrentHashMap<>();
+	private static boolean isKinetic(Object be) {
+		return kineticCls.computeIfAbsent(be.getClass(), c -> { for (var k = c; k != null; k = k.getSuperclass()) if (k.getSimpleName().contains("Kinetic") || k.getSimpleName().contains("Animated")) return true; return false; });
 	}
 
 	private static java.util.ArrayDeque<dev.valcraft.link.ValCraftLink.Event> outboxRef;

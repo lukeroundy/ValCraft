@@ -37,11 +37,12 @@
     <Compile Include="../protocol/HealthCodec.cs" Link="Protocol/HealthCodec.cs" />
     <Compile Include="../protocol/BuildCodec.cs" Link="Protocol/BuildCodec.cs" />
     <Compile Include="../protocol/MobCodec.cs" Link="Protocol/MobCodec.cs" />
+    <Compile Include="../protocol/ChestCodec.cs" Link="Protocol/ChestCodec.cs" />
   </ItemGroup>
 
   <PropertyGroup>
     <BepInExPluginGuid>dev.valcraft.valheim</BepInExPluginGuid>
     <BepInExPluginName>ValCraft</BepInExPluginName>
-    <Version>0.9.7</Version>
+    <Version>0.10.0</Version>
   </PropertyGroup>
 </Project>

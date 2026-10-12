@@ -266,7 +266,7 @@ namespace ValCraft
             if (_connected && !alive)
             {
                 Log.LogInfo("[link] Minecraft heartbeat lost for 20 s; waiting for it to reconnect");
-                _connected = false; ValheimHit.Reset(); HealthLink.Reset(); ItemBridge.ResetBuild(); BlockRender.Clear();
+                _connected = false; ValheimHit.Reset(); HealthLink.Reset(); ItemBridge.ResetBuild(); ItemBridge.ChestReset(); BlockRender.Clear();
                 SetInputActive(false);
                 PlayerSync.Stop("Minecraft disconnected");
             }

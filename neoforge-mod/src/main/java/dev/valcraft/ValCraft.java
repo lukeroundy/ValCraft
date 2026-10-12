@@ -11,8 +11,9 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft(IEventBus modBus) {
-		LOG.info("ValCraft loaded (0.9.7: hazards + cross-game mobs)");
+		LOG.info("ValCraft loaded (0.10.0: tin/bronze, chests, shields, repair, Create)");
 		dev.valcraft.mobs.MobSync.register(modBus);
+		dev.valcraft.content.ModContent.register(modBus);
 		if (net.neoforged.fml.loading.FMLEnvironment.dist.isClient())
 			modBus.addListener((net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers e) -> e.registerEntityRenderer(dev.valcraft.mobs.MobSync.PROXY.get(), net.minecraft.client.renderer.entity.NoopRenderer::new));
 	}

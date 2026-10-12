@@ -27,9 +27,9 @@ namespace ValCraft.Protocol
   ""Coal"": [""minecraft:charcoal"", ""minecraft:coal""],
   ""CopperOre"": [""minecraft:raw_copper""],
   ""Copper"": [""minecraft:copper_ingot""],
-  ""TinOre"": [""minecraft:raw_gold""],
-  ""Tin"": [""minecraft:gold_ingot""],
-  ""Bronze"": [""minecraft:brick""],
+  ""TinOre"": [""valcraft:raw_tin""],
+  ""Tin"": [""valcraft:tin_ingot""],
+  ""Bronze"": [""valcraft:bronze_ingot""],
   ""IronScrap"": [""minecraft:raw_iron""],
   ""Iron"": [""minecraft:iron_ingot""],
   ""Obsidian"": [""minecraft:obsidian""],
@@ -73,19 +73,19 @@ namespace ValCraft.Protocol
   ""CrossbowArbalest"": [""minecraft:crossbow""],
   ""AxeStone"": [""minecraft:wooden_axe""],
   ""AxeFlint"": [""minecraft:stone_axe""],
-  ""AxeBronze"": [""minecraft:iron_axe""],
+  ""AxeBronze"": [""valcraft:bronze_axe""],
   ""AxeIron"": [""minecraft:diamond_axe""],
   ""AxeBlackMetal"": [""minecraft:netherite_axe""],
   ""AxeJotunBane"": [""minecraft:netherite_axe""],
   ""PickaxeAntler"": [""minecraft:stone_pickaxe""],
-  ""PickaxeBronze"": [""minecraft:iron_pickaxe""],
+  ""PickaxeBronze"": [""valcraft:bronze_pickaxe""],
   ""PickaxeIron"": [""minecraft:diamond_pickaxe""],
   ""PickaxeBlackMetal"": [""minecraft:netherite_pickaxe""],
   ""Club"": [""minecraft:wooden_sword""],
   ""KnifeFlint"": [""minecraft:stone_sword""],
   ""KnifeCopper"": [""minecraft:stone_sword""],
-  ""SwordBronze"": [""minecraft:iron_sword""],
-  ""MaceBronze"": [""minecraft:iron_sword""],
+  ""SwordBronze"": [""valcraft:bronze_sword""],
+  ""MaceBronze"": [""valcraft:bronze_sword""],
   ""SwordIron"": [""minecraft:diamond_sword""],
   ""MaceIron"": [""minecraft:diamond_sword""],
   ""SwordSilver"": [""minecraft:diamond_sword""],
@@ -115,9 +115,9 @@ namespace ValCraft.Protocol
   ""ArmorTrollLeatherChest"": [""minecraft:leather_chestplate""],
   ""ArmorTrollLeatherLegs"": [""minecraft:leather_leggings""],
   ""HelmetTrollLeather"": [""minecraft:leather_helmet""],
-  ""ArmorBronzeChest"": [""minecraft:chainmail_chestplate""],
-  ""ArmorBronzeLegs"": [""minecraft:chainmail_leggings""],
-  ""HelmetBronze"": [""minecraft:chainmail_helmet""],
+  ""ArmorBronzeChest"": [""valcraft:bronze_chestplate""],
+  ""ArmorBronzeLegs"": [""valcraft:bronze_leggings""],
+  ""HelmetBronze"": [""valcraft:bronze_helmet""],
   ""ArmorIronChest"": [""minecraft:iron_chestplate""],
   ""ArmorIronLegs"": [""minecraft:iron_leggings""],
   ""HelmetIron"": [""minecraft:iron_helmet""],
@@ -141,6 +141,13 @@ namespace ValCraft.Protocol
         public static string Merge(string userJson, out List<string> added)
         {
             added = new List<string>();
+            // 0.10.0: one-time migration of the old tin/bronze placeholders (only entries still exactly at the old default)
+            int migrated = 0;
+            foreach (var (mk, oldId, newId) in Migrations)
+            {
+                var rx = new Regex("\"" + mk + "\"\\s*:\\s*\\[\\s*\"" + Regex.Escape(oldId) + "\"\\s*\\]");
+                if (rx.IsMatch(userJson)) { userJson = rx.Replace(userJson, "\"" + mk + "\": [\"" + newId + "\"]"); migrated++; added.Add(mk + " (migrated to " + newId + ")"); }
+            }
             var user = new HashSet<string>(); var known = new HashSet<string>();
             foreach (Match m in Entry.Matches(userJson))
             {
@@ -152,7 +159,7 @@ namespace ValCraft.Protocol
             var sb = new StringBuilder();
             foreach (var (k, body) in defs) if (!user.Contains(k) && !known.Contains(k)) { added.Add(k); sb.Append(",\n  \"").Append(k).Append("\": [").Append(body).Append(']'); }
             bool knownComplete = true; foreach (var (k, _) in defs) if (!known.Contains(k)) { knownComplete = false; break; }
-            if (added.Count == 0 && knownComplete) return userJson;
+            if (added.Count == migrated && knownComplete) return userJson;
             string text = Regex.Replace(userJson, ",?\\s*\"_known\"\\s*:\\s*\\[[^\\]]*\\]", "");
             int end = text.LastIndexOf('}');
             if (end < 0) { text = "{"; end = 1; text += "}"; }
@@ -163,6 +170,20 @@ namespace ValCraft.Protocol
             if (empty) add = add.Substring(1);
             return head + add + "\n" + text.Substring(end);
         }
+
+        static readonly (string key, string oldId, string newId)[] Migrations =
+        {
+            ("TinOre", "minecraft:raw_gold", "valcraft:raw_tin"),
+            ("Tin", "minecraft:gold_ingot", "valcraft:tin_ingot"),
+            ("Bronze", "minecraft:brick", "valcraft:bronze_ingot"),
+            ("AxeBronze", "minecraft:iron_axe", "valcraft:bronze_axe"),
+            ("PickaxeBronze", "minecraft:iron_pickaxe", "valcraft:bronze_pickaxe"),
+            ("SwordBronze", "minecraft:iron_sword", "valcraft:bronze_sword"),
+            ("MaceBronze", "minecraft:iron_sword", "valcraft:bronze_sword"),
+            ("ArmorBronzeChest", "minecraft:chainmail_chestplate", "valcraft:bronze_chestplate"),
+            ("ArmorBronzeLegs", "minecraft:chainmail_leggings", "valcraft:bronze_leggings"),
+            ("HelmetBronze", "minecraft:chainmail_helmet", "valcraft:bronze_helmet")
+        };
 
         static readonly Regex Entry = new Regex("\"([^\"]+)\"\\s*:\\s*\\[([^\\]]*)\\]", RegexOptions.Singleline);
         static readonly Regex Str = new Regex("\"([^\"]*)\"");

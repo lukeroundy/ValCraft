@@ -24,8 +24,22 @@ namespace ValCraft
         static MethodInfo _checkAccess;
         static bool _init, _ok;
         static readonly List<KeyValuePair<float, Action>> _verify = new List<KeyValuePair<float, Action>>();
+        static readonly Dictionary<Component, object> _pendingSave = new Dictionary<Component, object>();
+        static void FlushSaves()
+        {
+            if (_pendingSave.Count == 0) return;
+            foreach (var kv in _pendingSave)
+            {
+                var tc = kv.Key; var hm = kv.Value; if (tc == null) continue;
+                if (_save != null) { try { _save.Invoke(tc, Args(_save)); } catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] {Sig(_save)} failed: {e.GetBaseException().Message}"); } }
+                else if (!_warnedNoSave) { _warnedNoSave = true; ValCraftPlugin.Log.LogWarning("[terrain-edit] no TerrainComp save method found: edits are visible this session but won't persist"); }
+                try { _poke?.Invoke(_poke.IsStatic ? null : hm, Args(_poke)); } catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] {Sig(_poke)} failed: {e.GetBaseException().Message}"); }
+            }
+            _pendingSave.Clear();
+        }
         internal static void Update()
         {
+            FlushSaves();
             for (int i = _verify.Count - 1; i >= 0; i--)
                 if (Time.unscaledTime >= _verify[i].Key) { var f = _verify[i].Value; _verify.RemoveAt(i); try { f(); } catch { } }
         }
@@ -33,8 +47,8 @@ namespace ValCraft
         static readonly HashSet<string> TerrainIds = new HashSet<string>
         {
             "minecraft:grass_block", "minecraft:dirt", "minecraft:coarse_dirt", "minecraft:rooted_dirt", "minecraft:podzol",
-            "minecraft:mycelium", "minecraft:farmland", "minecraft:dirt_path", "minecraft:mud", "minecraft:packed_mud",
-            "minecraft:stone", "minecraft:cobblestone", "minecraft:deepslate", "minecraft:cobbled_deepslate", "minecraft:granite",
+            "minecraft:mycelium", /* 0.10.0: farmland is a player block */ "minecraft:dirt_path", "minecraft:mud", "minecraft:packed_mud",
+            /* 0.10.0: minecraft:stone is a player block */ "minecraft:cobblestone", "minecraft:deepslate", "minecraft:cobbled_deepslate", "minecraft:granite",
             "minecraft:diorite", "minecraft:andesite", "minecraft:tuff", "minecraft:sand", "minecraft:red_sand", "minecraft:gravel",
             "minecraft:clay", "minecraft:snow_block", "minecraft:blackstone", "minecraft:basalt", "minecraft:netherrack",
         };
@@ -81,7 +95,7 @@ namespace ValCraft
             {
                 ValCraftPlugin.Log.LogInfo($"[terrain-edit] {(kind == 0 ? "lowered" : "raised")} Valheim terrain at {pos} ({ground:F2} -> {target:F2}) for MC {(kind == 0 ? "break" : "place")} of {id} at ({x},{y},{z})");
                 TerrainExport.Invalidate(x, z);
-                _verify.Add(new KeyValuePair<float, Action>(Time.unscaledTime + 1.0f, () => Verify(x, z, target)));
+                _verify.Add(new KeyValuePair<float, Action>(Time.unscaledTime + 3.0f, () => Verify(x, z, target, ground)));
             }
         }
 
@@ -235,9 +249,8 @@ namespace ValCraft
                     if (nv != null && _claim != null) _claim.Invoke(nv, null);
                     if (_fOps != null) _fOps.SetValue(tc, (int)_fOps.GetValue(tc) + 1);
                     _fLastPt?.SetValue(tc, Vector3.zero); _fLastR?.SetValue(tc, 0f);
-                    if (_save != null) { try { _save.Invoke(tc, Args(_save)); } catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] {Sig(_save)} failed: {e.GetBaseException().Message}"); } }
-                    else if (!_warnedNoSave) { _warnedNoSave = true; ValCraftPlugin.Log.LogWarning("[terrain-edit] no TerrainComp save method found: edits are visible this session but won't persist"); }
-                    try { _poke?.Invoke(_poke.IsStatic ? null : hm, Args(_poke)); } catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] {Sig(_poke)} failed: {e.GetBaseException().Message}"); }
+                    // 0.10.0: Save + Poke deferred to once per frame per TerrainComp (TNT = dozens of column edits in one frame)
+                    _pendingSave[tc] = hm;
                     verts += n; comps++;
                 }
                 try { var csT = AccessTools.TypeByName("ClutterSystem"); var inst = csT == null ? null : (AccessTools.Field(csT, "m_instance")?.GetValue(null) ?? AccessTools.Property(csT, "instance")?.GetValue(null, null)); if (inst != null) _resetGrass?.Invoke(inst, new object[] { pos, Radius + 0.5f }); } catch { }
@@ -270,11 +283,13 @@ namespace ValCraft
         }
 
         /// <summary>Called on tile re-sample after an edit: report whether Valheim's ground actually moved.</summary>
-        internal static void Verify(int x, int z, float target)
+        internal static void Verify(int x, int z, float target, float before = float.NaN)
         {
             var a = PlayerSync.Anchor;
             float h = TerrainExport.HeightAtMc(x + 0.5f, z + 0.5f, a);
-            bool ok = !float.IsNaN(h) && Mathf.Abs(h - target) < 0.35f;
+            // 0.10.0: the column centre sits between 1 m vertices, so a 1-block edit shows up only partly there: moved toward target = applied
+            bool ok = !float.IsNaN(h) && (Mathf.Abs(h - target) < 0.35f || (!float.IsNaN(before) && Mathf.Abs(h - target) < Mathf.Abs(before - target) - 0.02f));
+            if (ok) return;
             ValCraftPlugin.Log.Log(ok ? BepInEx.Logging.LogLevel.Info : BepInEx.Logging.LogLevel.Warning,
                 $"[terrain-edit] check MC ({x},{z}): Valheim ground now {h:F2}, target {target:F2} -> {(ok ? "OK" : "NOT APPLIED (see Unity errors above / ward / 8 m limit)")}");
         }
