@@ -6,12 +6,29 @@ using System.Threading;
 
 namespace ValCraft.Protocol
 {
+    /// <summary>Minecraft camera + player, MC coordinates (blocks = metres; X east, Y up, Z south; yaw 0 = south, +90 = west; pitch + = down).</summary>
     public struct PlayerState
     {
         public long FrameId;
-        public double X, Y, Z;
-        public float Yaw, Pitch, Roll, FovDeg;
-        public uint Flags;
+        public double X, Y, Z;              // camera (eye) position, incl. 3rd-person offset
+        public float Yaw, Pitch, Roll, FovDeg; // camera angles; FovDeg = MC's effective vertical FOV this frame (sprint, effects)
+        public uint Flags;                   // PsOnGround | PsFlying | ...
+        public float BobX, BobY, BobRollDeg, BobPitchDeg; // MC view-bob transform (applied to the world in view space)
+        public double FeetX, FeetY, FeetZ;   // player entity position (interpolated)
+        public float EyeHeight;
+    }
+
+    /// <summary>MC (right-handed, +Z south) <-> Valheim/Unity (left-handed, +Z north). Both Y-up, 1 block = 1 m.</summary>
+    public static class CoordMap
+    {
+        /// <summary>MC position -> Unity position (before adding the world anchor): (x, y, -z).</summary>
+        public static void ToUnity(double x, double y, double z, out float ux, out float uy, out float uz) { ux = (float)x; uy = (float)y; uz = (float)-z; }
+        /// <summary>MC yaw (0 = facing +Z south, +90 = facing -X west) -> Unity yaw (Euler Y, 0 = facing +Z north, +90 = east).</summary>
+        public static float YawToUnity(float mcYaw) { float y = (mcYaw + 180f) % 360f; return y < 0 ? y + 360f : y; }
+        /// <summary>MC pitch (+ = looking down) -> Unity Euler X (+ = looking down): same value.</summary>
+        public static float PitchToUnity(float mcPitch) => mcPitch;
+        /// <summary>Unity forward vector for a Unity yaw (deg).</summary>
+        public static void Forward(float unityYaw, out float fx, out float fz) { double r = unityYaw * Math.PI / 180; fx = (float)Math.Sin(r); fz = (float)Math.Cos(r); }
     }
 
     public struct LinkEvent
@@ -32,7 +49,7 @@ namespace ValCraft.Protocol
     public sealed unsafe class ValCraftLink : IDisposable
     {
         public const uint Magic = 0x434C4156; // "VALC"
-        public const uint Version = 2;
+        public const uint Version = 3;
         // header
         public const int OffMagic = 0x0, OffVersion = 0x4, OffSize = 0x8, OffValheimPid = 0x10, OffMcPid = 0x14;
         public const int OffValheimHeartbeat = 0x18, OffMcHeartbeat = 0x20, OffValheimFlags = 0x28, OffMcFlags = 0x2C;
@@ -58,6 +75,8 @@ namespace ValCraft.Protocol
         public const uint VFlagInGame = 1, VFlagMenuOpen = 2, VFlagLoading = 4, VFlagInputActive = 8, VFlagQuitting = 16;
         // Minecraft flags
         public const uint McFlagWorldLoaded = 1, McFlagHidden = 2, McFlagScreenOpen = 4;
+        // PlayerState flags
+        public const uint PsOnGround = 1, PsFlying = 2, PsCrouching = 4, PsInWater = 8, PsThirdPerson = 16, PsHasPlayer = 32, PsViewBob = 64;
 
         // events
         public const ushort EvHello = 1, EvPing = 2, EvPong = 3, EvHelloAck = 4, EvQuit = 5;
@@ -151,6 +170,8 @@ namespace ValCraft.Protocol
             *(double*)(b + 16) = s.X; *(double*)(b + 24) = s.Y; *(double*)(b + 32) = s.Z;
             *(float*)(b + 40) = s.Yaw; *(float*)(b + 44) = s.Pitch; *(float*)(b + 48) = s.Roll; *(float*)(b + 52) = s.FovDeg;
             *(uint*)(b + 56) = s.Flags;
+            *(float*)(b + 60) = s.BobX; *(float*)(b + 64) = s.BobY; *(float*)(b + 68) = s.BobRollDeg; *(float*)(b + 72) = s.BobPitchDeg;
+            *(double*)(b + 80) = s.FeetX; *(double*)(b + 88) = s.FeetY; *(double*)(b + 96) = s.FeetZ; *(float*)(b + 104) = s.EyeHeight;
             Thread.MemoryBarrier();
             WriteU32(OffPlayerState, seq + 2);
         }
@@ -166,6 +187,8 @@ namespace ValCraft.Protocol
                 s.X = *(double*)(b + 16); s.Y = *(double*)(b + 24); s.Z = *(double*)(b + 32);
                 s.Yaw = *(float*)(b + 40); s.Pitch = *(float*)(b + 44); s.Roll = *(float*)(b + 48); s.FovDeg = *(float*)(b + 52);
                 s.Flags = *(uint*)(b + 56);
+                s.BobX = *(float*)(b + 60); s.BobY = *(float*)(b + 64); s.BobRollDeg = *(float*)(b + 68); s.BobPitchDeg = *(float*)(b + 72);
+                s.FeetX = *(double*)(b + 80); s.FeetY = *(double*)(b + 88); s.FeetZ = *(double*)(b + 96); s.EyeHeight = *(float*)(b + 104);
                 Thread.MemoryBarrier();
                 if (ReadU32(OffPlayerState) == s1) return s1 != 0;
             }

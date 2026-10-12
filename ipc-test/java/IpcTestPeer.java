@@ -31,7 +31,8 @@ public final class IpcTestPeer {
 				nextHello = now + 200;
 			}
 			frame++;
-			link.writePlayerState(new ValCraftLink.PlayerState(frame, frame, frame * 2.0, -frame, (float) (frame % 360), 0f, 0f, 70f, 0));
+			link.writePlayerState(new ValCraftLink.PlayerState(frame, frame, frame * 2.0, -frame, (float) (frame % 360), 0f, 0f, 70f,
+					ValCraftLink.PS_HAS_PLAYER, 0.25f, -0.5f, 3f, 5f, frame, frame * 2.0 - 1.62, -frame, 1.62f));
 			if (now - lastFrameMs >= 8) { // ~120 fps
 				lastFrameMs = now;
 				int w = link.requestedWidth(), h = link.requestedHeight();

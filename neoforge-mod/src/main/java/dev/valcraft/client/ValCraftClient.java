@@ -5,9 +5,7 @@ import dev.valcraft.link.ValCraftLink;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Optional;
-import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -103,12 +101,7 @@ public final class ValCraftClient {
 		if (!active()) return;
 		Minecraft mc = Minecraft.getInstance();
 		FrameExporter.capture(mc, link);
-		if (mc.player != null) {
-			Camera cam = mc.gameRenderer.getMainCamera();
-			Vec3 p = cam.getPosition();
-			link.writePlayerState(new ValCraftLink.PlayerState(++playerFrame, p.x, p.y, p.z, cam.getYRot(), cam.getXRot(), 0f,
-					mc.options.fov().get().floatValue(), 0));
-		}
+		if (mc.player != null) link.writePlayerState(PlayerStateExporter.build(mc, e.getPartialTick().getGameTimeDeltaPartialTick(true), ++playerFrame));
 	}
 
 	@SubscribeEvent

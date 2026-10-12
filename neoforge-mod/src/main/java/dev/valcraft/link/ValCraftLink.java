@@ -18,7 +18,7 @@ import java.nio.file.StandardOpenOption;
  * standalone IPC test compiles this exact file.
  */
 public final class ValCraftLink implements AutoCloseable {
-	public static final int MAGIC = 0x434C4156, VERSION = 2;
+	public static final int MAGIC = 0x434C4156, VERSION = 3;
 	static final int OFF_MAGIC = 0x0, OFF_VERSION = 0x4, OFF_VALHEIM_PID = 0x10, OFF_MC_PID = 0x14;
 	static final int OFF_VALHEIM_HB = 0x18, OFF_MC_HB = 0x20, OFF_VALHEIM_FLAGS = 0x28, OFF_MC_FLAGS = 0x2C;
 	static final int OFF_SESSION = 0x30, OFF_MC_ACKED_SESSION = 0x34;
@@ -35,6 +35,7 @@ public final class ValCraftLink implements AutoCloseable {
 
 	public static final int VFLAG_IN_GAME = 1, VFLAG_MENU_OPEN = 2, VFLAG_LOADING = 4, VFLAG_INPUT_ACTIVE = 8, VFLAG_QUITTING = 16;
 	public static final int MCFLAG_WORLD_LOADED = 1, MCFLAG_HIDDEN = 2, MCFLAG_SCREEN_OPEN = 4;
+	public static final int PS_ON_GROUND = 1, PS_FLYING = 2, PS_CROUCHING = 4, PS_IN_WATER = 8, PS_THIRD_PERSON = 16, PS_HAS_PLAYER = 32, PS_VIEW_BOB = 64;
 
 	public static final short EV_HELLO = 1, EV_PING = 2, EV_PONG = 3, EV_HELLO_ACK = 4, EV_QUIT = 5;
 	public static final short EV_KEY = 10, EV_CHAR = 11, EV_MOUSE_MOVE = 12, EV_MOUSE_BUTTON = 13, EV_SCROLL = 14, EV_RELEASE_ALL = 15;
@@ -42,7 +43,13 @@ public final class ValCraftLink implements AutoCloseable {
 	private static final VarHandle I32 = MethodHandles.byteBufferViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
 	private static final VarHandle I64 = MethodHandles.byteBufferViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
-	public record PlayerState(long frameId, double x, double y, double z, float yaw, float pitch, float roll, float fovDeg, int flags) {}
+	/** MC coordinates. x/y/z = camera eye; feet = entity position; bob = MC view-bob transform (applied to the world in view space). */
+	public record PlayerState(long frameId, double x, double y, double z, float yaw, float pitch, float roll, float fovDeg, int flags,
+			float bobX, float bobY, float bobRollDeg, float bobPitchDeg, double feetX, double feetY, double feetZ, float eyeHeight) {
+		public PlayerState(long frameId, double x, double y, double z, float yaw, float pitch, float roll, float fovDeg, int flags) {
+			this(frameId, x, y, z, yaw, pitch, roll, fovDeg, flags, 0f, 0f, 0f, 0f, x, y, z, 0f);
+		}
+	}
 	public record Event(short type, byte[] payload) {
 		public ByteBuffer le() { return ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN); }
 	}
@@ -96,6 +103,8 @@ public final class ValCraftLink implements AutoCloseable {
 		buf.putDouble(b + 16, s.x()); buf.putDouble(b + 24, s.y()); buf.putDouble(b + 32, s.z());
 		buf.putFloat(b + 40, s.yaw()); buf.putFloat(b + 44, s.pitch()); buf.putFloat(b + 48, s.roll()); buf.putFloat(b + 52, s.fovDeg());
 		buf.putInt(b + 56, s.flags());
+		buf.putFloat(b + 60, s.bobX()); buf.putFloat(b + 64, s.bobY()); buf.putFloat(b + 68, s.bobRollDeg()); buf.putFloat(b + 72, s.bobPitchDeg());
+		buf.putDouble(b + 80, s.feetX()); buf.putDouble(b + 88, s.feetY()); buf.putDouble(b + 96, s.feetZ()); buf.putFloat(b + 104, s.eyeHeight());
 		I32.setRelease(buf, b, seq + 2);
 	}
 
@@ -105,7 +114,9 @@ public final class ValCraftLink implements AutoCloseable {
 			int s1 = (int) I32.getAcquire(buf, b);
 			if ((s1 & 1) != 0) { Thread.onSpinWait(); continue; }
 			PlayerState s = new PlayerState(buf.getLong(b + 8), buf.getDouble(b + 16), buf.getDouble(b + 24), buf.getDouble(b + 32),
-					buf.getFloat(b + 40), buf.getFloat(b + 44), buf.getFloat(b + 48), buf.getFloat(b + 52), buf.getInt(b + 56));
+					buf.getFloat(b + 40), buf.getFloat(b + 44), buf.getFloat(b + 48), buf.getFloat(b + 52), buf.getInt(b + 56),
+					buf.getFloat(b + 60), buf.getFloat(b + 64), buf.getFloat(b + 68), buf.getFloat(b + 72),
+					buf.getDouble(b + 80), buf.getDouble(b + 88), buf.getDouble(b + 96), buf.getFloat(b + 104));
 			VarHandle.acquireFence();
 			if ((int) I32.getAcquire(buf, b) == s1) return s1 == 0 ? null : s;
 		}

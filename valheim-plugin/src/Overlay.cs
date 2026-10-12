@@ -24,7 +24,7 @@ namespace ValCraft
         int _uploads, _rejected;
         float _nextStats;
 
-        public Overlay(GameObject host)
+        public Overlay(GameObject host, bool premultiplied)
         {
             _root = new GameObject("ValCraftOverlay");
             UnityEngine.Object.DontDestroyOnLoad(_root);
@@ -43,15 +43,45 @@ namespace ValCraft
             _raycastProp?.SetValue(_rawImage, false, null);
             // MC's exported color is premultiplied (drawn over transparent black with coverage alpha), so blend with
             // One/OneMinusSrcAlpha. Built-in premultiply shaders are only present if the game ships them (unverified).
-            foreach (var name in new[] { "Legacy Shaders/Particles/Alpha Blended Premultiply", "Particles/Alpha Blended Premultiply", "Mobile/Particles/Alpha Blended Premultiply" })
-            {
-                var sh = Shader.Find(name);
-                if (sh == null) continue;
-                RawImageType.GetProperty("material")?.SetValue(_rawImage, new Material(sh), null);
-                ValCraftPlugin.Log.LogInfo($"[overlay] premultiplied-alpha shader: {name}");
-                break;
-            }
+            if (premultiplied) TryPremultipliedMaterial();
             _root.SetActive(false);
+        }
+
+        /// <summary>
+        /// 0.2.0 on Luke's PC found none of the built-in premultiply shaders (Valheim doesn't ship them). Fallback: any
+        /// loaded unlit shader exposing _SrcBlend/_DstBlend (e.g. "Particles/Standard Unlit") set to One/OneMinusSrcAlpha.
+        /// If nothing fits, the default UI shader is kept (translucent edges come out slightly darker).
+        /// </summary>
+        void TryPremultipliedMaterial()
+        {
+            Shader pick = null;
+            foreach (var name in new[] { "Legacy Shaders/Particles/Alpha Blended Premultiply", "Particles/Alpha Blended Premultiply", "Mobile/Particles/Alpha Blended Premultiply" })
+                if ((pick = Shader.Find(name)) != null) break;
+            bool needsBlendProps = false;
+            if (pick == null)
+            {
+                var candidates = new System.Collections.Generic.List<string>();
+                foreach (var sh in Resources.FindObjectsOfTypeAll<Shader>())
+                {
+                    if (sh == null || !sh.isSupported) continue;
+                    if (sh.FindPropertyIndex("_SrcBlend") < 0 || sh.FindPropertyIndex("_DstBlend") < 0 || sh.FindPropertyIndex("_MainTex") < 0) continue;
+                    candidates.Add(sh.name);
+                    if (pick == null && sh.name.IndexOf("Unlit", StringComparison.OrdinalIgnoreCase) >= 0) pick = sh;
+                }
+                ValCraftPlugin.Log.LogInfo($"[overlay] shaders with _SrcBlend/_DstBlend: {(candidates.Count == 0 ? "none" : string.Join(", ", candidates.ToArray()))}");
+                needsBlendProps = pick != null;
+            }
+            if (pick == null) { ValCraftPlugin.Log.LogInfo("[overlay] no premultiplied-alpha shader; using default UI blending"); return; }
+            var mat = new Material(pick) { name = "ValCraftPremultiplied" };
+            if (needsBlendProps)
+            {
+                mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+                mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                if (mat.HasProperty("_ZWrite")) mat.SetFloat("_ZWrite", 0f);
+                mat.renderQueue = 5000;
+            }
+            RawImageType.GetProperty("material")?.SetValue(_rawImage, mat, null);
+            ValCraftPlugin.Log.LogInfo($"[overlay] premultiplied-alpha material from shader '{pick.name}'");
         }
 
         public void Update(ValCraftLink link, bool visible, bool blockClicks)

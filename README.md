@@ -94,3 +94,28 @@ Verified on the Linux build box (real NeoForge 21.1.259 client under Xvfb/Mesa, 
 
 Not verified (no Valheim on the box): everything inside Valheim — overlay drawing, alpha look, input reading,
 F7/F8, Harmony input-block targets, cursor handling, Prism launch, quit/kill. See the risks list in the hand-off.
+
+
+## 0.3.0 — Milestone 3: Valheim camera + player follow Minecraft
+
+What's new
+- While a Minecraft world is loaded, the Valheim camera takes Minecraft's eye position, yaw/pitch, effective FOV and view bob every frame (Harmony postfix on `GameCamera.LateUpdate`, last priority).
+- The local Valheim Player follows Minecraft's feet position, relative to an **anchor** set when following starts (you don't teleport; MC's position maps onto where you stood). **F9** re-anchors.
+- The Valheim body is a kinematic, invisible proxy: Rigidbody kinematic + no gravity, `Character.UpdateMotion` skipped for the local player, renderers (body, gear, shadows) disabled. It is still a real networked Character that can be hit.
+- Valheim HUD hidden while following (MC's HUD is in the overlay).
+- **Vertical interim (VerticalMode=GroundSnap, default):** Valheim height = Valheim ground under you (raycast, fallback `ZoneSystem.GetGroundHeight`) + how high MC's feet are above where MC last stood. So MC jumps/falls show, and MC's own invisible terrain shape doesn't matter. Chosen because it needs no MC-side physics changes and can't drop you under Valheim terrain. Valheim walls/rocks do **not** block you yet (that's milestone 5: Valheim collision into MC). Recommended: play in a **Superflat** MC world so MC terrain never blocks your walking. `FollowMinecraft` uses MC's height directly (good with flying/creative).
+- Fixes from Luke's 0.2.0 log: `PrismExe` with surrounding quotes now works; overlay now searches for a usable premultiplied-alpha shader (none of the built-ins exist in Valheim) and logs what it found.
+
+New config (`BepInEx/config/dev.valcraft.valheim.cfg`)
+- `[Sync] FollowMinecraft=true`, `HideValheimPlayer=true`, `HideValheimHud=true`, `ViewBob=true`, `VerticalMode=GroundSnap|FollowMinecraft`
+- `[Controls] ReAnchorKey=F9`; `[Overlay] PremultipliedShader=true`
+
+Windows test (0.3.0)
+1. Replace `ValCraft.Valheim.dll` in `BepInEx/plugins/ValCraft/` and the jar in the Prism instance's `mods` (remove 0.2.0 jar). **Both sides must be 0.3.0** (protocol v3).
+2. Fix `PrismExe` path if needed (quotes are fine now). Make a Superflat MC world.
+3. Load a Valheim world, load the MC world. Log should show `[sync] reflection: ...` (all True), `[sync] camera hook: GameCamera:LateUpdate`, `[sync] 3 hooks patched`, `[sync] following Minecraft`, `[sync] anchor ...`.
+4. F7, walk with WASD: Valheim view moves; looking around turns it; no Valheim body or shadow visible; Valheim HUD gone.
+5. Facing check: walk forward in MC — Valheim view must move in the direction you look (not mirrored). Jump: view rises then lands on Valheim ground. Walk up a Valheim hill: view follows the terrain.
+6. Sprint: FOV widens like MC. Turn MC View Bobbing on/off: Valheim camera bobs / doesn't.
+7. F9 re-anchors. Disconnect MC: body/HUD come back, normal Valheim control.
+8. Send the new LogOutput.log (especially the `[overlay] shaders with _SrcBlend...` line).

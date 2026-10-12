@@ -36,6 +36,9 @@ namespace ValCraft
         ConfigEntry<KeyCode> _cfgToggleInput, _cfgToggleOverlay;
         ConfigEntry<int> _cfgQuitGrace;
         internal ConfigEntry<float> CfgMouseScale;
+        ConfigEntry<bool> _cfgFollow, _cfgHidePlayer, _cfgHideHud, _cfgViewBob;
+        ConfigEntry<VerticalMode> _cfgVertical;
+        ConfigEntry<KeyCode> _cfgReAnchor;
 
         void Awake()
         {
@@ -55,9 +58,10 @@ namespace ValCraft
             TryLaunchMinecraft();
             _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
             InputBlock.Apply(_harmony);
-            _overlay = new Overlay(gameObject);
+            PlayerSync.Apply(_harmony);
+            _overlay = new Overlay(gameObject, Config.Bind("Overlay", "PremultipliedShader", true, "Use a premultiplied-alpha material for the Minecraft overlay if a suitable shader is found (turn off if the overlay looks wrong or invisible).").Value);
             _input = new InputForwarder(this);
-            InputForwarder.ExcludeKeys(_cfgToggleInput.Value, _cfgToggleOverlay.Value);
+            InputForwarder.ExcludeKeys(_cfgToggleInput.Value, _cfgToggleOverlay.Value, _cfgReAnchor.Value);
         }
 
         void BindConfig()
@@ -71,6 +75,15 @@ namespace ValCraft
             _cfgToggleInput = Config.Bind("Controls", "ToggleInputKey", KeyCode.F7, "Toggle sending keyboard/mouse to Minecraft (Valheim ignores input while on).");
             _cfgToggleOverlay = Config.Bind("Controls", "ToggleOverlayKey", KeyCode.F8, "Show/hide the Minecraft overlay.");
             CfgMouseScale = Config.Bind("Controls", "MouseScale", 1.0f, "Multiplier for mouse movement sent to Minecraft (tune if turning is too slow/fast).");
+            _cfgReAnchor = Config.Bind("Controls", "ReAnchorKey", KeyCode.F9, "Re-anchor: map Minecraft's current position to where the Valheim player stands now.");
+            _cfgFollow = Config.Bind("Sync", "FollowMinecraft", true, "Valheim camera and player follow the Minecraft player while a Minecraft world is loaded.");
+            _cfgHidePlayer = Config.Bind("Sync", "HideValheimPlayer", true, "Hide the local Valheim character's body, gear and shadow while following (it stays an invisible proxy for physics/damage/networking).");
+            _cfgHideHud = Config.Bind("Sync", "HideValheimHud", true, "Hide Valheim's HUD (health, hotbar, crosshair) while following; Minecraft's HUD is shown instead.");
+            _cfgViewBob = Config.Bind("Sync", "ViewBob", true, "Apply Minecraft's view bobbing to the Valheim camera (only if Minecraft's View Bobbing option is on).");
+            _cfgVertical = Config.Bind("Sync", "VerticalMode", VerticalMode.GroundSnap, "GroundSnap: stand on Valheim's ground (MC jumps/falls are added on top). FollowMinecraft: use Minecraft's height as-is (use with a flat/superflat MC world or flying).");
+            void ApplySync() { PlayerSync.Enabled = _cfgFollow.Value; PlayerSync.HidePlayer = _cfgHidePlayer.Value; PlayerSync.HideHud = _cfgHideHud.Value; PlayerSync.ViewBob = _cfgViewBob.Value; PlayerSync.Vertical = _cfgVertical.Value; }
+            ApplySync();
+            Config.SettingChanged += (_, __) => ApplySync();
         }
 
         void LogEnvironmentChecks()
@@ -103,7 +116,7 @@ namespace ValCraft
         void TryLaunchMinecraft()
         {
             if (!_cfgAutoLaunch.Value) return;
-            string exe = _cfgPrismExe.Value;
+            string exe = (_cfgPrismExe.Value ?? "").Trim().Trim('"', '\'').Trim(); // users often paste the path with quotes
             if (string.IsNullOrWhiteSpace(exe)) { Log.LogInfo("[launch] PrismExe not set in config; start Minecraft yourself"); return; }
             if (!File.Exists(exe)) { Log.LogWarning($"[launch] PrismExe not found: {exe}"); return; }
             if (Link != null && Link.PreviousPeerHeartbeatMs != 0 && ValCraftLink.NowMs() - Link.PreviousPeerHeartbeatMs < 3000)
@@ -148,6 +161,7 @@ namespace ValCraft
                 Log.LogInfo("[link] Minecraft heartbeat lost; waiting for it to reconnect");
                 _connected = false;
                 SetInputActive(false);
+                PlayerSync.Stop("Minecraft disconnected");
             }
 
             var kb = UnityInput.Current;
@@ -157,6 +171,8 @@ namespace ValCraft
                 else Log.LogInfo("[input] Minecraft not connected; F7 ignored");
             }
             if (kb.GetKeyDown(_cfgToggleOverlay.Value)) _overlayVisible = !_overlayVisible;
+            if (kb.GetKeyDown(_cfgReAnchor.Value)) PlayerSync.ReAnchor();
+            PlayerSync.Update(Link, _connected);
 
             uint flags = 0;
             if (InputBlock.LocalPlayerExists()) flags |= ValCraftLink.VFlagInGame;
@@ -205,6 +221,7 @@ namespace ValCraft
 
         void OnDestroy()
         {
+            PlayerSync.Stop("plugin unloading");
             _harmony?.UnpatchSelf();
             _overlay?.Dispose();
             Link?.Dispose();

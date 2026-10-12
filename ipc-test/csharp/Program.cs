@@ -34,6 +34,20 @@ static unsafe class Program
         if (args.Length > 0 && args[0] == "host") return FakeValheim.Run(args.Length > 1 ? args[1] : ValCraftLink.DefaultPath(), args.Length > 2 ? int.Parse(args[2]) : 300, args.Length > 3 ? args[3] : "cmd.txt");
         path = args.Length > 0 ? args[0] : ValCraftLink.DefaultPath();
         int pings = args.Length > 1 ? int.Parse(args[1]) : 20000;
+        // 0. coordinate mapping (MC +Z south, yaw 0 = south, +90 = west -> Unity +Z north, yaw 0 = north, +90 = east)
+        {
+            bool ok = true;
+            void Check(string what, bool c) { if (!c) { Console.WriteLine("[cs] coord FAIL: " + what); ok = false; } }
+            CoordMap.ToUnity(1, 2, 3, out var ux, out var uy, out var uz); Check("pos", ux == 1 && uy == 2 && uz == -3);
+            foreach (var (mcYaw, mcDirX, mcDirZ) in new[] { (0f, 0f, 1f), (90f, -1f, 0f), (180f, 0f, -1f), (-90f, 1f, 0f), (45f, -0.7071f, 0.7071f) })
+            {
+                CoordMap.Forward(CoordMap.YawToUnity(mcYaw), out var fx, out var fz);
+                // MC look vector (-sin yaw, cos yaw) mapped to Unity is (x, -z)
+                Check($"yaw {mcYaw}", Math.Abs(fx - mcDirX) < 1e-3 && Math.Abs(fz - -mcDirZ) < 1e-3);
+            }
+            Console.WriteLine(ok ? "[cs] coordinate mapping OK (5 yaw cases + position)" : "[cs] coordinate mapping FAILED");
+            if (!ok) return 1;
+        }
         var sw = Stopwatch.StartNew();
         var link = new ValCraftLink(path, isHost: true);
         Console.WriteLine($"[cs] created {path} ({ValCraftLink.FileSize} bytes), session {link.Session:x}");
@@ -59,7 +73,9 @@ static unsafe class Program
             if (link.TryReadPlayerState(out var s))
             {
                 snapshots++;
-                if (s.X != s.FrameId || s.Y != s.FrameId * 2.0 || s.Z != -s.FrameId || s.Yaw != (float)(s.FrameId % 360)) torn++;
+                if (s.X != s.FrameId || s.Y != s.FrameId * 2.0 || s.Z != -s.FrameId || s.Yaw != (float)(s.FrameId % 360)
+                    || s.FeetX != s.X || s.FeetY != s.FrameId * 2.0 - 1.62 || s.FeetZ != s.Z || s.EyeHeight != 1.62f
+                    || s.BobX != 0.25f || s.BobY != -0.5f || s.BobRollDeg != 3f || s.BobPitchDeg != 5f || s.Flags != ValCraftLink.PsHasPlayer) torn++;
             }
             if (sw.ElapsedMilliseconds - t0 > 60000) return Fail("ping timeout");
         }

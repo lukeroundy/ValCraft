@@ -65,7 +65,11 @@ static unsafe class FakeValheim
                     case "dump": Dump(copy, cw, ch, a[0]); Console.WriteLine($"[host] dump {a[0]} {cw}x{ch} frames={frames} rejected={rejected} mcFlags={link.PeerFlags}"); break;
                     case "wait": waitUntil = sw.ElapsedMilliseconds + (long)F(0); break;
                     case "state":
-                        if (link.TryReadPlayerState(out var ps)) Console.WriteLine($"[host] MC camera frame {ps.FrameId} pos ({ps.X:F2},{ps.Y:F2},{ps.Z:F2}) yaw {ps.Yaw:F1} pitch {ps.Pitch:F1} fov {ps.FovDeg:F0}");
+                        if (link.TryReadPlayerState(out var ps))
+                        {
+                            CoordMap.ToUnity(ps.FeetX, ps.FeetY, ps.FeetZ, out var ux, out var uy, out var uz);
+                            Console.WriteLine($"[host] MC frame {ps.FrameId} eye ({ps.X:F2},{ps.Y:F2},{ps.Z:F2}) feet ({ps.FeetX:F2},{ps.FeetY:F2},{ps.FeetZ:F2}) eyeH {ps.EyeHeight:F2} yaw {ps.Yaw:F1} pitch {ps.Pitch:F1} fov {ps.FovDeg:F1} flags {ps.Flags} bob ({ps.BobX:F3},{ps.BobY:F3},{ps.BobRollDeg:F2},{ps.BobPitchDeg:F2}) -> unity feet ({ux:F2},{uy:F2},{uz:F2}) yaw {CoordMap.YawToUnity(ps.Yaw):F1}");
+                        }
                         break;
                     case "quit": goto done;
                 }

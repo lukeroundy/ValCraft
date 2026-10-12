@@ -73,3 +73,24 @@ Slot: `u16 type, u16 0, u32 length, u8 payload[248]`. Full when head − tail ==
 
 MC applies MouseMove as relative (dx/dy) while the mouse is grabbed (gameplay) and absolute (nx/ny × window size)
 while a screen is open.
+
+
+## v3 changes (ValCraft 0.3.0)
+PlayerState slot (0x100, seqlocked as before) extended. Offsets relative to slot start:
+
+| off | type | field |
+|---|---|---|
+| 0 | u32 | seq (odd = writing) |
+| 8 | i64 | frameId |
+| 16/24/32 | f64 | camera eye x/y/z (MC coords) |
+| 40/44/48/52 | f32 | yaw, pitch, roll, effective vertical FOV (deg) |
+| 56 | u32 | flags: 1 onGround, 2 flying, 4 crouching, 8 inWater, 16 thirdPerson, 32 hasPlayer, 64 viewBob |
+| 60/64 | f32 | view-bob translation x/y (MC view space, applied to the world) |
+| 68/72 | f32 | view-bob roll (Z) / pitch (X) degrees (applied to the world) |
+| 80/88/96 | f64 | player feet x/y/z (interpolated) |
+| 104 | f32 | eye height |
+
+### Coordinate mapping
+MC: X east, Y up, Z south, right-handed; yaw 0 = facing +Z (south), +90 = facing -X (west); pitch + = down.
+Valheim/Unity: X east, Y up, Z north, left-handed. 1 block = 1 m.
+`unity = anchor + (x, y, -z)`, `unityYaw = mcYaw + 180`, `unityPitch = mcPitch`. Implemented once in `CoordMap` (ValCraftLink.cs) and unit-tested by the IPC test.

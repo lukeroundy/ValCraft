@@ -15,8 +15,8 @@
   <ItemGroup>
     <PackageReference Include="BepInEx.Core" Version="5.4.21" PrivateAssets="all" />
     <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" PrivateAssets="all" />
-    <!-- Valheim reports Unity 6000.0.61f1 (unverified for 1.0.17). Only used for compile-time API surface. -->
-    <PackageReference Include="UnityEngine.Modules" Version="6000.0.61" IncludeAssets="compile" PrivateAssets="all" />
+    <!-- Valheim 1.0.17 runs Unity 6000.0.75f1 (verified from Luke's log). Only used for compile-time API surface. -->
+    <PackageReference Include="UnityEngine.Modules" Version="6000.0.75" IncludeAssets="compile" PrivateAssets="all" />
   </ItemGroup>
 
   <!-- Real game assemblies (publicized), only when ValheimDir is given. Publicize with BepInEx.AssemblyPublicizer
@@ -37,6 +37,6 @@
   <PropertyGroup>
     <BepInExPluginGuid>dev.valcraft.valheim</BepInExPluginGuid>
     <BepInExPluginName>ValCraft</BepInExPluginName>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
   </PropertyGroup>
 </Project>
