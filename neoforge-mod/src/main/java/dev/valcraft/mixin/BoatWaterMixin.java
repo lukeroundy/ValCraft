@@ -19,13 +19,17 @@ public abstract class BoatWaterMixin {
 		double s = ValheimWater.waterSurface(self);
 		if (Double.isNaN(s)) return;
 		var bb = self.getBoundingBox();
-		if (s > bb.minY + 0.001 && s <= bb.maxY + 0.001) { waterLevel = s; cir.setReturnValue(true); }
+		if (s > bb.minY + 0.001) { waterLevel = Math.min(s, bb.maxY); cir.setReturnValue(true); }
 	}
 
 	@Inject(method = "isUnderwater", at = @At("HEAD"), cancellable = true)
 	private void valcraft$valheimUnder(CallbackInfoReturnable<Boat.Status> cir) {
 		var self = (Boat) (Object) this;
 		double s = ValheimWater.waterSurface(self);
-		if (!Double.isNaN(s) && s > self.getBoundingBox().maxY + 0.001) cir.setReturnValue(Boat.Status.UNDER_WATER);
+		if (Double.isNaN(s)) return;
+		// 0.9.3: Valheim waves move the surface by tens of cm between samples; only call it submerged when clearly under (vanilla would sink + eject)
+		var bb = self.getBoundingBox();
+		if (s > bb.maxY + 0.75) cir.setReturnValue(Boat.Status.UNDER_WATER);
+		else if (s > bb.minY - 0.25) { waterLevel = Math.min(s, bb.maxY); cir.setReturnValue(null); }
 	}
 }

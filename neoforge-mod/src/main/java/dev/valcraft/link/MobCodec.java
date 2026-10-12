@@ -56,6 +56,16 @@ public final class MobCodec {
 			if (i < 0 || j < 0 || i >= nx || j >= nz) return Float.NaN;
 			return surface[j * nx + i];
 		}
+		/** 0.9.3: bilinear surface (waves sampled per 2 m cell would otherwise jump); nearest cell where a neighbour is dry. */
+		public float surfaceSmooth(double x, double z) {
+			double fx = (x - x0) / step, fz = (z - z0) / step;
+			int i = (int) Math.floor(fx), j = (int) Math.floor(fz);
+			if (i < 0 || j < 0 || i + 1 >= nx || j + 1 >= nz) return surfaceAt(x, z);
+			float a = surface[j * nx + i], b = surface[j * nx + i + 1], c = surface[(j + 1) * nx + i], d = surface[(j + 1) * nx + i + 1];
+			if (Float.isNaN(a) || Float.isNaN(b) || Float.isNaN(c) || Float.isNaN(d)) return surfaceAt(x, z);
+			double u = fx - i, v = fz - j;
+			return (float) ((a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v);
+		}
 		public boolean tarAt(double x, double z) {
 			int i = (int) Math.round((x - x0) / step), j = (int) Math.round((z - z0) / step);
 			return i >= 0 && j >= 0 && i < nx && j < nz && tar[j * nx + i];

@@ -19,7 +19,8 @@ namespace ValCraft
         static bool _init;
         static Type _aoeT, _effT, _charT;
         static FieldInfo _aoeDmg, _effType; static MethodInfo _inLava, _liquid, _hmFind, _hmIsLava, _hmHeight;
-        static readonly Collider[] _hits = new Collider[64];
+        static readonly Collider[] _hits = new Collider[512];
+        static MethodInfo _inArea, _isBurning; static Type _fpT; static object[] _fires = new object[0]; static float _nextFireScan, _nextNearLog;
         static bool _wasFire;
 
         static void Init()
@@ -29,6 +30,8 @@ namespace ValCraft
             _aoeDmg = AccessTools.Field(_aoeT, "m_damage"); _effType = AccessTools.Field(_effT, "m_type");
             _inLava = AccessTools.Method(_charT, "InLava", Type.EmptyTypes);
             var hmT = AccessTools.TypeByName("Heightmap"); const BindingFlags BF = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+            _inArea = _effT?.GetMethod("IsPointInsideArea", BindingFlags.Public | BindingFlags.Static);
+            _fpT = AccessTools.TypeByName("Fireplace"); _isBurning = _fpT?.GetMethod("IsBurning", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
             _hmFind = hmT?.GetMethod("FindHeightmap", BF, null, new[] { typeof(Vector3) }, null);
             _hmIsLava = hmT?.GetMethod("IsLava", BF, null, new[] { typeof(Vector3), typeof(float) }, null);
             _hmHeight = hmT?.GetMethod("GetHeight", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(Vector3), typeof(float).MakeByRefType() }, null);
@@ -74,6 +77,35 @@ namespace ValCraft
                     if (d > best) { best = d; src = c.gameObject.name; }
                 }
             }
+            // 0.9.3: the overlap above found nothing in practice (the hidden player sits among hundreds of block/terrain colliders);
+            // also ask Valheim's own burning-area registry and check burning fireplaces by distance.
+            if (best <= 0 && _inArea != null)
+            {
+                foreach (var probe in new[] { p + Vector3.up * 0.25f, p + Vector3.up * 1f })
+                {
+                    try
+                    {
+                        var ea = _inArea.Invoke(null, new object[] { probe, Enum.ToObject(_inArea.GetParameters()[1].ParameterType, 8 | 2), 0.3f }) as Component;
+                        if (ea != null) { float d = Math.Max(5f, FireDamage(ea)); if (d > best) { best = d; src = ea.gameObject.name + " (area)"; } break; }
+                    }
+                    catch { }
+                }
+            }
+            float nearest = float.MaxValue; string nearName = null;
+            if (_fpT != null)
+            {
+                if (Time.unscaledTime >= _nextFireScan) { _nextFireScan = Time.unscaledTime + 3f; _fires = UnityEngine.Object.FindObjectsOfType(_fpT); }
+                foreach (var o in _fires)
+                {
+                    var fc = o as Component; if (fc == null) continue;
+                    bool burning = false; try { burning = _isBurning != null && (bool)_isBurning.Invoke(fc, null); } catch { }
+                    if (!burning) continue;
+                    var fpos = fc.transform.position; var dh = new Vector2(fpos.x - p.x, fpos.z - p.z).magnitude; float dy = p.y - fpos.y;
+                    if (dh < nearest) { nearest = dh; nearName = fc.gameObject.name; }
+                    if (dh < 0.8f && dy > -0.5f && dy < 1.2f && best < 5f) { best = 5f; src = fc.gameObject.name + " (fireplace)"; }
+                }
+            }
+            if (nearest < 4f && Time.unscaledTime >= _nextNearLog) { _nextNearLog = Time.unscaledTime + 1f; ValCraftPlugin.Log.LogInfo($"[hazard] near burning {nearName}: {nearest:F2} m horizontal (player {p}), fire={best > 0}"); }
             bool lava = false; try { lava = _inLava != null && (bool)_inLava.Invoke(pl, null); } catch { }
             // 0.9.2: the hidden player is kinematic (no ground contact), so also ask the terrain: Ashlands lava under the feet
             if (!lava && _hmFind != null && _hmIsLava != null)
@@ -81,10 +113,10 @@ namespace ValCraft
                 try
                 {
                     var fp = pl.transform.position; var hm = _hmFind.Invoke(null, new object[] { fp });
-                    if (hm != null && (bool)_hmIsLava.Invoke(hm, new object[] { fp, 0.6f }))
+                    if (hm != null && (bool)_hmIsLava.Invoke(hm, new object[] { fp, 0.4f }))
                     {
                         var args = new object[] { fp, 0f };
-                        bool near = _hmHeight == null || !(bool)_hmHeight.Invoke(null, args) || fp.y - (float)args[1] < 0.6f;
+                        bool near = _hmHeight == null || !(bool)_hmHeight.Invoke(null, args) || fp.y - (float)args[1] < 1.0f;
                         lava = near;
                     }
                 }

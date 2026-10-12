@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class ValheimWater {
 	private ValheimWater() {}
-	private static final long MAX_AGE_MS = 3000, DRY_AGE_MS = 15000;
+	private static final long MAX_AGE_MS = 30000, DRY_AGE_MS = 30000 /* 0.9.3: keep the last known tile; a newer tile replaces it */;
 	private static final ConcurrentHashMap<Long, MobCodec.Water> tiles = new ConcurrentHashMap<>();
 
 	private static long key(int tx, int tz) { return ((long) tx << 32) ^ (tz & 0xFFFFFFFFL); }
@@ -43,7 +43,7 @@ public final class ValheimWater {
 		if (tiles.isEmpty()) return Double.NaN;
 		var w = at(x, z);
 		if (w == null || w.tarAt(x, z)) return Double.NaN;
-		return w.surfaceAt(x, z);
+		return w.surfaceSmooth(x, z);
 	}
 
 	/** Client tick: Valheim tar slows the local player. */
