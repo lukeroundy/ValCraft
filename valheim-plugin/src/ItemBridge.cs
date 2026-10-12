@@ -363,7 +363,7 @@ namespace ValCraft
 
         // ---------------- 0.8.3: mace = Valheim hammer (build mode) ----------------
         internal const string MaceId = "minecraft:mace";
-        static bool _building; static object _virtualHammer;
+        static bool _building; static object _virtualHammer, _hammerUsed;
         static Type _hudT, _playerT; static MethodInfo _toggleSel, _hideSel, _selVisible, _tryPlace, _removePiece, _getSel; static FieldInfo _rot; static PropertyInfo _hudInst; static FieldInfo _hudInstF;
         static bool _buildInit;
         static void BuildInit()
@@ -536,6 +536,7 @@ namespace ValCraft
             foreach (var it in (IList)_getAllItems.Invoke(inv, null)) if (PrefabOf(it) == "Hammer") { hammer = it; break; }
             if (hammer == null) { hammer = AddValheim("Hammer", 1); _virtualHammer = hammer; }
             if (hammer == null) { ValCraftPlugin.Log.LogWarning("[build] could not give the Valheim player a hammer"); return false; }
+            _hammerUsed = hammer;
             try { _equip.Invoke(PlayerSync.Player, new object[] { hammer, false }); } catch (Exception e) { ValCraftPlugin.Log.LogWarning("[build] equip hammer: " + e.GetBaseException().Message); return false; }
             _building = true;
             _link?.TrySend(ValCraftLink.EvBuildState, new byte[] { 1 });
@@ -549,16 +550,32 @@ namespace ValCraft
             if (!_building) return;
             CloseMenu("leaving build mode");
             _building = false;
+            // 0.8.6: 0.8.5 only unequipped a *virtual* hammer; with a real one (log: "real Valheim hammer") Valheim stayed in
+            // place mode and the ghost stayed. Now: unequip whatever hammer we equipped, leave place mode, drop the ghost.
+            var pl = PlayerSync.Player;
             try
             {
                 var inv = Inv();
-                if (_virtualHammer != null && PlayerSync.Player != null)
+                if (pl != null && _hammerUsed != null) _unequip?.Invoke(pl, new object[] { _hammerUsed, false });
+                if (_virtualHammer != null && inv != null) _removeItem.Invoke(inv, new[] { _virtualHammer });
+            }
+            catch (Exception e) { Diag.Warn("buildexit", "[build] exit unequip: " + e.GetBaseException().Message); }
+            try
+            {
+                if (pl != null)
                 {
-                    _unequip?.Invoke(PlayerSync.Player, new object[] { _virtualHammer, false });
-                    if (inv != null) _removeItem.Invoke(inv, new[] { _virtualHammer });
+                    var spm = AccessTools.Method(_playerT, "SetPlaceMode", new[] { AccessTools.TypeByName("PieceTable") });
+                    spm?.Invoke(pl, new object[] { null });
+                    foreach (var fn in new[] { "m_placementGhost", "m_placementMarkerInstance" })
+                    {
+                        var f = AccessTools.Field(_playerT, fn);
+                        if (f?.GetValue(pl) is GameObject g && g != null) { UnityEngine.Object.Destroy(g); f.SetValue(pl, null); }
+                    }
+                    ValCraftPlugin.Log.LogInfo($"[build] place mode cleared (SetPlaceMode {(spm != null ? "ok" : "missing")}), ghost removed, hammer unequipped");
                 }
             }
-            catch (Exception e) { Diag.Warn("buildexit", "[build] exit: " + e.GetBaseException().Message); }
+            catch (Exception e) { Diag.Warn("buildexit2", "[build] exit place mode: " + e.GetBaseException().Message); }
+            _hammerUsed = null;
             _virtualHammer = null;
             _link?.TrySend(ValCraftLink.EvBuildState, new byte[] { 0 });
             _nextSweep = 0;

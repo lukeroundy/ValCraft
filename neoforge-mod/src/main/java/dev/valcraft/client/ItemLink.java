@@ -97,11 +97,15 @@ final class ItemLink {
 	}
 
 	/** Render thread, every client tick: EV_HELD_ITEM {u16 count, utf8 id} when the main-hand stack changes. */
+	private static int heldResend;
 	static void tick(Minecraft mc) {
 		if (mc.player == null) return;
 		ItemStack h = mc.player.getMainHandItem();
 		String now = h.isEmpty() ? "" : id(h) + "#" + h.getCount();
-		if (now.equals(lastHeld)) return;
+		if (mc.player.isDeadOrDying()) now = "";
+		if (now.equals(lastHeld) && ++heldResend < 40) return; // also resend every 2 s in case a message was lost
+		heldResend = 0;
+		if (mc.player.isDeadOrDying()) h = ItemStack.EMPTY;
 		byte[] name = (h.isEmpty() ? "" : id(h)).getBytes(StandardCharsets.UTF_8);
 		ByteBuffer b = ByteBuffer.allocate(2 + name.length).order(ByteOrder.LITTLE_ENDIAN);
 		b.putShort((short) (h.isEmpty() ? 0 : h.getCount())).put(name);

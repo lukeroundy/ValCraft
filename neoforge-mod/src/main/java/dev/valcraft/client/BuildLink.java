@@ -16,7 +16,11 @@ public final class BuildLink {
 	private static volatile boolean active;
 	private static boolean usePressed;
 
-	static void state(byte[] p) { active = p != null && p.length > 0 && p[0] != 0; }
+	static void state(byte[] p) {
+		active = p != null && p.length > 0 && p[0] != 0;
+		var mc = Minecraft.getInstance();
+		if (!active && mc.screen instanceof BuildScreen) mc.setScreen(null);
+	}
 	static void reset() { active = false; usePressed = false; pending.clear(); }
 
 	private static final java.util.List<dev.valcraft.link.BuildCodec.Piece> pending = new java.util.ArrayList<>();
@@ -30,7 +34,14 @@ public final class BuildLink {
 		if (list.isEmpty()) { if (mc.player != null) mc.player.displayClientMessage(net.minecraft.network.chat.Component.literal("Valheim: no build pieces known yet"), true); return; }
 		if (mc.screen == null && holdingMace(mc)) mc.setScreen(new BuildScreen(list));
 	}
-	static void tick(Minecraft mc) { if (!mc.options.keyUse.isDown()) usePressed = false; }
+	static void tick(Minecraft mc) {
+		if (!mc.options.keyUse.isDown()) usePressed = false;
+		// 0.8.6: leaving the mace ends build mode on our side at once (Valheim follows via EV_HELD_ITEM) and closes the picker
+		if (!holdingMace(mc)) {
+			if (active) { active = false; dev.valcraft.ValCraft.LOG.info("[build] mace no longer held: build mode off"); }
+			if (mc.screen instanceof BuildScreen) mc.setScreen(null);
+		}
+	}
 
 	static boolean holdingMace(Minecraft mc) { return mc.player != null && mc.player.getMainHandItem().is(Items.MACE); }
 	public static boolean building(Minecraft mc) { return active && ValCraftClient.active() && holdingMace(mc); }
