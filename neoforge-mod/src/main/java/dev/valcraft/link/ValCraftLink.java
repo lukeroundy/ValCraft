@@ -13,27 +13,39 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 
 /**
- * ValCraft shared-memory link, Minecraft side (client of the file created by the Valheim plugin).
- * Layout: see protocol/PROTOCOL.md. Pure JDK (FileChannel.map + VarHandles), no Minecraft imports,
- * so the standalone IPC test compiles this exact file.
+ * ValCraft shared-memory link, protocol v2, Minecraft side (client of the file created by the Valheim plugin).
+ * Layout: protocol/PROTOCOL.md. Pure JDK (FileChannel.map + VarHandles), no Minecraft imports, so the
+ * standalone IPC test compiles this exact file.
  */
 public final class ValCraftLink implements AutoCloseable {
-	public static final int MAGIC = 0x434C4156, VERSION = 1;
+	public static final int MAGIC = 0x434C4156, VERSION = 2;
 	static final int OFF_MAGIC = 0x0, OFF_VERSION = 0x4, OFF_VALHEIM_PID = 0x10, OFF_MC_PID = 0x14;
 	static final int OFF_VALHEIM_HB = 0x18, OFF_MC_HB = 0x20, OFF_VALHEIM_FLAGS = 0x28, OFF_MC_FLAGS = 0x2C;
+	static final int OFF_SESSION = 0x30, OFF_MC_ACKED_SESSION = 0x34;
 	static final int OFF_PLAYER_STATE = 0x100;
+	static final int OFF_FRAME_REQ_W = 0x200, OFF_FRAME_REQ_H = 0x204, OFF_FRAME_MAX_W = 0x208, OFF_FRAME_MAX_H = 0x20C;
+	static final int OFF_FRAME_LATEST_SEQ = 0x210, OFF_FRAME_LATEST_INDEX = 0x218, OFF_FRAME_BUF_HDR = 0x240, FRAME_BUF_HDR_SIZE = 0x40;
+	public static final int FRAME_MAX_W = 1920, FRAME_MAX_H = 1080, FRAME_FORMAT_RGBA8_BOTTOM_UP = 1;
 	static final int RING_SLOTS = 256, SLOT_SIZE = 256, SLOT_PAYLOAD = SLOT_SIZE - 8, RING_HEADER = 0x80;
 	static final int RING_BYTES = RING_HEADER + RING_SLOTS * SLOT_SIZE;
 	static final int OFF_RING_V2M = 0x1000, OFF_RING_M2V = OFF_RING_V2M + RING_BYTES;
-	public static final long FILE_SIZE = 0x22100;
+	static final int OFF_FRAME_DATA = 0x22000;
+	public static final int FRAME_BYTES = FRAME_MAX_W * FRAME_MAX_H * 4;
+	public static final long FILE_SIZE = OFF_FRAME_DATA + 2L * FRAME_BYTES;
 
-	public static final short EV_HELLO = 1, EV_PING = 2, EV_PONG = 3;
+	public static final int VFLAG_IN_GAME = 1, VFLAG_MENU_OPEN = 2, VFLAG_LOADING = 4, VFLAG_INPUT_ACTIVE = 8, VFLAG_QUITTING = 16;
+	public static final int MCFLAG_WORLD_LOADED = 1, MCFLAG_HIDDEN = 2, MCFLAG_SCREEN_OPEN = 4;
+
+	public static final short EV_HELLO = 1, EV_PING = 2, EV_PONG = 3, EV_HELLO_ACK = 4, EV_QUIT = 5;
+	public static final short EV_KEY = 10, EV_CHAR = 11, EV_MOUSE_MOVE = 12, EV_MOUSE_BUTTON = 13, EV_SCROLL = 14, EV_RELEASE_ALL = 15;
 
 	private static final VarHandle I32 = MethodHandles.byteBufferViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
 	private static final VarHandle I64 = MethodHandles.byteBufferViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
 	public record PlayerState(long frameId, double x, double y, double z, float yaw, float pitch, float roll, float fovDeg, int flags) {}
-	public record Event(short type, byte[] payload) {}
+	public record Event(short type, byte[] payload) {
+		public ByteBuffer le() { return ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN); }
+	}
 
 	private final FileChannel channel;
 	private final MappedByteBuffer buf;
@@ -46,7 +58,7 @@ public final class ValCraftLink implements AutoCloseable {
 		return Paths.get(local, "ValCraft", "valcraft.shm");
 	}
 
-	/** Opens the link; throws if the Valheim side has not created/initialised it yet. */
+	/** Opens the link; throws if the Valheim side has not created it yet. Check {@link #isReady()} too. */
 	public ValCraftLink(Path path) throws IOException {
 		if (!Files.exists(path) || Files.size(path) < FILE_SIZE) throw new IOException("ValCraft link file not ready: " + path);
 		channel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE);
@@ -68,7 +80,11 @@ public final class ValCraftLink implements AutoCloseable {
 	public boolean peerAlive(long timeoutMs) { long hb = peerHeartbeatMs(); return hb != 0 && nowMs() - hb < timeoutMs; }
 	public int peerPid() { return (int) I32.getAcquire(buf, OFF_VALHEIM_PID); }
 	public int peerFlags() { return (int) I32.getAcquire(buf, OFF_VALHEIM_FLAGS); }
+	public int session() { return (int) I32.getAcquire(buf, OFF_SESSION); }
+	public void setAckedSession(int s) { I32.setRelease(buf, OFF_MC_ACKED_SESSION, s); }
+	public int flags() { return (int) I32.getAcquire(buf, OFF_MC_FLAGS); }
 	public void setFlags(int f) { I32.setRelease(buf, OFF_MC_FLAGS, f); }
+	public void setFlag(int bit, boolean on) { int f = flags(); setFlags(on ? f | bit : f & ~bit); }
 
 	// ---- seqlock PlayerState (MC is the writer) ----
 	public void writePlayerState(PlayerState s) {
@@ -96,6 +112,30 @@ public final class ValCraftLink implements AutoCloseable {
 		return null;
 	}
 
+	// ---- frames (MC writes) ----
+	public int requestedWidth() { return (int) I32.getAcquire(buf, OFF_FRAME_REQ_W); }
+	public int requestedHeight() { return (int) I32.getAcquire(buf, OFF_FRAME_REQ_H); }
+
+	/**
+	 * Publishes one RGBA8 bottom-up frame into the buffer the reader is not on. {@code frameNo} must increase from 1.
+	 * {@code src} position..position+w*h*4 is copied (position untouched).
+	 */
+	public boolean publishFrame(long frameNo, int w, int h, ByteBuffer src) {
+		int bytes = w * h * 4;
+		if (w <= 0 || h <= 0 || w > FRAME_MAX_W || h > FRAME_MAX_H || src.remaining() < bytes) return false;
+		long latest = (long) I64.getAcquire(buf, OFF_FRAME_LATEST_SEQ);
+		int idx = latest == 0 ? 0 : 1 - ((int) I32.getAcquire(buf, OFF_FRAME_LATEST_INDEX) & 1);
+		int hdr = OFF_FRAME_BUF_HDR + idx * FRAME_BUF_HDR_SIZE;
+		I64.setOpaque(buf, hdr, frameNo * 2 - 1);
+		VarHandle.fullFence();
+		buf.put(OFF_FRAME_DATA + idx * FRAME_BYTES, src, src.position(), bytes);
+		buf.putInt(hdr + 8, w); buf.putInt(hdr + 12, h); buf.putInt(hdr + 16, w * 4); buf.putInt(hdr + 20, FRAME_FORMAT_RGBA8_BOTTOM_UP);
+		I64.setRelease(buf, hdr, frameNo * 2);
+		I32.setRelease(buf, OFF_FRAME_LATEST_INDEX, idx);
+		I64.setRelease(buf, OFF_FRAME_LATEST_SEQ, frameNo);
+		return true;
+	}
+
 	// ---- SPSC rings: MC sends on M2V, receives on V2M ----
 	public boolean trySend(short type, byte[] payload) {
 		int len = payload == null ? 0 : payload.length;
@@ -103,7 +143,7 @@ public final class ValCraftLink implements AutoCloseable {
 		int r = OFF_RING_M2V;
 		long head = (long) I64.getOpaque(buf, r);
 		long tail = (long) I64.getAcquire(buf, r + 0x40);
-		if (head - tail >= RING_SLOTS) return false;
+		if (head - tail >= RING_SLOTS || tail > head) return false;
 		int slot = r + RING_HEADER + (int) (head % RING_SLOTS) * SLOT_SIZE;
 		buf.putShort(slot, type); buf.putShort(slot + 2, (short) 0); buf.putInt(slot + 4, len);
 		for (int i = 0; i < len; i++) buf.put(slot + 8 + i, payload[i]);
@@ -116,13 +156,20 @@ public final class ValCraftLink implements AutoCloseable {
 		long tail = (long) I64.getOpaque(buf, r + 0x40);
 		long head = (long) I64.getAcquire(buf, r);
 		if (tail == head) return null;
+		if (head - tail > RING_SLOTS || tail > head) { I64.setRelease(buf, r + 0x40, head); return null; } // host re-initialised: resync
 		int slot = r + RING_HEADER + (int) (tail % RING_SLOTS) * SLOT_SIZE;
 		int len = Math.min(buf.getInt(slot + 4), SLOT_PAYLOAD);
 		byte[] data = new byte[len];
-		for (int i = 0; i < len; i++) data[i] = buf.get(slot + 8 + i);
+		buf.get(slot + 8, data);
 		Event ev = new Event(buf.getShort(slot), data);
 		I64.setRelease(buf, r + 0x40, tail + 1);
 		return ev;
+	}
+
+	public static byte[] ints(int... v) {
+		ByteBuffer b = ByteBuffer.allocate(v.length * 4).order(ByteOrder.LITTLE_ENDIAN);
+		for (int x : v) b.putInt(x);
+		return b.array();
 	}
 
 	@Override public void close() throws IOException { channel.close(); }

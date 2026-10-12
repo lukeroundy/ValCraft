@@ -4,6 +4,14 @@
   "package": "dev.valcraft.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [],
-  "client": [],
+  "client": [
+    "GlStateManagerMixin",
+    "InputConstantsMixin",
+    "KeyboardHandlerAccessor",
+    "LevelRendererMixin",
+    "MinecraftMixin",
+    "MouseHandlerAccessor",
+    "WindowMixin"
+  ],
   "injectors": { "defaultRequire": 1 }
 }

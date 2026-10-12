@@ -10,6 +10,6 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft() {
-		LOG.info("ValCraft loaded (milestone 1: shared-memory link only)");
+		LOG.info("ValCraft loaded (milestone 2: hidden HUD overlay + input)");
 	}
 }

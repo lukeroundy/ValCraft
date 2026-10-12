@@ -1,4 +1,4 @@
-// ValCraft shared-memory link (C# side). See PROTOCOL.md. Shared by the Valheim plugin and the IPC test.
+// ValCraft shared-memory link (C# side), protocol v2. See PROTOCOL.md. Shared by the Valheim plugin and the IPC test.
 using System;
 using System.IO;
 using System.IO.MemoryMappedFiles;
@@ -20,27 +20,57 @@ namespace ValCraft.Protocol
         public byte[] Payload;
     }
 
+    /// <summary>A frame buffer the reader may copy from; check <see cref="ValCraftLink.FrameStillValid"/> after copying.</summary>
+    public unsafe struct FrameView
+    {
+        public long Seq;
+        public int Index, Width, Height, Stride;
+        public byte* Data;
+        public int Bytes => Stride * Height;
+    }
+
     public sealed unsafe class ValCraftLink : IDisposable
     {
         public const uint Magic = 0x434C4156; // "VALC"
-        public const uint Version = 1;
+        public const uint Version = 2;
+        // header
         public const int OffMagic = 0x0, OffVersion = 0x4, OffSize = 0x8, OffValheimPid = 0x10, OffMcPid = 0x14;
         public const int OffValheimHeartbeat = 0x18, OffMcHeartbeat = 0x20, OffValheimFlags = 0x28, OffMcFlags = 0x2C;
+        public const int OffSession = 0x30, OffMcAckedSession = 0x34;
+        // per-frame player state (seqlock, MC writes)
         public const int OffPlayerState = 0x100;
+        // frame control
+        public const int OffFrameReqW = 0x200, OffFrameReqH = 0x204, OffFrameMaxW = 0x208, OffFrameMaxH = 0x20C;
+        public const int OffFrameLatestSeq = 0x210, OffFrameLatestIndex = 0x218;
+        public const int OffFrameBufHdr = 0x240, FrameBufHdrSize = 0x40; // u64 seq, u32 w, u32 h, u32 stride, u32 format
+        public const int FrameMaxW = 1920, FrameMaxH = 1080, FrameFormatRgba8BottomUp = 1;
+        // rings
         public const int RingSlots = 256, SlotSize = 256, SlotPayload = SlotSize - 8, RingHeader = 0x80;
-        public const int RingBytes = RingHeader + RingSlots * SlotSize; // 0x10080
+        public const int RingBytes = RingHeader + RingSlots * SlotSize;          // 0x10080
         public const int OffRingValheimToMc = 0x1000;
-        public const int OffRingMcToValheim = OffRingValheimToMc + RingBytes; // 0x11080
-        public const long TotalSize = OffRingMcToValheim + RingBytes;          // 0x21100 (file is padded to FileSize)
-        public const long FileSize = 0x22100;
+        public const int OffRingMcToValheim = OffRingValheimToMc + RingBytes;   // 0x11080, ends 0x21100
+        // frame pixel buffers
+        public const long OffFrameData = 0x22000;
+        public const long FrameBytes = (long)FrameMaxW * FrameMaxH * 4;          // 0x7E9000
+        public const long FileSize = OffFrameData + 2 * FrameBytes;              // 0xFF4000 (16,728,064)
 
-        public const ushort EvHello = 1, EvPing = 2, EvPong = 3;
+        // Valheim flags
+        public const uint VFlagInGame = 1, VFlagMenuOpen = 2, VFlagLoading = 4, VFlagInputActive = 8, VFlagQuitting = 16;
+        // Minecraft flags
+        public const uint McFlagWorldLoaded = 1, McFlagHidden = 2, McFlagScreenOpen = 4;
+
+        // events
+        public const ushort EvHello = 1, EvPing = 2, EvPong = 3, EvHelloAck = 4, EvQuit = 5;
+        public const ushort EvKey = 10, EvChar = 11, EvMouseMove = 12, EvMouseButton = 13, EvScroll = 14, EvReleaseAll = 15;
 
         readonly MemoryMappedFile _mmf;
         readonly MemoryMappedViewAccessor _view;
         readonly byte* _base;
         readonly bool _isHost;
         public string Path { get; }
+        public uint Session { get; private set; }
+        /// <summary>Host only: Minecraft heartbeat found in the file before it was re-initialised (0 if none).</summary>
+        public long PreviousPeerHeartbeatMs { get; private set; }
 
         public static string DefaultPath()
         {
@@ -57,26 +87,31 @@ namespace ValCraft.Protocol
             _isHost = isHost;
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
             var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete);
-            if (isHost) fs.SetLength(FileSize);
+            if (isHost) { if (fs.Length != FileSize) fs.SetLength(FileSize); }
             else if (fs.Length < FileSize) { fs.Dispose(); throw new IOException("ValCraft link file not initialised yet"); }
-            // mapName null: file-backed map, no named kernel object needed (works on Mono/Linux too).
-            _mmf = MemoryMappedFile.CreateFromFile(fs, null, FileSize, MemoryMappedFileAccess.ReadWrite,
-                HandleInheritability.None, false);
+            _mmf = MemoryMappedFile.CreateFromFile(fs, null, FileSize, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, false);
             _view = _mmf.CreateViewAccessor(0, FileSize, MemoryMappedFileAccess.ReadWrite);
             byte* p = null;
             _view.SafeMemoryMappedViewHandle.AcquirePointer(ref p);
             _base = p + _view.PointerOffset;
             if (isHost) InitHeader();
+            else Session = ReadU32(OffSession);
         }
 
         void InitHeader()
         {
+            if ((uint)Volatile.Read(ref *(int*)(_base + OffMagic)) == Magic) PreviousPeerHeartbeatMs = ReadI64(OffMcHeartbeat);
             WriteU32(OffMagic, 0);
             Thread.MemoryBarrier();
-            for (long i = 4; i < FileSize; i++) _base[i] = 0;
+            for (long i = 4; i < OffFrameData; i++) _base[i] = 0; // pixel data need not be cleared
             WriteU32(OffVersion, Version);
             *(long*)(_base + OffSize) = FileSize;
             WriteU32(OffValheimPid, (uint)System.Diagnostics.Process.GetCurrentProcess().Id);
+            WriteU32(OffFrameMaxW, FrameMaxW); WriteU32(OffFrameMaxH, FrameMaxH);
+            uint session;
+            do { session = (uint)(Guid.NewGuid().GetHashCode()); } while (session == 0);
+            Session = session;
+            WriteU32(OffSession, session);
             Thread.MemoryBarrier();
             Volatile.Write(ref *(int*)(_base + OffMagic), unchecked((int)Magic));
         }
@@ -99,8 +134,11 @@ namespace ValCraft.Protocol
         public long PeerHeartbeatMs => ReadI64(_isHost ? OffMcHeartbeat : OffValheimHeartbeat);
         public bool PeerAlive(long timeoutMs = 2000) { var hb = PeerHeartbeatMs; return hb != 0 && NowMs() - hb < timeoutMs; }
         public uint PeerPid => ReadU32(_isHost ? OffMcPid : OffValheimPid);
-        public void SetFlags(uint f) => WriteU32(_isHost ? OffValheimFlags : OffMcFlags, f);
+        public uint Flags { get => ReadU32(_isHost ? OffValheimFlags : OffMcFlags); set => WriteU32(_isHost ? OffValheimFlags : OffMcFlags, value); }
+        public void SetFlag(uint bit, bool on) { var f = Flags; Flags = on ? f | bit : f & ~bit; }
         public uint PeerFlags => ReadU32(_isHost ? OffMcFlags : OffValheimFlags);
+        public uint HeaderSession => ReadU32(OffSession);
+        public uint McAckedSession { get => ReadU32(OffMcAckedSession); set => WriteU32(OffMcAckedSession, value); }
 
         // ---- seqlock PlayerState (written by MC; C# writer exists for tests) ----
         public void WritePlayerState(in PlayerState s)
@@ -134,16 +172,70 @@ namespace ValCraft.Protocol
             s = default; return false;
         }
 
+        // ---- frames (MC writes, Valheim reads) ----
+        /// <summary>Host: ask Minecraft to render at this size (clamped to 1920x1080 keeping aspect).</summary>
+        public void RequestFrameSize(int w, int h)
+        {
+            if (w <= 0 || h <= 0) return;
+            double scale = Math.Min(1.0, Math.Min((double)FrameMaxW / w, (double)FrameMaxH / h));
+            WriteU32(OffFrameReqW, (uint)Math.Max(1, (int)(w * scale)));
+            WriteU32(OffFrameReqH, (uint)Math.Max(1, (int)(h * scale)));
+        }
+        public int RequestedWidth => (int)ReadU32(OffFrameReqW);
+        public int RequestedHeight => (int)ReadU32(OffFrameReqH);
+        public long LatestFrameSeq => ReadI64(OffFrameLatestSeq);
+
+        /// <summary>Returns the newest complete frame if its seq is newer than <paramref name="lastSeen"/>.</summary>
+        public bool TryGetLatestFrame(long lastSeen, out FrameView v)
+        {
+            v = default;
+            long latest = ReadI64(OffFrameLatestSeq);
+            if (latest == 0 || latest == lastSeen) return false;
+            int idx = (int)ReadU32(OffFrameLatestIndex) & 1;
+            int h = OffFrameBufHdr + idx * FrameBufHdrSize;
+            long seq = ReadI64(h);
+            if ((seq & 1) != 0 || seq == 0) return false;          // being written (writer lapped us)
+            v.Seq = seq / 2; v.Index = idx;
+            v.Width = (int)ReadU32(h + 8); v.Height = (int)ReadU32(h + 12); v.Stride = (int)ReadU32(h + 16);
+            if (v.Width <= 0 || v.Height <= 0 || (long)v.Stride * v.Height > FrameBytes) return false;
+            v.Data = _base + OffFrameData + idx * FrameBytes;
+            return true;
+        }
+
+        /// <summary>After copying a frame: true if the writer did not touch that buffer meanwhile.</summary>
+        public bool FrameStillValid(in FrameView v)
+        {
+            Thread.MemoryBarrier();
+            return ReadI64(OffFrameBufHdr + v.Index * FrameBufHdrSize) == v.Seq * 2;
+        }
+
+        /// <summary>Writer side (MC; C# version used by tests). <paramref name="frameNo"/> must increase from 1.</summary>
+        public void PublishFrame(long frameNo, int w, int h, byte* src)
+        {
+            int idx = 1 - ((int)ReadU32(OffFrameLatestIndex) & 1);
+            if (ReadI64(OffFrameLatestSeq) == 0) idx = 0;
+            int hdr = OffFrameBufHdr + idx * FrameBufHdrSize;
+            WriteI64(hdr, frameNo * 2 - 1);
+            Thread.MemoryBarrier();
+            long bytes = (long)w * h * 4;
+            Buffer.MemoryCopy(src, _base + OffFrameData + idx * FrameBytes, FrameBytes, bytes);
+            WriteU32(hdr + 8, (uint)w); WriteU32(hdr + 12, (uint)h); WriteU32(hdr + 16, (uint)(w * 4)); WriteU32(hdr + 20, FrameFormatRgba8BottomUp);
+            WriteI64(hdr, frameNo * 2);
+            WriteU32(OffFrameLatestIndex, (uint)idx);
+            WriteI64(OffFrameLatestSeq, frameNo);
+        }
+
         // ---- SPSC rings ----
         int OutRing => _isHost ? OffRingValheimToMc : OffRingMcToValheim;
         int InRing => _isHost ? OffRingMcToValheim : OffRingValheimToMc;
 
-        public bool TrySend(ushort type, byte[] payload)
+        public bool TrySend(ushort type, byte[] payload) => TrySend(type, payload, payload?.Length ?? 0);
+
+        public bool TrySend(ushort type, byte[] payload, int len)
         {
-            int len = payload?.Length ?? 0;
             if (len > SlotPayload) throw new ArgumentException("payload too large");
             int r = OutRing;
-            long head = *(long*)(_base + r);           // producer owns head
+            long head = *(long*)(_base + r);             // producer owns head
             long tail = ReadI64(r + 0x40);
             if (head - tail >= RingSlots) return false;   // full
             byte* slot = _base + r + RingHeader + (head % RingSlots) * SlotSize;
@@ -159,6 +251,7 @@ namespace ValCraft.Protocol
             long tail = *(long*)(_base + r + 0x40);      // consumer owns tail
             long head = ReadI64(r);                       // acquire
             if (tail == head) { ev = default; return false; }
+            if (head - tail > RingSlots) { WriteI64(r + 0x40, head); ev = default; return false; } // peer reset: resync
             byte* slot = _base + r + RingHeader + (tail % RingSlots) * SlotSize;
             uint len = *(uint*)(slot + 4);
             if (len > SlotPayload) len = SlotPayload;
@@ -169,11 +262,23 @@ namespace ValCraft.Protocol
             return true;
         }
 
+        /// <summary>Drop everything queued for us (used when a peer reconnects).</summary>
+        public void DrainIncoming() { int r = InRing; WriteI64(r + 0x40, ReadI64(r)); }
+
         public void Dispose()
         {
             _view.SafeMemoryMappedViewHandle.ReleasePointer();
             _view.Dispose();
             _mmf.Dispose();
         }
+    }
+
+    /// <summary>Little-endian payload helpers.</summary>
+    public static class Payload
+    {
+        public static byte[] U32(params uint[] v) { var b = new byte[v.Length * 4]; for (int i = 0; i < v.Length; i++) BitConverter.GetBytes(v[i]).CopyTo(b, i * 4); return b; }
+        public static byte[] I32(params int[] v) { var b = new byte[v.Length * 4]; for (int i = 0; i < v.Length; i++) BitConverter.GetBytes(v[i]).CopyTo(b, i * 4); return b; }
+        public static byte[] F32(params float[] v) { var b = new byte[v.Length * 4]; for (int i = 0; i < v.Length; i++) BitConverter.GetBytes(v[i]).CopyTo(b, i * 4); return b; }
+        public static uint GetU32(byte[] b, int i) => b.Length >= (i + 1) * 4 ? BitConverter.ToUInt32(b, i * 4) : 0;
     }
 }

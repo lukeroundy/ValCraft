@@ -1,92 +1,96 @@
-# ValCraft — Milestone 1 (shared-memory link)
+# ValCraft 0.2.0 — Milestone 2 (Minecraft HUD in Valheim + input passthrough)
 
-Minecraft Java 1.21.1 (NeoForge) running next to Valheim, talking over shared memory. This milestone only
-proves the link: heartbeats, a seqlocked per-frame player-state slot, and event ring buffers both ways.
-Nothing is rendered or patched in either game yet. Plan: `/workspace/valheim-minecraft-plan.md`.
+Minecraft Java 1.21.1 (NeoForge) runs **hidden** next to Valheim. Valheim shows Minecraft's hand, HUD and screens
+as a transparent overlay, and with **F7** your keyboard/mouse drive Minecraft instead of Valheim. No world
+blending yet (Minecraft's world is simply not drawn); that's milestone 3. Plan: `/workspace/valheim-minecraft-plan.md`.
 
 | Folder | What |
 |---|---|
-| `protocol/` | `PROTOCOL.md` (byte layout) and `ValCraftLink.cs` (C# side, shared by plugin + test) |
-| `valheim-plugin/` | BepInEx 5 plugin (`netstandard2.1`), creates the link, logs environment checks |
-| `neoforge-mod/` | NeoForge 21.1.259 / MC 1.21.1 mod (ModDevGradle 2.0.148, Java 21); Java side in `dev/valcraft/link/ValCraftLink.java` |
-| `ipc-test/` | Standalone cross-language test: C# console (Valheim role) + Java peer (Minecraft role) |
+| `protocol/` | `PROTOCOL.md` (v2 byte layout + connection rules) and `ValCraftLink.cs` (C# side) |
+| `valheim-plugin/` | BepInEx 5 plugin (`netstandard2.1`): link host, Prism launch, overlay, input forwarding, Valheim input block |
+| `neoforge-mod/` | NeoForge 21.1.259 / MC 1.21.1 mod (ModDevGradle 2.0.148, Java 21) |
+| `ipc-test/` | Cross-language protocol test + "fake Valheim" host used to smoke-test the real Minecraft client |
+| `docs/smoke-test/` | Frames captured from the real Minecraft client during the Linux smoke test |
 
-Link file: `%LOCALAPPDATA%\ValCraft\valcraft.shm` (override with env var `VALCRAFT_SHM`). Valheim creates
-and initialises it; Minecraft connects once it exists. File-backed map, so no named kernel object and no
-JNA/Panama on the Java side (plain `FileChannel.map`).
+## How it works (0.2.0)
+- **Link:** 16.7 MB file-backed shared memory at `%LOCALAPPDATA%\ValCraft\valcraft.shm`. Valheim creates it with a new
+  session id each start; Minecraft re-sends `Hello` until Valheim acks it, and re-connects automatically if either
+  side restarts (see `protocol/PROTOCOL.md`).
+- **Minecraft (while linked):** window hidden (GLFW), vsync off, never pauses for lost focus, world render skipped,
+  background transparent, alpha fixed up so translucent GUI doesn't punch holes. Each frame its render target is
+  read back asynchronously (3 PBOs + fences) into one of two shared-memory frame buffers (≤1920x1080, seq-numbered).
+  It resizes its hidden window to the size Valheim requests (Valheim's screen, scaled to fit 1920x1080).
+- **Valheim:** uploads the newest complete frame to a `Texture2D` on a top-most screen-space Canvas `RawImage`.
+  **F7** toggles input forwarding (Valheim's own input is blocked meanwhile), **F8** shows/hides the overlay.
+- **Exit:** quitting Valheim sends `Quit`; Minecraft saves and exits; Valheim kills it after 10 s if it doesn't.
+  If Valheim crashes, Minecraft exits 5 s after the Valheim process disappears.
 
-## What you need on Windows
-- Valheim 1.0.17 + **BepInExPack_Valheim 5.4.2351** (Thunderstore / r2modman)
-- **.NET 8 SDK** (to build the plugin and the test) — `winget install Microsoft.DotNet.SDK.8`
-- **JDK 21** (Temurin) — `winget install EclipseAdoptium.Temurin.21.JDK`
-- Minecraft Java 1.21.1 with **NeoForge 21.1.259** (installer from neoforged.net, or Prism Launcher)
+## Windows setup
+Needs: Valheim + BepInExPack_Valheim 5.4.2351, Prism Launcher, and (only to build from source) .NET 8 SDK + JDK 21.
+Prebuilt files are in `dist/` of `valcraft-m2.zip`: `ValCraft.Valheim.dll` and `valcraft-0.2.0.jar`.
 
-## 1. Run the IPC test first (no games needed)
+### 1. Minecraft instance in Prism
+1. **Add Instance** → Minecraft **1.21.1** → **NeoForge 21.1.259** (or newer 21.1.x). Name it `ValCraft`.
+2. Put `valcraft-0.2.0.jar` into the instance's `mods` folder (right-click → *Folder* → `minecraft\mods`). Remove 0.1.0.
+3. *Edit* → *Settings* → *Java arguments*: add `-Dvalcraft.startHidden=true` (hides MC as soon as it takes over the
+   window from NeoForge's loading screen). Optional: `-Dvalcraft.exitWithValheim=false` to keep MC alive after Valheim.
+4. Launch once by hand to sign in, create a singleplayer world, quit.
+5. Prism **Settings → Minecraft**: enable closing/minimising the launcher when the game starts (label varies by
+   Prism version).
+6. Optional, to load straight into the world: Prism instance *Settings → Launch → join world on launch* if your Prism has
+   it, or add `--quickPlaySingleplayer "<World Name>"` via the instance's game arguments (unverified in Prism UI).
+
+### 2. Valheim plugin
+Copy `ValCraft.Valheim.dll` to `<Valheim>\BepInEx\plugins\ValCraft\` (remove 0.1.0). Start Valheim once, then edit
+`BepInEx\config\dev.valcraft.valheim.cfg`:
+```ini
+[Minecraft]
+StartWithValheim = true
+PrismExe = C:\Users\<you>\AppData\Local\Programs\PrismLauncher\prismlauncher.exe
+InstanceName = ValCraft
+StopMinecraftOnExit = true
+QuitGraceSeconds = 10
+[Controls]
+ToggleInputKey = F7
+ToggleOverlayKey = F8
+MouseScale = 1
+```
+
+### 3. Test checklist (please report results + `BepInEx\LogOutput.log` and Prism's MC log)
+1. Start Valheim. Log: `[link] created ... protocol v2`, `[launch] started ...`, `[block] N Valheim input methods patched`,
+   `[check] Input: legacy=..., inputSystem=..., uGUI RawImage=True`, maybe `[overlay] premultiplied-alpha shader: ...`.
+2. Minecraft starts, its window disappears (a NeoForge loading window may show for a few seconds first).
+   Valheim log: `[link] Minecraft pid ... connected (Hello acked)`, `[overlay] frame size WxH`.
+3. You see Minecraft's title screen over Valheim. Press **F7**, click **Singleplayer**, open your world.
+4. In the world you should see only MC's hotbar/hearts/hand over Valheim's world. With F7 on: WASD/jump/mouse look
+   move the (invisible) MC player; Valheim's character must not move. `E` opens MC inventory with a free cursor;
+   `T` opens chat and typing works; `Esc` opens MC's pause menu.
+5. **F7** again: Valheim gets input back, MC releases all keys. **F8** hides/shows the overlay.
+6. Close MC by hand → Valheim log `heartbeat lost`; start it again from Prism → it reconnects.
+7. Quit Valheim → MC saves and exits within ~10 s (Valheim log `[quit] ...`).
+
+### Building from source
 ```powershell
-cd valcraft\ipc-test
-.\run-windows.ps1
+cd valcraft\valheim-plugin; dotnet build -c Release            # stubs; add -p:ValheimDir="...\Valheim" for real game DLLs
+cd ..\neoforge-mod; .\gradlew build                            # build\libs\valcraft-0.2.0.jar
+cd ..\ipc-test; .\run-windows.ps1                              # protocol test: expect "[cs] PASS" and "[java] ... PASS"
 ```
-Expect `[cs] PASS`, `[java] ... PASS`, `csharp exit=0 java exit=0`. Linux: `./run-linux.sh`.
-
-## 2. Build + install the Valheim plugin
-Builds without game DLLs (stubs: BepInEx.Core 5.4.21 + UnityEngine.Modules 6000.0.61 from nuget.bepinex.dev).
-To also compile against the real game (enables the game-version log line):
-```powershell
-cd valcraft\valheim-plugin
-dotnet build -c Release -p:ValheimDir="C:\Program Files (x86)\Steam\steamapps\common\Valheim"
+Smoke test of the real MC client without Valheim (what was run on the Linux box):
+```bash
+dotnet ipc-test/build/cs/IpcTest.dll host /tmp/link.shm 1500 /tmp/cmd.txt &       # fake Valheim
+VALCRAFT_SHM=/tmp/link.shm ./gradlew runClient "-PquickPlay=New World ValCraft"     # Linux: wrap in xvfb-run
+echo "click 0.5 0.42" >> /tmp/cmd.txt; echo "dump /tmp/f.pam" >> /tmp/cmd.txt         # see FakeValheim.cs for commands
+python3 ipc-test/pam2png.py /tmp/f.pam f.png
 ```
-Optional for later milestones: publicize `assembly_valheim.dll` with
-[BepInEx.AssemblyPublicizer](https://github.com/BepInEx/BepInEx.AssemblyPublicizer)
-(`dotnet tool install -g BepInEx.AssemblyPublicizer.Cli`, then
-`assembly-publicizer valheim_Data\Managed\assembly_valheim.dll -o valheim_Data\Managed\publicized_assemblies\assembly_valheim_publicized.dll`);
-the csproj picks it up automatically.
 
-Copy `bin\Release\netstandard2.1\ValCraft.Valheim.dll` to `<Valheim>\BepInEx\plugins\ValCraft\` (or your r2modman profile's `BepInEx\plugins`).
-Start Valheim and open `BepInEx\LogOutput.log`. Look for:
-```
-[check] Unity version: ...
-[check] Render pipeline: BUILT-IN ...   (or SRP asset ... URP)
-[check] Graphics API: Direct3D11 ..., reversedZ=True
-[check] MemoryMappedFile (file-backed): OK
-[link] created C:\Users\...\AppData\Local\ValCraft\valcraft.shm ...
-```
-**Please send me those lines** — they settle the unverified items in the plan.
+## Status of 0.2.0
+Verified on the Linux build box (real NeoForge 21.1.259 client under Xvfb/Mesa, fake Valheim host):
+- all mixins apply; Hello/ack connect; window hidden; resize 854x480 → 1280x720 on request
+- frames arrive with transparent background, hand + HUD opaque (`docs/smoke-test/`), 0 torn frames accepted
+- injected click, typed characters, Esc (pause menu, screen-open flag), mouse look (yaw), WASD + jump (position) all work
+- host restart → MC reconnects to the new session; Quit → MC saves world and exits (~1.5–2.7 s);
+  host killed → MC exits after the Valheim PID is gone 5 s
+- protocol test: 20k ping/pong, seqlock, frames at 3 sizes incl. clamp, torn-frame detection, 1000 input events, reconnect
 
-## 3. Prism Launcher setup (how Valheim starts Minecraft)
-1. In Prism: **Add Instance** → Minecraft **1.21.1** → Mod loader **NeoForge 21.1.259** (or newer 21.1.x). Name it `ValCraft`
-   (any name works; it must match `InstanceName` below).
-2. Put `valcraft-0.1.0.jar` into that instance's **mods** folder (Prism: right-click instance → *Folder* → `minecraft\mods`,
-   or *Edit* → *Mods* → *Add file*). Without the jar nothing connects.
-3. Launch the instance once by hand to sign in and let Prism download everything.
-4. Stop Prism's own window getting in the way: Prism **Settings → Minecraft → Launcher/“Miscellaneous”**: enable
-   **“Close the launcher after game window opens”** (or at least “Minimize”/hide on launch). Exact option labels vary by
-   Prism version ⚠️ — check what yours shows.
-5. Run Valheim once with the plugin; it writes `BepInEx\config\dev.valcraft.valheim.cfg`. Edit:
-   ```ini
-   [Minecraft]
-   StartWithValheim = true
-   PrismExe = C:\Users\<you>\AppData\Local\Programs\PrismLauncher\prismlauncher.exe
-   InstanceName = ValCraft
-   ExtraArgs =
-   ```
-   On the next start the plugin runs `prismlauncher.exe --launch "ValCraft"` (skipped if Minecraft is already connected).
-   You can test the same command by hand in PowerShell first. The Minecraft window is still visible in milestone 1;
-   hiding it is milestone 2.
-
-## 4. Build + run the NeoForge mod (dev)
-```powershell
-cd valcraft\neoforge-mod
-.\gradlew build           # jar: build\libs\valcraft-0.1.0.jar
-.\gradlew runClient       # dev client, or copy the jar into a NeoForge 21.1.259 instance's mods folder
-```
-With Valheim already running, load any world in Minecraft. Minecraft log: `[link] opened ...`, `[link] Valheim connected`,
-`[link] pong from Valheim — round trip OK`. Valheim log: `[link] Hello from Minecraft pid ...`, `Minecraft connected`,
-`Pong 1 — round trip OK`, and every 5 s `[link] MC player frame ... pos (...)` that changes as you walk in Minecraft.
-
-## Status
-- Built on Linux box: NeoForge mod jar ✅, Valheim plugin DLL against stubs ✅, IPC test ✅ (20,000 ping/pong round trips, ~88k seqlock reads, 0 torn).
-- Not yet run inside Valheim or Minecraft ⚠️ (no game files on the build box).
-- Unverified: Valheim's Unity version/render pipeline, Mono MemoryMappedFile behaviour in-game, NeoForge
-  event names working in the real client (they compiled against 21.1.259), Windows file-sharing behaviour of the map.
-- Known limits: if Valheim restarts while Minecraft is connected, Minecraft keeps the old mapping (re-init is
-  same file, so it keeps working, but ring counters reset; reconnect logic is milestone 2 work).
+Not verified (no Valheim on the box): everything inside Valheim — overlay drawing, alpha look, input reading,
+F7/F8, Harmony input-block targets, cursor handling, Prism launch, quit/kill. See the risks list in the hand-off.

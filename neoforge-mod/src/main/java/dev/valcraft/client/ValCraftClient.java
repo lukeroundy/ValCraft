@@ -1,0 +1,153 @@
+package dev.valcraft.client;
+
+import dev.valcraft.ValCraft;
+import dev.valcraft.link.ValCraftLink;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Optional;
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RenderFrameEvent;
+
+/**
+ * Minecraft side of the link (milestone 2): connect/reconnect with acked Hello, heartbeats, watchdog + Quit,
+ * hidden window, input injection, frame export, player-state publishing. Everything runs on the render thread.
+ */
+@EventBusSubscriber(modid = ValCraft.MOD_ID, value = Dist.CLIENT)
+public final class ValCraftClient {
+	/** Exit Minecraft when Valheim quits or its process disappears (JVM arg -Dvalcraft.exitWithValheim=false to disable). */
+	static final boolean EXIT_WITH_VALHEIM = !"false".equalsIgnoreCase(System.getProperty("valcraft.exitWithValheim"));
+	static final long PEER_TIMEOUT_MS = 2000, PEER_GONE_EXIT_MS = 5000;
+
+	private static ValCraftLink link;
+	private static int session;
+	private static boolean acked;
+	private static long nextOpenAttempt, nextHello, nextHeartbeat, playerFrame, peerGoneSince;
+	private static boolean peerWasAlive, stopping;
+
+	private ValCraftClient() {}
+
+	/** True while connected to Valheim and the Hello was acknowledged: hidden window, no world render, injected input. */
+	public static boolean active() { return link != null && acked && !stopping; }
+
+	/** True while Valheim forwards input to us (F7). */
+	public static boolean inputActive() { return active() && (link.peerFlags() & ValCraftLink.VFLAG_INPUT_ACTIVE) != 0; }
+
+	@SubscribeEvent
+	public static void onRenderFramePre(RenderFrameEvent.Pre e) {
+		Minecraft mc = Minecraft.getInstance();
+		long now = System.currentTimeMillis();
+		if (!ensureOpen(now)) return;
+		if (now >= nextHeartbeat) { link.heartbeat(); nextHeartbeat = now + 100; }
+
+		// reconnect: Valheim re-initialised the file (restart) -> new session -> say Hello again
+		if (!link.isReady()) { if (acked) disconnect("link file re-initialising"); return; }
+		int s = link.session();
+		if (s != session) { if (acked) disconnect("Valheim session changed"); session = s; acked = false; nextHello = 0; }
+		if (!acked && now >= nextHello) {
+			link.trySend(ValCraftLink.EV_HELLO, ValCraftLink.ints((int) ProcessHandle.current().pid(), ValCraftLink.VERSION, session));
+			nextHello = now + 500;
+		}
+
+		ValCraftLink.Event ev;
+		while ((ev = link.tryReceive()) != null) {
+			switch (ev.type()) {
+				case ValCraftLink.EV_HELLO_ACK -> {
+					if (ev.le().getInt(0) == session && !acked) {
+						acked = true;
+						link.setAckedSession(session);
+						ValCraft.LOG.info("[link] connected to Valheim pid {} (session {})", link.peerPid(), Integer.toHexString(session));
+						WindowControl.onActivated(mc);
+					}
+				}
+				case ValCraftLink.EV_PING -> link.trySend(ValCraftLink.EV_PONG, ev.payload());
+				case ValCraftLink.EV_QUIT -> { quit(mc, "Valheim sent Quit"); return; }
+				default -> { if (acked) VirtualInput.handle(mc, ev); }
+			}
+		}
+		if (!acked) return;
+
+		// watchdog
+		boolean alive = link.peerAlive(PEER_TIMEOUT_MS);
+		if (alive != peerWasAlive) {
+			ValCraft.LOG.info(alive ? "[link] Valheim heartbeat OK" : "[link] Valheim heartbeat lost");
+			if (!alive) VirtualInput.releaseAll(mc);
+			peerWasAlive = alive;
+		}
+		if ((link.peerFlags() & ValCraftLink.VFLAG_QUITTING) != 0) { quit(mc, "Valheim is quitting"); return; }
+		Optional<ProcessHandle> valheim = ProcessHandle.of(link.peerPid());
+		boolean processAlive = valheim.map(ProcessHandle::isAlive).orElse(false);
+		if (processAlive) peerGoneSince = 0;
+		else if (peerGoneSince == 0) peerGoneSince = now;
+		else if (now - peerGoneSince > PEER_GONE_EXIT_MS) {
+			if (EXIT_WITH_VALHEIM) { quit(mc, "Valheim process exited"); return; }
+			disconnect("Valheim process exited");
+			return;
+		}
+		if (!inputActive()) VirtualInput.releaseIfHeld(mc);
+
+		WindowControl.applyRequestedSize(mc, link);
+		int flags = ValCraftLink.MCFLAG_HIDDEN;
+		if (mc.level != null) flags |= ValCraftLink.MCFLAG_WORLD_LOADED;
+		if (mc.screen != null || !mc.mouseHandler.isMouseGrabbed()) flags |= ValCraftLink.MCFLAG_SCREEN_OPEN;
+		link.setFlags(flags);
+	}
+
+	@SubscribeEvent
+	public static void onRenderFramePost(RenderFrameEvent.Post e) {
+		if (!active()) return;
+		Minecraft mc = Minecraft.getInstance();
+		FrameExporter.capture(mc, link);
+		if (mc.player != null) {
+			Camera cam = mc.gameRenderer.getMainCamera();
+			Vec3 p = cam.getPosition();
+			link.writePlayerState(new ValCraftLink.PlayerState(++playerFrame, p.x, p.y, p.z, cam.getYRot(), cam.getXRot(), 0f,
+					mc.options.fov().get().floatValue(), 0));
+		}
+	}
+
+	@SubscribeEvent
+	public static void onClientTick(ClientTickEvent.Post e) {
+		// Rendering may be skipped (noRender); keep the heartbeat alive from the tick too.
+		if (link != null && System.currentTimeMillis() >= nextHeartbeat) { link.heartbeat(); nextHeartbeat = System.currentTimeMillis() + 100; }
+	}
+
+	private static boolean ensureOpen(long now) {
+		if (link != null) return true;
+		if (now < nextOpenAttempt) return false;
+		nextOpenAttempt = now + 1000;
+		try {
+			link = new ValCraftLink(ValCraftLink.defaultPath());
+			ValCraft.LOG.info("[link] opened {}", ValCraftLink.defaultPath());
+			return true;
+		} catch (Exception ex) {
+			return false; // Valheim not started yet
+		}
+	}
+
+	private static void disconnect(String why) {
+		ValCraft.LOG.info("[link] disconnected: {}", why);
+		Minecraft mc = Minecraft.getInstance();
+		VirtualInput.releaseAll(mc);
+		FrameExporter.reset();
+		acked = false;
+		peerWasAlive = false;
+		peerGoneSince = 0;
+		WindowControl.onDeactivated(mc, EXIT_WITH_VALHEIM);
+	}
+
+	private static void quit(Minecraft mc, String why) {
+		if (stopping) return;
+		stopping = true;
+		ValCraft.LOG.info("[link] {} -> stopping Minecraft", why);
+		VirtualInput.releaseAll(mc);
+		mc.stop(); // normal shutdown: integrated server saves the world
+	}
+
+	static ByteBuffer le(int n) { return ByteBuffer.allocate(n).order(ByteOrder.LITTLE_ENDIAN); }
+}
