@@ -271,3 +271,11 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
   Multiplayer: every player needs the plugin so their ZNetScene knows the prefab.
 - Diagnostics: `[terrain-edit] check MC (x,z): Valheim ground now .. target .. -> OK / NOT APPLIED` 1 s after each edit;
   `[hit] aiming at <object>` when a hittable Valheim object is targeted; `[hit] MC attack but no Valheim target`.
+
+## 0.6.2
+- Fix (for real): digging. 0.6.1's registered prefab was still rejected by TerrainComp's RPC handler ("Failed to
+  deserialize TerrainOp settings for prefab hash 131645091"). Terrain edits now call the owner-side
+  `TerrainComp.DoOperation(pos, TerrainOp.Settings)` directly on each touched heightmap's TerrainComp (created if needed via
+  `Heightmap.GetAndCreateTerrainCompiler`), then poke the heightmap. Saved in the TerrainComp ZDO (persists, replicates).
+  Signatures checked against publicized assembly_valheim (ValheimGameLibz 0.221.12). If another peer owns the TerrainComp,
+  we claim ownership first (multiplayer caveat).
