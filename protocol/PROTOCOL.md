@@ -192,3 +192,17 @@ Mapping (Valheim side only): `BepInEx/config/valcraft-items.json`, `{ "ValheimPr
 | 48 EvDamage | V→MC | f32 amount (MC hp), u8 Valheim HitData.HitType, f32 dirX, f32 dirZ (MC axes), f32 pushForce. |
 
 Valheim player hp = mcHp / mcMax × Valheim max every frame. Damage reaching the hidden player in Character.ApplyDamage (after armor) is cancelled and forwarded as `amount = dmg / valheimMax × mcMax`. Fall hits (HitType 3) are dropped. When MC dies, Valheim gets Character.OnDeath; when MC respawns, Valheim re-anchors.
+
+## v12 (0.8.3) — crafted gear, durability, mace building
+
+Changed layouts (durability u16: 0..10000 = fraction remaining, 0xFFFF = none):
+
+| Type | Dir | Payload |
+|---|---|---|
+| 41 EvGiveItem | V→MC | u32 reqId, u16 count, **u16 durability**, utf8 id. Damageable MC items get damage = (1 − frac) × maxDamage. |
+| 43 EvConsumeAck | MC→V | u32 reqId, u16 removed, **u16 durability** (of the held stack, mode 0), utf8 id. |
+| 49 EvBuildMenu | MC→V | empty. Mace right-click not on a Valheim interactable: enter build mode (equip the Valheim hammer, a temporary one if needed) / toggle the piece menu. |
+| 50 EvBuildAction | MC→V | u8: 1 place (Player.TryPlacePiece), 2 remove (Player.RemovePiece), 3 rotate (m_placeRotation++). |
+| 51 EvBuildState | V→MC | u8 active. While active and the mace is held, MC left-click = place, sneak+left = remove, sneak+right = rotate; MC attack/mining suppressed. |
+
+Mapping file: on load, default entries missing from the user file are appended; `"_known"` records the default keys already offered so deleted entries stay deleted. Only stackable Valheim items (materials, arrows) are moved into Valheim for crafting/building; tools and armour stay in MC.

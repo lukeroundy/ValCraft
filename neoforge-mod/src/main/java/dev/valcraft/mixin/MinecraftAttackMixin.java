@@ -12,13 +12,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class MinecraftAttackMixin {
 	@Inject(method = "startAttack", at = @At("HEAD"), cancellable = true)
 	private void valcraft$valheimHit(CallbackInfoReturnable<Boolean> cir) {
-		if (ValheimAttack.tryStart((Minecraft) (Object) this)) cir.setReturnValue(true);
+		if (dev.valcraft.client.BuildLink.tryAttack((Minecraft) (Object) this) || ValheimAttack.tryStart((Minecraft) (Object) this)) cir.setReturnValue(true);
 	}
 
 	@Inject(method = "continueAttack", at = @At("HEAD"), cancellable = true)
 	private void valcraft$valheimHitHeld(boolean leftClick, CallbackInfo ci) {
 		Minecraft mc = (Minecraft) (Object) this;
-		if (ValheimAttack.tryContinue(mc, leftClick && mc.screen == null)) {
+		if (dev.valcraft.client.BuildLink.building(mc) || ValheimAttack.tryContinue(mc, leftClick && mc.screen == null)) {
 			if (mc.gameMode != null) mc.gameMode.stopDestroyBlock();
 			ci.cancel();
 		}

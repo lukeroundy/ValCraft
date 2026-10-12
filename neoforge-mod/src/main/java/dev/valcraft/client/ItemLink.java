@@ -37,7 +37,7 @@ final class ItemLink {
 	/** EV_GIVE_ITEM {u32 reqId, u16 count, utf8 id}. */
 	static void give(Minecraft mc, byte[] p) {
 		ByteBuffer b = ByteBuffer.wrap(p).order(ByteOrder.LITTLE_ENDIAN);
-		int count = b.getShort(4) & 0xFFFF; String id = str(b, 6);
+		int count = b.getShort(4) & 0xFFFF, dur = b.getShort(6) & 0xFFFF; String id = str(b, 8); // v12: + u16 durability
 		Item it = item(id);
 		if (it == Items.AIR || count <= 0) { ValCraft.LOG.warn("[items] give: unknown item {}", id); return; }
 		var server = mc.getSingleplayerServer();
@@ -49,6 +49,7 @@ final class ItemLink {
 			while (left > 0) {
 				int n = Math.min(left, it.getDefaultMaxStackSize());
 				ItemStack st = new ItemStack(it, n);
+				if (dur != 0xFFFF && st.isDamageableItem()) st.setDamageValue(Math.min(st.getMaxDamage() - 1, Math.round((1f - dur / 10000f) * st.getMaxDamage())));
 				if (!pl.getInventory().add(st) && !st.isEmpty()) pl.drop(st, false);
 				left -= n;
 			}
@@ -62,15 +63,15 @@ final class ItemLink {
 		ByteBuffer b = ByteBuffer.wrap(p).order(ByteOrder.LITTLE_ENDIAN);
 		int req = b.getInt(0), count = b.getShort(4) & 0xFFFF, mode = b.get(6); String want = str(b, 7);
 		var server = mc.getSingleplayerServer();
-		if (server == null) { ack(mc, req, 0, want); return; }
+		if (server == null) { ack(mc, req, 0, 0xFFFF, want); return; }
 		server.execute(() -> {
 			ServerPlayer pl = sp(mc);
-			int removed = 0; String got = want;
+			int removed = 0, dur = 0xFFFF; String got = want;
 			if (pl != null) {
 				var inv = pl.getInventory();
 				if (mode == 0) {
 					ItemStack h = pl.getMainHandItem();
-					if (!h.isEmpty() && (want.isEmpty() || id(h).equals(want))) { got = id(h); removed = Math.min(count, h.getCount()); if (!pl.getAbilities().instabuild) h.shrink(removed); }
+					if (!h.isEmpty() && (want.isEmpty() || id(h).equals(want))) { got = id(h); removed = Math.min(count, h.getCount()); if (h.isDamageableItem()) dur = Math.round((1f - (float) h.getDamageValue() / h.getMaxDamage()) * 10000f); if (!pl.getAbilities().instabuild) h.shrink(removed); }
 				} else {
 					Item it = item(want);
 					for (int i = 0; i < inv.getContainerSize() && removed < count; i++) {
@@ -82,15 +83,15 @@ final class ItemLink {
 				}
 				pl.inventoryMenu.broadcastChanges();
 			}
-			ack(mc, req, removed, got);
+			ack(mc, req, removed, dur, got);
 			ValCraft.LOG.info("[items] Valheim used {} x {} (asked {})", removed, got, count);
 		});
 	}
 
-	private static void ack(Minecraft mc, int req, int removed, String id) {
+	private static void ack(Minecraft mc, int req, int removed, int dur, String id) {
 		byte[] name = id.getBytes(StandardCharsets.UTF_8);
-		ByteBuffer b = ByteBuffer.allocate(6 + Math.min(name.length, 200)).order(ByteOrder.LITTLE_ENDIAN);
-		b.putInt(req).putShort((short) removed).put(name, 0, Math.min(name.length, 200));
+		ByteBuffer b = ByteBuffer.allocate(8 + Math.min(name.length, 200)).order(ByteOrder.LITTLE_ENDIAN);
+		b.putInt(req).putShort((short) removed).putShort((short) dur).put(name, 0, Math.min(name.length, 200));
 		byte[] a = b.array();
 		mc.execute(() -> ValCraftClient.sendToValheim(ValCraftLink.EV_CONSUME_ACK, a));
 	}

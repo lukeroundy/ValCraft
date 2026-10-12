@@ -7,7 +7,7 @@ public class ItemCodecTest {
         try (var o = new DataOutputStream(new FileOutputStream(a[0]))) {
             byte[] id = "minecraft:oak_log".getBytes(StandardCharsets.UTF_8);
             var held = bb(64); held.putShort((short)12).put(id); w(o, held);
-            var ack = bb(64); ack.putInt(77).putShort((short)3).put(id); w(o, ack);
+            var ack = bb(64); ack.putInt(77).putShort((short)3).putShort((short)5000).put(id); w(o, ack); // v12 ack: + u16 durability
             String[] ids = {"minecraft:oak_log", "minecraft:flint", "minecraft:iron_ingot"}; int[] cs = {64, 5, 300};
             for (int part = 0; part < 2; part++) {
                 var s = bb(248); s.put((byte)(part == 0 ? 1 : 0)).put((byte)(part == 1 ? 1 : 0));

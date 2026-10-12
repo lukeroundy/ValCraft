@@ -10,6 +10,6 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft() {
-		LOG.info("ValCraft loaded (0.8.2: health link + combat)");
+		LOG.info("ValCraft loaded (0.8.3: crafted gear + mace building)");
 	}
 }

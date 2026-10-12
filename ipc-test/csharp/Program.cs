@@ -232,14 +232,32 @@ static unsafe class Program
         Check(map.ValheimFor("minecraft:dirt") == null, "dirt unmapped");
         Check(map.Load("{\"_c\":[\"x\"], \"Resin\": [\"slime_ball\"]}") == 1 && map.ValheimFor("minecraft:slime_ball") == "Resin", "custom/implicit namespace");
         var g = ValCraft.Protocol.ItemMap.Give(5, 7, "minecraft:flint");
-        Check(BitConverter.ToUInt32(g, 0) == 5 && BitConverter.ToUInt16(g, 4) == 7 && System.Text.Encoding.UTF8.GetString(g, 6, g.Length - 6) == "minecraft:flint", "give");
+        Check(BitConverter.ToUInt32(g, 0) == 5 && BitConverter.ToUInt16(g, 4) == 7 && BitConverter.ToUInt16(g, 6) == 0xFFFF && System.Text.Encoding.UTF8.GetString(g, 8, g.Length - 8) == "minecraft:flint", "give");
+        var g2 = ValCraft.Protocol.ItemMap.Give(6, 1, "minecraft:iron_axe", ValCraft.Protocol.ItemMap.Dur(0.25f));
+        Check(BitConverter.ToUInt16(g2, 6) == 2500, "give durability");
+        // equipment defaults + merge
+        map.Load(ValCraft.Protocol.ItemMap.DefaultJson);
+        Check(map.McFor("Hammer") == "minecraft:mace" && map.ValheimFor("minecraft:mace") == "Hammer", "hammer<->mace");
+        Check(map.McFor("ArrowBronze") == "minecraft:arrow" && map.ValheimFor("minecraft:arrow") == "ArrowWood", "arrows");
+        Check(map.McFor("AxeBronze") == "minecraft:iron_axe" && map.ValheimFor("minecraft:iron_sword") == "SwordBronze", "tools");
+        string user = "{\n  \"Wood\": [\"minecraft:spruce_log\"],\n  \"Stone\": [\"minecraft:deepslate\"]\n}";
+        var merged = ValCraft.Protocol.ItemMap.Merge(user, out var added);
+        var mm = new ValCraft.Protocol.ItemMap(); mm.Load(merged);
+        Check(mm.McFor("Wood") == "minecraft:spruce_log" && mm.McFor("Stone") == "minecraft:deepslate", "merge keeps user edits");
+        Check(mm.McFor("Hammer") == "minecraft:mace" && added.Contains("Hammer") && !added.Contains("Wood"), "merge adds defaults");
+        var again = ValCraft.Protocol.ItemMap.Merge(merged, out var added2);
+        Check(ReferenceEquals(again, merged) && added2.Count == 0, "merge idempotent");
+        var deleted = System.Text.RegularExpressions.Regex.Replace(merged, ",\\s*\"Hammer\":\\s*\\[[^\\]]*\\]", "");
+        ValCraft.Protocol.ItemMap.Merge(deleted, out var added3);
+        Check(added3.Count == 0, "deleted default not re-added");
+        Console.WriteLine($"[cs] merge added {added.Count} defaults");
         var c = ValCraft.Protocol.ItemMap.Consume(9, 2, 1, "minecraft:coal");
         Check(c[6] == 1 && System.Text.Encoding.UTF8.GetString(c, 7, c.Length - 7) == "minecraft:coal", "consume");
         using (var r = new System.IO.BinaryReader(System.IO.File.OpenRead(path)))
         {
             byte[] Next() { int len = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(r.ReadInt32()); return r.ReadBytes(len); }
             var (hc, hid) = ValCraft.Protocol.ItemMap.Held(Next()); Check(hc == 12 && hid == "minecraft:oak_log", "held");
-            var (rq, rm, aid) = ValCraft.Protocol.ItemMap.Ack(Next()); Check(rq == 77 && rm == 3 && aid == "minecraft:oak_log", "ack");
+            var (rq, rm, adur, aid) = ValCraft.Protocol.ItemMap.Ack(Next()); Check(rq == 77 && rm == 3 && adur == 5000 && aid == "minecraft:oak_log", "ack");
             var snap = new ValCraft.Protocol.ItemMap.Snapshot();
             Check(!snap.Add(Next()), "snapshot part1 not final");
             Check(snap.Add(Next()) && snap.Result.Count == 3 && snap.Result["minecraft:iron_ingot"] == 300 && snap.Result["minecraft:oak_log"] == 64, "snapshot");

@@ -41,7 +41,8 @@ namespace ValCraft
 
         static Type _humanoid, _itemDrop, _itemData, _inventory, _objectDb, _invGui, _znetScene, _znv;
         static MethodInfo _getInventory, _getAllItems, _removeItem, _addPrefab, _tryUse, _getItemPrefab, _invVisible, _getStation, _sceneDestroy, _isOwner, _getItem;
-        static MethodInfo _znsGet;
+        static MethodInfo _znsGet, _getMaxDur, _removeAmt, _equip, _unequip;
+        static FieldInfo _durF, _sharedF;
         static object Zns() => _znsGet != null ? _znsGet.Invoke(null, null) : _znsInst?.GetValue(null);
         static FieldInfo _dropPrefab, _stack, _equipped, _itemDataF, _objDbInst, _znsInst;
         static bool _init, _ok;
@@ -66,6 +67,11 @@ namespace ValCraft
             _isOwner = AccessTools.Method(_znv, "IsOwner");
             _dropPrefab = AccessTools.Field(_itemData, "m_dropPrefab"); _stack = AccessTools.Field(_itemData, "m_stack"); _equipped = AccessTools.Field(_itemData, "m_equipped");
             _itemDataF = AccessTools.Field(_itemDrop, "m_itemData");
+            _durF = AccessTools.Field(_itemData, "m_durability"); _sharedF = AccessTools.Field(_itemData, "m_shared");
+            _getMaxDur = AccessTools.Method(_itemData, "GetMaxDurability", Type.EmptyTypes);
+            _removeAmt = AccessTools.Method(_inventory, "RemoveItem", new[] { _itemData, typeof(int) });
+            _equip = AccessTools.Method(_humanoid, "EquipItem", new[] { _itemData, typeof(bool) });
+            _unequip = AccessTools.Method(_humanoid, "UnequipItem", new[] { _itemData, typeof(bool) });
             _objDbInst = AccessTools.Field(_objectDb, "m_instance");
             // 0.8.2: ZNetScene's singleton is s_instance (exposed as ZNetScene.instance), not m_instance. In 0.8.0 the lookup
             // failed, so converted drops fell back to Object.Destroy, leaving dead entries in ZNetScene.m_instances (the
@@ -86,6 +92,10 @@ namespace ValCraft
             var awake = t == null ? null : AccessTools.Method(t, "Awake");
             if (awake != null) h.Patch(awake, postfix: new HarmonyMethod(typeof(ItemBridge), nameof(DropAwakePost)));
             ValCraftPlugin.Log.LogInfo($"[items] ItemDrop.Awake hook {(awake != null ? "on" : "missing")}");
+            var gui = AccessTools.TypeByName("InventoryGui");
+            var craft = gui == null ? null : AccessTools.Method(gui, "DoCrafting");
+            if (craft != null) h.Patch(craft, prefix: new HarmonyMethod(typeof(ItemBridge), nameof(CraftPre)), postfix: new HarmonyMethod(typeof(ItemBridge), nameof(CraftPost)));
+            ValCraftPlugin.Log.LogInfo($"[items] InventoryGui.DoCrafting hook {(craft != null ? "on" : "missing")}");
         }
 
         static void DropAwakePost(object __instance)
@@ -106,11 +116,39 @@ namespace ValCraft
             }
             var mt = File.GetLastWriteTimeUtc(_path);
             if (mt == _mtime) return;
+            try
+            {
+                var text = File.ReadAllText(_path);
+                var merged = ItemMap.Merge(text, out var added);
+                if (!ReferenceEquals(merged, text)) { File.WriteAllText(_path, merged); text = merged; if (added.Count > 0) ValCraftPlugin.Log.LogInfo($"[items] added {added.Count} new default mapping(s) to {_path}: {string.Join(", ", added)}"); }
+                mt = File.GetLastWriteTimeUtc(_path);
+            }
+            catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[items] mapping merge failed: {e.Message}"); }
             _mtime = mt;
             try { int n = Map.Load(File.ReadAllText(_path)); ValCraftPlugin.Log.LogInfo($"[items] mapping loaded: {n} Valheim items <-> {Map.ToValheim.Count} Minecraft items ({_path})"); }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[items] mapping file error: {e.Message}"); }
         }
 
+        internal static bool HeldIs(string id) => _heldCount > 0 && _heldId == id;
+        internal static string HeldId => _heldId;
+        static object Shared(object it) => _sharedF?.GetValue(it);
+        static int MaxStack(object it) { var sh = Shared(it); var f = sh == null ? null : AccessTools.Field(sh.GetType(), "m_maxStackSize"); return f == null ? 1 : (int)f.GetValue(sh); }
+        static ushort DurOf(object it)
+        {
+            try
+            {
+                var sh = Shared(it); var use = sh == null ? null : AccessTools.Field(sh.GetType(), "m_useDurability");
+                if (use == null || !(bool)use.GetValue(sh) || _getMaxDur == null || _durF == null) return ItemMap.NoDur;
+                float max = (float)_getMaxDur.Invoke(it, null);
+                return max <= 0 ? ItemMap.NoDur : ItemMap.Dur((float)_durF.GetValue(it) / max);
+            }
+            catch { return ItemMap.NoDur; }
+        }
+        static void SetDur(object it, ushort dur)
+        {
+            if (dur == ItemMap.NoDur || _getMaxDur == null || _durF == null) return;
+            try { _durF.SetValue(it, (float)_getMaxDur.Invoke(it, null) * dur / 10000f); } catch { }
+        }
         static object Inv() => PlayerSync.Player == null ? null : _getInventory.Invoke(PlayerSync.Player, null);
         static string PrefabOf(object itemData) => (_dropPrefab.GetValue(itemData) as GameObject)?.name;
 
@@ -156,7 +194,7 @@ namespace ValCraft
                     _spawned.Remove(go);
                     if (mc == null) continue;
                     int n = (int)_stack.GetValue(data);
-                    if (Give(mc, n, prefab, "drop"))
+                    if (Give(mc, n, prefab, "drop", DurOf(data)))
                     {
                         // always through ZNetScene.Destroy (a plain Object.Destroy leaves a dead entry in ZNetScene.m_instances)
                         try { _sceneDestroy.Invoke(Zns(), new object[] { go }); } catch (Exception e) { Diag.Warn("dropdestroy", "[items] could not remove converted drop: " + e.GetBaseException().Message); }
@@ -165,7 +203,8 @@ namespace ValCraft
             }
 
             // sweep: mapped materials in the Valheim inventory -> MC (not during crafting)
-            if (!_crafting && t >= _nextSweep && PendingUse.Count == 0)
+            BuildUpdate();
+            if (!_crafting && !_building && t >= _nextSweep && PendingUse.Count == 0)
             {
                 _nextSweep = t + 0.5f;
                 var inv = Inv();
@@ -173,18 +212,19 @@ namespace ValCraft
                     foreach (var it in new ArrayList(items))
                     {
                         if (_equipped != null && (bool)_equipped.GetValue(it)) continue;
+                        if (ReferenceEquals(it, _virtualHammer)) continue;
                         string prefab = PrefabOf(it), mc = Map.McFor(prefab);
                         if (mc == null) continue;
-                        if (Give(mc, (int)_stack.GetValue(it), prefab, "inventory")) _removeItem.Invoke(inv, new[] { it });
+                        if (Give(mc, (int)_stack.GetValue(it), prefab, "inventory", DurOf(it))) _removeItem.Invoke(inv, new[] { it });
                     }
             }
         }
 
-        static bool Give(string mc, int n, string prefab, string why)
+        static bool Give(string mc, int n, string prefab, string why, ushort dur = ItemMap.NoDur)
         {
             if (n <= 0 || _link == null) return false;
-            bool ok = _link.TrySend(ValCraftLink.EvGiveItem, ItemMap.Give(_nextReq++, n, mc));
-            ValCraftPlugin.Log.LogInfo($"[items] {(ok ? "gave" : "could not give (ring full)")} {n} x {prefab} -> {mc} ({why})");
+            bool ok = _link.TrySend(ValCraftLink.EvGiveItem, ItemMap.Give(_nextReq++, n, mc, dur));
+            ValCraftPlugin.Log.LogInfo($"[items] {(ok ? "gave" : "could not give (ring full)")} {n} x {prefab} -> {mc}{(dur != ItemMap.NoDur ? $" ({dur / 100f:F0}% durability)" : "")} ({why})");
             return ok;
         }
 
@@ -209,19 +249,31 @@ namespace ValCraft
 
         static void OnSnapshot(Dictionary<string, int> inv)
         {
-            if (!_crafting) return;
+            if (!_crafting && !_building) return;
             foreach (var kv in inv)
             {
                 var v = Map.ValheimFor(kv.Key);
-                if (v == null || kv.Value <= 0) continue;
+                if (v == null || kv.Value <= 0 || !Stackable(v)) continue; // materials only; tools/armour stay in MC
                 uint req = _nextReq++;
                 if (_link.TrySend(ValCraftLink.EvConsumeReq, ItemMap.Consume(req, kv.Value, 1, kv.Key))) PendingDeposit[req] = v;
             }
         }
 
+        static bool Stackable(string prefabName)
+        {
+            try
+            {
+                var db = _objDbInst?.GetValue(null);
+                var prefab = db == null ? null : _getItemPrefab.Invoke(db, new object[] { prefabName }) as GameObject;
+                var drop = prefab == null ? null : prefab.GetComponent(_itemDrop);
+                return drop != null && MaxStack(_itemDataF.GetValue(drop)) > 1;
+            }
+            catch { return false; }
+        }
+
         static void OnAck(byte[] p)
         {
-            var (req, removed, id) = ItemMap.Ack(p);
+            var (req, removed, dur, id) = ItemMap.Ack(p);
             if (PendingDeposit.TryGetValue(req, out var dv))
             {
                 PendingDeposit.Remove(req);
@@ -234,6 +286,7 @@ namespace ValCraft
             if (removed <= 0) { ValCraftPlugin.Log.LogInfo($"[items] Minecraft had no {id} to use"); return; }
             var data = AddValheim(pu.valheim, removed);
             if (data == null) { GiveBack(id, removed); return; }
+            SetDur(data, dur);
             try
             {
                 _tryUse.Invoke(PlayerSync.Player, new object[] { data, pu.target, false });
@@ -259,6 +312,143 @@ namespace ValCraft
             }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[items] add {prefabName}: {e.InnerException?.Message ?? e.Message}"); }
             return null;
+        }
+
+        // ---------------- 0.8.3: crafted items go straight to MC ----------------
+        static Dictionary<string, int> _preCraft;
+        static HashSet<object> _preItems;
+        static void CraftPre(object player)
+        {
+            _preCraft = null; _preItems = null;
+            try
+            {
+                if (!Enabled || !_ok || !PlayerSync.Following || PlayerSync.Player == null || !ReferenceEquals(player, PlayerSync.Player)) return;
+                var inv = Inv(); if (inv == null) return;
+                _preCraft = new Dictionary<string, int>(); _preItems = new HashSet<object>();
+                foreach (var it in (IList)_getAllItems.Invoke(inv, null)) { var pf = PrefabOf(it); if (pf == null) continue; _preItems.Add(it); _preCraft[pf] = (_preCraft.TryGetValue(pf, out var c) ? c : 0) + (int)_stack.GetValue(it); }
+            }
+            catch (Exception e) { Diag.Warn("craftpre", "[items] craft snapshot failed: " + e.GetBaseException().Message); }
+        }
+        static void CraftPost()
+        {
+            if (_preCraft == null) return;
+            try
+            {
+                var inv = Inv(); if (inv == null) return;
+                var now = new Dictionary<string, List<object>>();
+                foreach (var it in (IList)_getAllItems.Invoke(inv, null)) { var pf = PrefabOf(it); if (pf == null) continue; if (!now.TryGetValue(pf, out var l)) now[pf] = l = new List<object>(); l.Add(it); }
+                foreach (var kv in now)
+                {
+                    string mc = Map.McFor(kv.Key); if (mc == null) continue;
+                    int total = 0; foreach (var it in kv.Value) total += (int)_stack.GetValue(it);
+                    int delta = total - (_preCraft.TryGetValue(kv.Key, out var b) ? b : 0);
+                    if (delta <= 0) continue;
+                    // new item objects first (tools/armour, fresh stacks), then the growth of existing stacks
+                    var order = new List<object>(); foreach (var it in kv.Value) if (!_preItems.Contains(it)) order.Add(it); foreach (var it in kv.Value) if (_preItems.Contains(it)) order.Add(it);
+                    foreach (var it in order)
+                    {
+                        if (delta <= 0) break;
+                        int st = (int)_stack.GetValue(it), n = Math.Min(st, delta);
+                        if (!Give(mc, n, kv.Key, "crafted", DurOf(it))) break;
+                        if (n >= st) _removeItem.Invoke(inv, new[] { it }); else if (_removeAmt != null) _removeAmt.Invoke(inv, new object[] { it, n });
+                        delta -= n;
+                    }
+                }
+            }
+            catch (Exception e) { Diag.Warn("craftpost", "[items] crafted item transfer failed: " + e.GetBaseException().Message); }
+            _preCraft = null; _preItems = null;
+        }
+
+        // ---------------- 0.8.3: mace = Valheim hammer (build mode) ----------------
+        internal const string MaceId = "minecraft:mace";
+        static bool _building; static object _virtualHammer;
+        static Type _hudT, _playerT; static MethodInfo _toggleSel, _hideSel, _selVisible, _tryPlace, _removePiece, _getSel; static FieldInfo _rot; static PropertyInfo _hudInst; static FieldInfo _hudInstF;
+        static bool _buildInit;
+        static void BuildInit()
+        {
+            _buildInit = true;
+            _hudT = AccessTools.TypeByName("Hud"); _playerT = AccessTools.TypeByName("Player");
+            _toggleSel = AccessTools.Method(_hudT, "TogglePieceSelection"); _hideSel = AccessTools.Method(_hudT, "HidePieceSelection"); _selVisible = AccessTools.Method(_hudT, "IsPieceSelectionVisible");
+            _hudInst = AccessTools.Property(_hudT, "instance"); _hudInstF = AccessTools.Field(_hudT, "m_instance");
+            _tryPlace = AccessTools.Method(_playerT, "TryPlacePiece"); _removePiece = AccessTools.Method(_playerT, "RemovePiece", Type.EmptyTypes); _getSel = AccessTools.Method(_playerT, "GetSelectedPiece", Type.EmptyTypes);
+            _rot = AccessTools.Field(_playerT, "m_placeRotation");
+            ValCraftPlugin.Log.LogInfo($"[build] Hud.TogglePieceSelection={_toggleSel != null} TryPlacePiece={_tryPlace != null} RemovePiece={_removePiece != null} EquipItem={_equip != null}");
+        }
+        static object Hud() => _hudInst != null ? _hudInst.GetValue(null) : _hudInstF?.GetValue(null);
+
+        /// <summary>EvBuildMenu: MC right-click with the mace, not on an interactable.</summary>
+        internal static void BuildMenu()
+        {
+            if (!Enabled || !_ok || !PlayerSync.Following || PlayerSync.Player == null) return;
+            if (!_buildInit) BuildInit();
+            if (!_building && !EnterBuild()) return;
+            try { var hud = Hud(); if (hud != null) _toggleSel?.Invoke(hud, null); } catch (Exception e) { Diag.Warn("buildsel", "[build] piece menu: " + e.GetBaseException().Message); }
+        }
+
+        static bool EnterBuild()
+        {
+            if (!HeldIs(MaceId)) return false;
+            var inv = Inv(); if (inv == null || _equip == null) return false;
+            object hammer = null;
+            foreach (var it in (IList)_getAllItems.Invoke(inv, null)) if (PrefabOf(it) == "Hammer") { hammer = it; break; }
+            if (hammer == null) { hammer = AddValheim("Hammer", 1); _virtualHammer = hammer; }
+            if (hammer == null) { ValCraftPlugin.Log.LogWarning("[build] could not give the Valheim player a hammer"); return false; }
+            try { _equip.Invoke(PlayerSync.Player, new object[] { hammer, false }); } catch (Exception e) { ValCraftPlugin.Log.LogWarning("[build] equip hammer: " + e.GetBaseException().Message); return false; }
+            _building = true;
+            _link?.TrySend(ValCraftLink.EvBuildState, new byte[] { 1 });
+            _snapRequested = _link != null && _link.TrySend(ValCraftLink.EvInvReq, null); // building costs come from MC materials
+            ValCraftPlugin.Log.LogInfo($"[build] build mode on (mace = {(_virtualHammer != null ? "virtual" : "real")} Valheim hammer); moving mapped Minecraft materials into the Valheim inventory");
+            return true;
+        }
+
+        static void ExitBuild(string why)
+        {
+            if (!_building) return;
+            _building = false;
+            try { var hud = Hud(); if (_selVisible != null && (bool)_selVisible.Invoke(null, null)) _hideSel?.Invoke(null, null); } catch { }
+            try
+            {
+                var inv = Inv();
+                if (_virtualHammer != null && PlayerSync.Player != null)
+                {
+                    _unequip?.Invoke(PlayerSync.Player, new object[] { _virtualHammer, false });
+                    if (inv != null) _removeItem.Invoke(inv, new[] { _virtualHammer });
+                }
+            }
+            catch (Exception e) { Diag.Warn("buildexit", "[build] exit: " + e.GetBaseException().Message); }
+            _virtualHammer = null;
+            _link?.TrySend(ValCraftLink.EvBuildState, new byte[] { 0 });
+            _nextSweep = 0;
+            ValCraftPlugin.Log.LogInfo($"[build] build mode off ({why}); returning materials to Minecraft");
+        }
+
+        static void BuildUpdate()
+        {
+            if (!_building) return;
+            if (!PlayerSync.Following || PlayerSync.Player == null) { _virtualHammer = null; ExitBuild("player gone"); return; }
+            if (!HeldIs(MaceId)) ExitBuild("mace no longer held");
+        }
+
+        internal static void ResetBuild() { if (_building) { _building = false; _virtualHammer = null; } }
+
+        /// <summary>EvBuildAction: 1 place, 2 remove, 3 rotate.</summary>
+        internal static void BuildAction(byte a)
+        {
+            if (!_building || PlayerSync.Player == null) return;
+            var pl = PlayerSync.Player;
+            try
+            {
+                if (a == 1)
+                {
+                    var piece = _getSel?.Invoke(pl, null);
+                    if (piece == null) { ValCraftPlugin.Log.LogInfo("[build] no piece selected (right-click with the mace opens the menu)"); return; }
+                    bool ok = (bool)_tryPlace.Invoke(pl, new[] { piece });
+                    ValCraftPlugin.Log.LogInfo($"[build] place {(piece as Component)?.name}: {(ok ? "placed" : "not placed (invalid spot, no workbench or missing materials)")}");
+                }
+                else if (a == 2) { bool ok = (bool)_removePiece.Invoke(pl, null); ValCraftPlugin.Log.LogInfo($"[build] remove: {(ok ? "removed" : "nothing removable aimed at")}"); }
+                else if (a == 3 && _rot != null) _rot.SetValue(pl, (int)_rot.GetValue(pl) + 1);
+            }
+            catch (Exception e) { Diag.Warn("buildact", "[build] action failed: " + e.GetBaseException().Message); }
         }
     }
 }
