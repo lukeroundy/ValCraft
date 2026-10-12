@@ -66,6 +66,8 @@ namespace ValCraft
             PlayerSync.Apply(_harmony);
             ItemBridge.Apply(_harmony);
             HealthLink.Apply(_harmony);
+            // 0.12.1: HudWanted was never assigned, so HideValheimHud hid the HUD every frame (build menu, large map)
+            PlayerSync.HudWanted = () => ItemBridge.MenuWanted() || MapToggle.Open();
             try { Saplings.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[sapling] hook failed: " + e.Message); }
             try { Emeralds.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[emerald] hook failed: " + e.Message); }
             _overlay = new Overlay(gameObject, Config.Bind("Overlay", "PremultipliedShader", false, "(Minecraft 0.4.0+ already sends straight alpha; leave off.) Use a premultiplied-alpha material for the Minecraft overlay if a suitable shader is found (turn off if the overlay looks wrong or invisible).").Value);
@@ -308,6 +310,7 @@ namespace ValCraft
             try { if (_connected) MobBridge.Update(Link); else MobBridge.Clear("disconnected"); } catch (Exception e) { Diag.Warn("mobs", "[mobs] update error: " + e.GetBaseException().Message); }
             try { HealthLink.Update(Link); } catch (Exception e) { Diag.Warn("health", "[health] update error: " + e.GetBaseException().Message); }
             try { Logo.Tick(PlayerSync.HasLocalPlayer); } catch { }
+            try { MapToggle.Update(); } catch { }
             StoneBridge.SetLink(Link); try { StoneBridge.Guard(); } catch { }
             try { if (_connected) InteractBridge.Update(Link, PlayerSync.Following && _inputActive); } catch (Exception e) { Diag.Warn("interact", "[interact] update error: " + e.GetBaseException().Message); }
             try { if (_connected) ValheimHit.Update(Link, PlayerSync.Following && _inputActive); } catch (Exception e) { Diag.Warn("hit", "[hit] update error: " + e.GetBaseException().Message); }

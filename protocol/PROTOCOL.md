@@ -280,3 +280,6 @@ Item map: ~350 generated valcraft:* items for every Valheim item without an exac
 | 67 EvWeather | V→MC | u8 flags (1 rain, 2 thunder, 4 snow), u8 len, utf8 EnvMan environment name (≤ 64 B). Every 2 s. rain = EnvSetup.m_isWet or name contains rain/snow/thunder/storm; MC sets overworld rain/thunder (snow in cold biomes such as Mountain = snowy slopes); doWeatherCycle off while linked, restored on unlink. |
 
 No wire change: entity animation capture runs at 24 fps (41 ms) within 16 blocks, 12 fps to 32, 4 fps beyond, budget 6 ms per frame and skipped while > 300 events are queued. Projectiles (arrows, tridents, thrown items) are synced entities at their exact position; arrows stuck in Valheim boxes stay stuck. MC fluids do not spread into block cells a Valheim box fills. Emeralds: 0.5 % per broken MC stone block (config/valcraft.properties emeraldChance) and per mined-out Valheim rock piece ([Items] EmeraldChance). Items: TrophyBoar, TrophyDeer, TrophySkeleton added.
+
+### 0.12.1 (still v20)
+- Valheim: HideValheimHud no longer hides the HUD while the large map (or build menu) is open; the map UI chain is activated; a map that is still not visible after 1.5 s is closed so input returns to Minecraft.

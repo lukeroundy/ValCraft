@@ -50,31 +50,67 @@ namespace ValCraft
     }
 
     /// <summary>0.12.0: MC's M key (EvMapToggle) opens / closes Valheim's large map. While it is open Valheim owns input
-    /// (auto-input watches Minimap.IsOpen), so panning, zoom, pins and M/Esc to close are Valheim's own.</summary>
+    /// (auto-input watches Minimap.IsOpen), so panning, zoom, pins and M/Esc to close are Valheim's own.
+    /// 0.12.1: the map lives under UI that ValCraft hides while following (HideValheimHud), so 0.12.0 opened it invisibly
+    /// and input went to an invisible map (looked like an MC freeze). Now the HUD is shown while the map is open, any
+    /// inactive ancestor of the large map root is activated, and if the map still isn't visible after 1.5 s it is closed
+    /// again so input returns to Minecraft.</summary>
     internal static class MapToggle
     {
-        static Type _t; static MethodInfo2 _m;
-        sealed class MethodInfo2 { public System.Reflection.MethodInfo Set, IsOpen; public System.Reflection.FieldInfo Inst; public Type Mode; }
+        static Type _t, _mode; static System.Reflection.MethodInfo _set, _isOpen; static System.Reflection.PropertyInfo _instP; static System.Reflection.FieldInfo _instF, _large;
+        static bool _init; static float _openedAt = -1f; static bool _checked;
+        static void Init()
+        {
+            if (_init) return; _init = true;
+            _t = AccessTools.TypeByName("Minimap");
+            if (_t == null) { ValCraftPlugin.Log.LogWarning("[map] type Minimap not found"); return; }
+            _instP = AccessTools.Property(_t, "instance");
+            if (_instP == null) foreach (var f in AccessTools.GetDeclaredFields(_t)) if (f.IsStatic && f.FieldType == _t) { _instF = f; break; }
+            _set = AccessTools.Method(_t, "SetMapMode"); _isOpen = AccessTools.Method(_t, "IsOpen", Type.EmptyTypes);
+            _mode = AccessTools.Inner(_t, "MapMode") ?? _set?.GetParameters()[0].ParameterType;
+            _large = AccessTools.Field(_t, "m_largeRoot");
+            ValCraftPlugin.Log.LogInfo($"[map] Minimap: instance={(_instP != null ? "property" : _instF != null ? "field " + _instF.Name : "missing")}, SetMapMode={_set != null}, IsOpen={_isOpen != null}, MapMode={_mode != null}, m_largeRoot={_large != null}");
+        }
+        static object Inst() { try { return _instP != null ? _instP.GetValue(null, null) : _instF?.GetValue(null); } catch { return null; } }
         internal static void Toggle()
         {
             try
             {
-                if (_m == null)
-                {
-                    _t = AccessTools.TypeByName("Minimap");
-                    _m = new MethodInfo2 { Set = AccessTools.Method(_t, "SetMapMode"), IsOpen = AccessTools.Method(_t, "IsOpen"), Inst = AccessTools.Field(_t, "m_instance"), Mode = AccessTools.Inner(_t, "MapMode") };
-                }
-                var inst = _m.Inst?.GetValue(null) ?? AccessTools.Property(_t, "instance")?.GetValue(null, null);
-                if (inst == null || _m.Set == null || _m.Mode == null) { ValCraftPlugin.Log.LogInfo("[map] Minimap not available"); return; }
-                bool open = _m.IsOpen != null && (bool)_m.IsOpen.Invoke(null, null);
-                _m.Set.Invoke(inst, new[] { Enum.ToObject(_m.Mode, open ? 1 : 2) });
+                Init();
+                var inst = Inst();
+                if (inst == null || _set == null || _mode == null) { ValCraftPlugin.Log.LogInfo("[map] Minimap not available"); return; }
+                bool open = Open();
+                if (!open) PlayerSync.SetHud(true); // before opening: the map UI is under the hidden HUD
+                _set.Invoke(inst, new[] { Enum.ToObject(_mode, open ? 1 : 2) });
+                _openedAt = open ? -1f : Time.unscaledTime; _checked = false;
                 ValCraftPlugin.Log.LogInfo(open ? "[map] closed from MC" : "[map] large map opened from MC (Valheim has input; M / Esc closes)");
             }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning("[map] toggle failed: " + e.GetBaseException().Message); }
         }
         internal static bool Open()
         {
-            try { if (_t == null) _t = AccessTools.TypeByName("Minimap"); var m = AccessTools.Method(_t, "IsOpen"); return m != null && (bool)m.Invoke(null, null); } catch { return false; }
+            try { Init(); return _isOpen != null && (bool)_isOpen.Invoke(null, null); } catch { return false; }
+        }
+        /// <summary>Every frame: keep the map's UI chain visible; never leave input on an invisible map.</summary>
+        internal static void Update()
+        {
+            if (_openedAt < 0) return;
+            if (!Open()) { _openedAt = -1f; return; }
+            try
+            {
+                var root = _large?.GetValue(Inst()) as GameObject;
+                if (root != null && !root.activeInHierarchy)
+                    for (var t = root.transform; t != null; t = t.parent)
+                        if (!t.gameObject.activeSelf) { ValCraftPlugin.Log.LogInfo($"[map] activating hidden map ancestor '{t.name}'"); t.gameObject.SetActive(true); }
+                if (!_checked && Time.unscaledTime - _openedAt > 1.5f)
+                {
+                    _checked = true;
+                    bool vis = root != null && root.activeInHierarchy;
+                    ValCraftPlugin.Log.LogInfo($"[map] large map visible={vis} (root {(root != null ? root.name : "null")})");
+                    if (!vis) { _set.Invoke(Inst(), new[] { Enum.ToObject(_mode, 1) }); _openedAt = -1f; ValCraftPlugin.Log.LogWarning("[map] large map not visible: closed again, input back to Minecraft"); }
+                }
+            }
+            catch (Exception e) { Diag.Warn("map", "[map] " + e.GetBaseException().Message); }
         }
     }
 

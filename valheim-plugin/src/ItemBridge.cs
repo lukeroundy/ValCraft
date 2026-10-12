@@ -500,6 +500,8 @@ namespace ValCraft
             if (!_building) return false;
             try { var w = SelWindow(); return w != null && w.activeInHierarchy; } catch { return false; }
         }
+        /// <summary>0.12.1: the HUD must stay visible while the build menu is requested/open (it lives under the HUD root).</summary>
+        internal static bool MenuWanted() => MenuRequested();
         static bool MenuRequested() => _building && (_menuAskedAt >= 0 || _menuShownAt >= 0);
 
         static void ToggleMenu()
