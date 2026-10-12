@@ -190,6 +190,7 @@ public final class ValCraftClient {
 		Minecraft mc = Minecraft.getInstance();
 		if (active()) {
 			AutoWorld.tick(mc);
+			ReachLink.tick(mc);
 			PlayerDims.tick(mc);
 			ValheimInteract.tick(mc);
 			ItemLink.tick(mc);

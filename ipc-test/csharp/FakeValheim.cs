@@ -151,7 +151,8 @@ static unsafe class FakeValheim
                             for (int tx = ctx - rr; tx <= ctx + rr; tx++)
                                 for (int tz = ctz - rr; tz <= ctz + rr; tz++)
                                 {
-                                    var pl = new byte[8 + T * T * 3];
+                                    var pl = new byte[8 + T * T * 3 + 4]; // 0.9.7: + 4 quadrant biome codes (1 = Meadows)
+                                    for (int q = 0; q < 4; q++) pl[8 + T * T * 3 + q] = 1;
                                     BitConverter.GetBytes(tx).CopyTo(pl, 0); BitConverter.GetBytes(tz).CopyTo(pl, 4);
                                     for (int i = 0; i < T; i++) for (int j = 0; j < T; j++)
                                     {

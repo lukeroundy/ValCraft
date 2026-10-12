@@ -39,7 +39,7 @@ public final class TerrainSync {
 		for (byte m = 1; m <= 10; m++) if (s == surface(m) || s == sub(m)) return true;
 		return s.is(Blocks.STONE);
 	}
-	private record Tile(int tx, int tz, short[] top, byte[] mat) {}
+	private record Tile(int tx, int tz, short[] top, byte[] mat, byte[] bio) {}
 	private static final ConcurrentLinkedQueue<Tile> pending = new ConcurrentLinkedQueue<>();
 	private static final Long2IntOpenHashMap applied = new Long2IntOpenHashMap(); // server thread: column -> top<<8|mat
 	private static final LongOpenHashSet clientTiles = new LongOpenHashSet();     // render thread: tiles received
@@ -47,7 +47,7 @@ public final class TerrainSync {
 
 	public static boolean enabled() { return ValCraftClient.active() && ValCraftClient.terrainMode(); }
 
-	static void clearClient() { clientTiles.clear(); pending.clear(); }
+	static void clearClient() { clientTiles.clear(); pending.clear(); var s = net.minecraft.client.Minecraft.getInstance().getSingleplayerServer(); if (s != null) s.execute(BiomeSync::clear); }
 
 	/** Render thread: EV_TERRAIN_TILE payload. */
 	static void receive(byte[] p) {
@@ -55,8 +55,9 @@ public final class TerrainSync {
 		int tx = b.getInt(0), tz = b.getInt(4), n = ValCraftLink.TERRAIN_TILE * ValCraftLink.TERRAIN_TILE;
 		short[] top = new short[n]; byte[] mat = new byte[n];
 		for (int i = 0; i < n; i++) { top[i] = b.getShort(8 + i * 3); mat[i] = b.get(10 + i * 3); }
+		byte[] bio = p.length >= 8 + n * 3 + 4 ? java.util.Arrays.copyOfRange(p, 8 + n * 3, 8 + n * 3 + 4) : null; // 0.9.7
 		clientTiles.add(key(tx, tz));
-		pending.add(new Tile(tx, tz, top, mat));
+		pending.add(new Tile(tx, tz, top, mat, bio));
 	}
 
 	static boolean haveTileAt(double x, double z) {
@@ -67,8 +68,9 @@ public final class TerrainSync {
 
 	@SubscribeEvent
 	public static void onServerTick(ServerTickEvent.Post e) {
-		if (pending.isEmpty()) return;
 		ServerLevel level = e.getServer().overworld();
+		BiomeSync.tick(level);
+		if (pending.isEmpty()) return;
 		for (int i = 0; i < TILES_PER_TICK; i++) {
 			Tile t = pending.poll();
 			if (t == null) break;
@@ -111,6 +113,7 @@ public final class TerrainSync {
 			columnsChanged++;
 		}
 		tilesApplied++;
+		BiomeSync.onTile(level, t.tx, t.tz, n, t.bio);
 	}
 
 	// TerrainMat (Valheim side): 1 grass, 2 cultivated, 3 stone, 4 sand, 5 snow, 6 mud, 7 ash, 8 paved, 9 gravel, 10 dark grass
@@ -124,7 +127,7 @@ public final class TerrainSync {
 			case 7 -> Blocks.BLACKSTONE.defaultBlockState();
 			case 8 -> Blocks.COBBLESTONE.defaultBlockState();
 			case 9 -> Blocks.GRAVEL.defaultBlockState();
-			case 10 -> Blocks.PODZOL.defaultBlockState();
+			case 10 -> Blocks.GRASS_BLOCK.defaultBlockState(); // 0.9.7: was podzol; animals need grass_block (MC terrain isn't drawn)
 			default -> Blocks.GRASS_BLOCK.defaultBlockState();
 		};
 	}

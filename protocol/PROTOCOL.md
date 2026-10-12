@@ -242,3 +242,9 @@ Proxies: Valheim instantiates [Mobs] ProxyPrefab (Greyling) per MC mob with AI/a
 | Event | Dir | Payload |
 |---|---|---|
 | 61 EvWorldInfo | V→MC | i64 ZNet.m_world.m_uid, u8 len, utf8 world name (≤200 B). Every 2 s while a Valheim world is loaded. MC maps uid → save folder in config/valcraft-worlds.properties ("ValCraft - <name>", sanitized, uid suffix on clash); the legacy "ValCraft" world is adopted by the first Valheim world seen. If MC is in another world it saves, leaves to the title screen and opens the mapped one. |
+
+## v17 (0.9.7) — reach, biomes
+| Event | Dir | Payload |
+|---|---|---|
+| 23 EvTerrainTile | V→MC | + 4 trailing bytes: biome code per 4×4-column quadrant (q = qi·2+qj): 1 Meadows 2 Swamp 3 Mountain 4 BlackForest 5 Plains 6 AshLands 7 DeepNorth 8 Ocean 9 Mistlands, 0 unknown. Older 200-byte tiles still accepted. |
+| 62 EvReach | MC→V | f32 blockInteractionRange, f32 entityInteractionRange, every 2 s. Valheim interact/hover + build placement use block reach, hits use entity reach; [Interact] MaxDistance > 0 overrides. |

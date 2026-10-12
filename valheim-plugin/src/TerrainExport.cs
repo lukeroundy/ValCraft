@@ -90,7 +90,7 @@ namespace ValCraft
         /// <summary>Sample a tile; send if new/changed. False = ring full.</summary>
         static bool SendTile(ValCraftLink link, int tx, int tz, Vector3 a)
         {
-            var payload = new byte[8 + T * T * 3];
+            var payload = new byte[8 + T * T * 3 + 4]; // 0.9.7: + 4 quadrant biomes (4x4 columns = one MC biome cell)
             BitConverter.GetBytes(tx).CopyTo(payload, 0);
             BitConverter.GetBytes(tz).CopyTo(payload, 4);
             // Fine grid: 0.5 m over the tile plus a 1-block border. g[2*(i+1)+1, ...] is block (i,j)'s centre.
@@ -117,6 +117,17 @@ namespace ValCraft
                     payload[o + 2] = mat;
                     hash = hash * 31 + top * 17 + mat;
                 }
+            for (int q = 0; q < 4; q++)
+            {
+                int qi = q / 2, qj = q % 2; byte bc = 0;
+                try
+                {
+                    var wg = _worldGen?.Invoke();
+                    if (wg != null && _getBiome != null) bc = BiomeCode(Convert.ToInt32(_getBiome.Invoke(wg, new object[] { ToUnity(tx * T + qi * 4 + 2, tz * T + qj * 4 + 2, a) })));
+                }
+                catch { }
+                payload[8 + T * T * 3 + q] = bc; hash = hash * 31 + bc;
+            }
             // Smooth heightfield cells (4 m, 0.5 m samples) for movement; included in the change hash (cm).
             var cells = new List<byte[]>();
             for (int cx = 0; cx < T / ValCraftLink.HeightCell; cx++)
@@ -160,6 +171,12 @@ namespace ValCraft
         }
 
         // 1 grass, 2 cultivated, 3 stone, 4 sand, 5 snow, 6 mud, 7 ash, 8 paved, 9 gravel, 10 dark grass (podzol)
+        /// <summary>Valheim Heightmap.Biome flag -> wire code: 1 Meadows 2 Swamp 3 Mountain 4 BlackForest 5 Plains 6 AshLands 7 DeepNorth 8 Ocean 9 Mistlands (0 unknown).</summary>
+        static byte BiomeCode(int b)
+        {
+            switch (b) { case 1: return 1; case 2: return 2; case 4: return 3; case 8: return 4; case 16: return 5; case 32: return 6; case 64: return 7; case 256: return 8; case 512: return 9; default: return 0; }
+        }
+
         static byte Material(int bx, int bz, Vector3 a, float y, float[,] h, int i, int j)
         {
             var p = ToUnity(bx, bz, a); p.y = y;

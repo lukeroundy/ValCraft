@@ -17,7 +17,7 @@ namespace ValCraft
     internal static class ValheimHit
     {
         internal static bool Enabled = true;
-        internal static float Range = 3.5f;
+        internal static float Range = 3f; // 0.9.7: MC entity reach (EvReach)
         // index = MC tier (0 wood, 1 stone, 2 iron, 3 gold, 4 diamond, 5 netherite)
         internal static int[] TierMap = { 0, 1, 2, 1, 3, 4 };
         internal static float[] DamageMap = { 10f, 18f, 30f, 22f, 45f, 60f };

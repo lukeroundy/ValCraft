@@ -124,6 +124,7 @@ namespace ValCraft
             MobBridge.MaxProxies = Config.Bind("Mobs", "MaxProxies", 24, "Max proxies per side.").Value;
             MobBridge.ProxyPrefab = Config.Bind("Mobs", "ProxyPrefab", "Greyling", "Valheim creature prefab used (invisible, AI off) as the stand-in for Minecraft mobs.").Value;
             MobBridge.HostileFaction = Config.Bind("Mobs", "HostileMcFaction", "Players", "Valheim faction for hostile Minecraft mobs (Players = every Valheim monster attacks them).").Value;
+            InteractBridge.MaxDistanceCfg = Config.Bind("Interact", "MaxDistance", 0f, "Max reach (m) for Valheim interact/hover, build placement and hits; 0 = use Minecraft's reach (survival 4.5 m blocks, 3 m entities).").Value; InteractBridge.ApplyReach();
             ValheimHit.Combat = Config.Bind("Combat", "Enabled", true, "Minecraft left-click on Valheim creatures damages them (attacker = your Valheim player, so aggro, skills and drops work).").Value;
             ValheimHit.CombatScale = Config.Bind("Combat", "DamageScale", 6f, "Valheim damage per point of Minecraft attack damage at full swing (iron sword 6 -> 36, about a bronze/iron sword).").Value;
             ValheimHit.CombatPush = Config.Bind("Combat", "Knockback", 30f, "Valheim push force of a full-strength hit.").Value;
@@ -242,6 +243,7 @@ namespace ValCraft
                         else if (ev.Type == ValCraftLink.EvMobList) MobBridge.Receive(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvVMobHurt) MobBridge.VMobHurt(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvLevelGround) TerrainEdit.LevelGround();
+                        else if (ev.Type == ValCraftLink.EvReach) InteractBridge.SetReach(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvBuildAction) { if (ev.Payload != null && ev.Payload.Length > 0) ItemBridge.BuildAction(ev.Payload[0]); }
                         else if (!ItemBridge.Handle(ev)) BlockRender.Handle(ev);
                         break;
