@@ -77,6 +77,7 @@ namespace ValCraft
             var player = PlayerSync.Player;
             var go = _target;
             if (player == null || go == null) return;
+            if (ItemBridge.TryUseHeld(go)) return; // 0.8.0: holding a mapped MC item on a Valheim station
             try
             {
                 if (_playerInteract != null) { _playerInteract.Invoke(player, new object[] { go, false, false }); ValCraftPlugin.Log.LogInfo($"[interact] {go.name}"); return; }

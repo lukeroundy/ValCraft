@@ -90,6 +90,7 @@ static unsafe class Program
     static int Main(string[] args)
     {
         if (args.Length == 2 && args[0] == "blocks") return BlocksTest(args[1]);
+        if (args.Length == 2 && args[0] == "items") return ItemsTest(args[1]);
         if (args.Length > 0 && args[0] == "host") return FakeValheim.Run(args.Length > 1 ? args[1] : ValCraftLink.DefaultPath(), args.Length > 2 ? int.Parse(args[2]) : 300, args.Length > 3 ? args[3] : "cmd.txt");
         path = args.Length > 0 ? args[0] : ValCraftLink.DefaultPath();
         int pings = args.Length > 1 ? int.Parse(args[1]) : 20000;
@@ -217,5 +218,33 @@ static unsafe class Program
         link.Dispose();
         Console.WriteLine("[cs] PASS");
         return 0;
+    }
+
+    static int ItemsTest(string path)
+    {
+        int fail = 0; void Check(bool c, string m) { if (!c) { fail++; Console.WriteLine("FAIL " + m); } }
+        var map = new ValCraft.Protocol.ItemMap();
+        int n = map.Load(ValCraft.Protocol.ItemMap.DefaultJson);
+        Check(n >= 30, "default entries " + n);
+        Check(map.McFor("Wood") == "minecraft:oak_log", "Wood->oak_log");
+        Check(map.ValheimFor("minecraft:birch_planks") == "Wood", "planks->Wood");
+        Check(map.ValheimFor("minecraft:charcoal") == "Coal", "charcoal->Coal");
+        Check(map.ValheimFor("minecraft:dirt") == null, "dirt unmapped");
+        Check(map.Load("{\"_c\":[\"x\"], \"Resin\": [\"slime_ball\"]}") == 1 && map.ValheimFor("minecraft:slime_ball") == "Resin", "custom/implicit namespace");
+        var g = ValCraft.Protocol.ItemMap.Give(5, 7, "minecraft:flint");
+        Check(BitConverter.ToUInt32(g, 0) == 5 && BitConverter.ToUInt16(g, 4) == 7 && System.Text.Encoding.UTF8.GetString(g, 6, g.Length - 6) == "minecraft:flint", "give");
+        var c = ValCraft.Protocol.ItemMap.Consume(9, 2, 1, "minecraft:coal");
+        Check(c[6] == 1 && System.Text.Encoding.UTF8.GetString(c, 7, c.Length - 7) == "minecraft:coal", "consume");
+        using (var r = new System.IO.BinaryReader(System.IO.File.OpenRead(path)))
+        {
+            byte[] Next() { int len = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(r.ReadInt32()); return r.ReadBytes(len); }
+            var (hc, hid) = ValCraft.Protocol.ItemMap.Held(Next()); Check(hc == 12 && hid == "minecraft:oak_log", "held");
+            var (rq, rm, aid) = ValCraft.Protocol.ItemMap.Ack(Next()); Check(rq == 77 && rm == 3 && aid == "minecraft:oak_log", "ack");
+            var snap = new ValCraft.Protocol.ItemMap.Snapshot();
+            Check(!snap.Add(Next()), "snapshot part1 not final");
+            Check(snap.Add(Next()) && snap.Result.Count == 3 && snap.Result["minecraft:iron_ingot"] == 300 && snap.Result["minecraft:oak_log"] == 64, "snapshot");
+        }
+        Console.WriteLine(fail == 0 ? "items OK" : $"items {fail} failures");
+        return fail == 0 ? 0 : 1;
     }
 }

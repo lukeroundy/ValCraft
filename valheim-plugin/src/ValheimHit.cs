@@ -80,6 +80,7 @@ namespace ValCraft
         /// <summary>EvAttack from MC.</summary>
         internal static void Attack(byte[] p)
         {
+            ItemBridge.NoteAction();
             if (!Enabled || p.Length < 8) return;
             if (!_init) Init();
             int kind = BitConverter.ToInt32(p, 0), tier = BitConverter.ToInt32(p, 4);

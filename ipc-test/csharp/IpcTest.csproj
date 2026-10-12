@@ -9,5 +9,6 @@
   <ItemGroup>
     <Compile Include="../../protocol/ValCraftLink.cs" Link="ValCraftLink.cs" />
     <Compile Include="../../protocol/BlockMesh.cs" Link="BlockMesh.cs" />
+    <Compile Include="../../protocol/ItemMap.cs" Link="ItemMap.cs" />
   </ItemGroup>
 </Project>

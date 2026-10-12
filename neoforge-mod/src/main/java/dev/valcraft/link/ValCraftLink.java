@@ -18,7 +18,7 @@ import java.nio.file.StandardOpenOption;
  * standalone IPC test compiles this exact file.
  */
 public final class ValCraftLink implements AutoCloseable {
-	public static final int MAGIC = 0x434C4156, VERSION = 9;
+	public static final int MAGIC = 0x434C4156, VERSION = 10;
 	static final int OFF_MAGIC = 0x0, OFF_VERSION = 0x4, OFF_VALHEIM_PID = 0x10, OFF_MC_PID = 0x14;
 	static final int OFF_VALHEIM_HB = 0x18, OFF_MC_HB = 0x20, OFF_VALHEIM_FLAGS = 0x28, OFF_MC_FLAGS = 0x2C;
 	static final int OFF_SESSION = 0x30, OFF_MC_ACKED_SESSION = 0x34;
@@ -64,6 +64,8 @@ public final class ValCraftLink implements AutoCloseable {
 	public static final short EV_PLAYER_DIMS = 20, EV_HOVER_TEXT = 21, EV_INTERACT = 22, EV_TERRAIN_TILE = 23, EV_BLOCK_CHANGED = 24, EV_TELEPORT = 25, EV_TERRAIN_HEIGHTS = 26, EV_ATTACK_TARGET = 27, EV_ATTACK = 28;
 	/** v5 block rendering (0.7.0), see PROTOCOL.md. */
 	public static final short EV_BLOCK_SYNC_CONFIG = 30, EV_BLOCK_PALETTE = 31, EV_SECTION_BEGIN = 32, EV_SECTION_BLOCKS = 33, EV_SECTION_END = 34, EV_BLOCK_ATLAS = 35, EV_BLOCKS_RESET = 36, EV_BLOCK_QUADS = 37, EV_BLOCK_ANIM = 38, EV_ENT_MESH = 39, EV_ENT_UPDATE = 40;
+	/** v10 item bridge (0.8.0), see PROTOCOL.md. */
+	public static final short EV_GIVE_ITEM = 41, EV_CONSUME_REQ = 42, EV_CONSUME_ACK = 43, EV_HELD_ITEM = 44, EV_INV_SNAPSHOT = 45, EV_INV_REQ = 46;
 	public static final int HEIGHT_CELL = 4, HEIGHT_RES = 9;
 	public static final int TERRAIN_TILE = 8, VFLAG_TERRAIN_BLOCKS = 32;
 

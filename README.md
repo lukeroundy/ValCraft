@@ -321,3 +321,6 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
 
 ## 0.7.5 (protocol v9)
 - Mobs, dropped items and other entities standing on mirrored terrain are re-seated on Valheim's smooth ground (offset kept while jumping/swimming; not applied on player-placed blocks).
+
+## 0.8.0 — item bridge
+Valheim resources you gather as the Minecraft player (trees, rocks, ore, pickables, creature drops, station output) arrive in your Minecraft inventory as mapped vanilla items. Right-click a Valheim fire, smelter, kiln, cooking station or fermenter while holding a mapped item to use it there. Opening a Valheim crafting station moves your mapped Minecraft items into the hidden Valheim inventory so recipes can use them. Edit `BepInEx/config/valcraft-items.json` to change the mapping. Turn the bridge off with `[Items] Enabled` in the plugin config.

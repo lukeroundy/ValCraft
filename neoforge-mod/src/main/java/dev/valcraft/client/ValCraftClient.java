@@ -124,6 +124,9 @@ public final class ValCraftClient {
 					PlayerDims.set(mc, bb.getFloat(0), bb.getFloat(4));
 				}
 				case ValCraftLink.EV_TERRAIN_TILE -> TerrainSync.receive(ev.payload());
+				case ValCraftLink.EV_GIVE_ITEM -> ItemLink.give(mc, ev.payload());
+				case ValCraftLink.EV_CONSUME_REQ -> ItemLink.consume(mc, ev.payload());
+				case ValCraftLink.EV_INV_REQ -> ItemLink.snapshot(mc);
 				case ValCraftLink.EV_BLOCK_SYNC_CONFIG -> BlockSync.receiveConfig(ev.payload());
 				case ValCraftLink.EV_TERRAIN_HEIGHTS -> HeightField.receive(ev.payload());
 				case ValCraftLink.EV_ATTACK_TARGET -> ValheimAttack.receiveTarget(ev.payload());
@@ -181,6 +184,7 @@ public final class ValCraftClient {
 			AutoWorld.tick(mc);
 			PlayerDims.tick(mc);
 			ValheimInteract.tick(mc);
+			ItemLink.tick(mc);
 			CollisionWorld.poll(link);
 			if (CollisionWorld.boxCount() != loggedBoxes && (loggedBoxes <= 0 || Math.abs(CollisionWorld.boxCount() - loggedBoxes) > 500)) {
 				loggedBoxes = CollisionWorld.boxCount();
@@ -216,7 +220,7 @@ public final class ValCraftClient {
 		FrameExporter.reset();
 		CollisionWorld.clear();
 		ValheimInteract.hoverText = "";
-		TerrainSync.clearClient(); HeightField.clear(); BlockSync.disconnected(); ValheimAttack.clear();
+		TerrainSync.clearClient(); HeightField.clear(); BlockSync.disconnected(); ItemLink.reset(); ValheimAttack.clear();
 		PlayerDims.set(mc, 0, 0);
 		AutoWorld.reset();
 		loggedBoxes = -1;

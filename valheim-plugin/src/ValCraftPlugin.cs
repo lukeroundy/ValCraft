@@ -64,6 +64,7 @@ namespace ValCraft
             _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
             InputBlock.Apply(_harmony);
             PlayerSync.Apply(_harmony);
+            ItemBridge.Apply(_harmony);
             _overlay = new Overlay(gameObject, Config.Bind("Overlay", "PremultipliedShader", false, "(Minecraft 0.4.0+ already sends straight alpha; leave off.) Use a premultiplied-alpha material for the Minecraft overlay if a suitable shader is found (turn off if the overlay looks wrong or invisible).").Value);
             _input = new InputForwarder(this);
             InputForwarder.ExcludeKeys(_cfgToggleInput.Value, _cfgToggleOverlay.Value, _cfgReAnchor.Value);
@@ -112,6 +113,8 @@ namespace ValCraft
             void ApplyBlocks() { BlockRender.MaxMobs = Mathf.Clamp(cfgMM.Value, 0, 128); BlockRender.MaxEntities = Mathf.Clamp(cfgME.Value, 0, 512); BlockRender.Lights = cfgL.Value; BlockRender.MaxLights = Mathf.Clamp(cfgML.Value, 0, 256); BlockRender.Reflections = cfgRf.Value; BlockRender.Enabled = cfgBr.Value; BlockRender.Radius = Mathf.Clamp(cfgBrR.Value, 16, 160); BlockRender.Collision = cfgBrC.Value; }
             ApplyBlocks();
             Config.SettingChanged += (_, __) => ApplyBlocks();
+            var cfgItems = Config.Bind("Items", "Enabled", true, "Phase C item bridge: Valheim resources you gather go to your Minecraft inventory (mapping: valcraft-items.json in the config folder); Minecraft items work in Valheim fires, smelters, cooking stations and crafting.");
+            ItemBridge.Enabled = cfgItems.Value;
             var cfgYOff = Config.Bind("Terrain", "YOffset", 32f, "MC Y = Valheim Y + YOffset (sea level 30 -> MC 62; Valheim -96..288 fits MC -64..320).");
             void ApplyTerrain() { TerrainExport.Enabled = cfgTerrain.Value; TerrainExport.Radius = Mathf.Clamp(cfgTerrainR.Value, 16f, 128f); PlayerSync.FixedAnchorY = cfgTerrain.Value ? -cfgYOff.Value : (float?)null; }
             ApplyTerrain();
@@ -221,7 +224,7 @@ namespace ValCraft
                         InteractBridge.Interact();
                         break;
                     default:
-                        BlockRender.Handle(ev);
+                        if (!ItemBridge.Handle(ev)) BlockRender.Handle(ev);
                         break;
                 }
             }
@@ -268,6 +271,7 @@ namespace ValCraft
             PlayerSync.Update(Link, _connected);
             TerrainExport.Update(Link, _connected);
             BlockRender.Update(Link, _connected);
+            ItemBridge.Update(Link, _connected);
             if (_connected) InteractBridge.Update(Link, PlayerSync.Following && _inputActive);
             if (_connected) ValheimHit.Update(Link, PlayerSync.Following && _inputActive);
             if (_cfgAutoInput.Value)

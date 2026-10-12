@@ -167,3 +167,18 @@ Version = **8** (layout unchanged).
 Version = **9**. **40 EntUpdate** entries grow to 25 bytes: `u32 id, u32 mesh, f32 x,y,z, u8 flags, f32 groundY` (≤9 per message).
 Flags: 8 = groundY valid (terrain-type block under the entity, MC Y of its top), 4 = standing on it. Valheim adds
 `offset = valheimGround(x,z) - (groundY + anchor.y)` (smoothed, |offset| < 3 m, held while airborne/swimming, faded out over player-placed blocks).
+
+## v10 (0.8.0) — item bridge (Phase C)
+
+All integers are little-endian; ids are UTF-8 Minecraft item ids (`minecraft:oak_log`).
+
+| Type | Dir | Payload |
+|---|---|---|
+| 41 EvGiveItem | V→MC | u32 reqId, u16 count, utf8 id. MC adds the item to the player's inventory (server thread) and drops any overflow at the player's feet. |
+| 42 EvConsumeReq | V→MC | u32 reqId, u16 count, u8 mode (0 = from the held stack, 1 = by id from the whole inventory), utf8 id. |
+| 43 EvConsumeAck | MC→V | u32 reqId, u16 removed, utf8 id. `removed` may be less than requested (0 = none). Creative mode: held items aren't used up but are still acked. |
+| 44 EvHeldItem | MC→V | u16 count, utf8 id (empty string = empty hand). Sent whenever the main-hand stack changes. |
+| 45 EvInvSnapshot | MC→V | u8 first, u8 last, u8 n, n × (u16 count, u8 len, utf8 id). Totals per id; split across messages, `first`/`last` flags mark the run. |
+| 46 EvInvReq | V→MC | empty. Asks for EvInvSnapshot. |
+
+Mapping (Valheim side only): `BepInEx/config/valcraft-items.json`, `{ "ValheimPrefab": ["mc:id_given", "mc:also_accepted", ...] }`. Keys starting with `_` are comments; ids without a namespace get `minecraft:`. Reloaded within 2 s of being saved.
