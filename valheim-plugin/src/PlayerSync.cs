@@ -183,7 +183,7 @@ namespace ValCraft
 
             ComputeTarget();
             if (HidePlayer && Time.unscaledTime >= _nextHideScan) { HideRenderers(); _nextHideScan = Time.unscaledTime + 1f; }
-            if (HideHud) SetHud(false);
+            if (HideHud) SetHud(HudWanted != null && HudWanted()); // 0.8.4: shown while the Valheim build menu is open
             MovePlayer(); // also done in FixedUpdate postfix; moving here keeps the transform in step with rendering
         }
 
@@ -348,7 +348,9 @@ namespace ValCraft
             _hidden.Clear();
         }
 
-        static void SetHud(bool visible)
+        /// <summary>0.8.4: when true, the hidden-HUD mode shows the Valheim HUD anyway (build menu lives under it).</summary>
+        internal static Func<bool> HudWanted;
+        internal static void SetHud(bool visible)
         {
             try
             {

@@ -372,6 +372,8 @@ namespace ValCraft
             _hudInst = AccessTools.Property(_hudT, "instance"); _hudInstF = AccessTools.Field(_hudT, "m_instance");
             _tryPlace = AccessTools.Method(_playerT, "TryPlacePiece"); _removePiece = AccessTools.Method(_playerT, "RemovePiece", Type.EmptyTypes); _getSel = AccessTools.Method(_playerT, "GetSelectedPiece", Type.EmptyTypes);
             _rot = AccessTools.Field(_playerT, "m_placeRotation");
+            _selWinF = AccessTools.Field(_hudT, "m_pieceSelectionWindow");
+            PlayerSync.HudWanted = () => MenuRequested();
             ValCraftPlugin.Log.LogInfo($"[build] Hud.TogglePieceSelection={_toggleSel != null} TryPlacePiece={_tryPlace != null} RemovePiece={_removePiece != null} EquipItem={_equip != null}");
         }
         static object Hud() => _hudInst != null ? _hudInst.GetValue(null) : _hudInstF?.GetValue(null);
@@ -382,7 +384,66 @@ namespace ValCraft
             if (!Enabled || !_ok || !PlayerSync.Following || PlayerSync.Player == null) return;
             if (!_buildInit) BuildInit();
             if (!_building && !EnterBuild()) return;
-            try { var hud = Hud(); if (hud != null) _toggleSel?.Invoke(hud, null); } catch (Exception e) { Diag.Warn("buildsel", "[build] piece menu: " + e.GetBaseException().Message); }
+            ToggleMenu();
+        }
+
+        // 0.8.4: in 0.8.3 the menu opened inside the HUD that ValCraft hides (HideValheimHud), so Valheim reported it
+        // visible, input was handed to Valheim, and nothing was on screen: MC looked frozen. Now the HUD is shown while
+        // the menu is up, input goes to Valheim only once the window is really visible, and Esc / right-click / timeout close it.
+        static float _menuAskedAt = -1f, _menuShownAt = -1f;
+        static FieldInfo _selWinF, _hudRootF;
+        static GameObject SelWindow() { var hud = Hud(); return hud == null || _selWinF == null ? null : _selWinF.GetValue(hud) as GameObject; }
+
+        /// <summary>The piece window is really on screen (active in hierarchy, HUD root included).</summary>
+        internal static bool BuildMenuShown()
+        {
+            if (!_building) return false;
+            try { var w = SelWindow(); return w != null && w.activeInHierarchy; } catch { return false; }
+        }
+        static bool MenuRequested() => _building && (_menuAskedAt >= 0 || _menuShownAt >= 0);
+
+        static void ToggleMenu()
+        {
+            try
+            {
+                var hud = Hud();
+                if (hud == null || _toggleSel == null) { ValCraftPlugin.Log.LogWarning("[build] Hud.instance or TogglePieceSelection missing: no build menu"); return; }
+                bool wasOpen = _selVisible != null && (bool)_selVisible.Invoke(null, null);
+                if (wasOpen) { CloseMenu("second right-click"); return; }
+                PlayerSync.SetHud(true); // the window is under the HUD root
+                _toggleSel.Invoke(hud, null);
+                bool flag = _selVisible != null && (bool)_selVisible.Invoke(null, null);
+                var w = SelWindow();
+                _menuAskedAt = Time.unscaledTime; _menuShownAt = -1f;
+                ValCraftPlugin.Log.LogInfo($"[build] TogglePieceSelection called: Valheim flag visible={flag}, window={(w == null ? "null" : w.name)} activeSelf={(w != null && w.activeSelf)} inHierarchy={(w != null && w.activeInHierarchy)}");
+            }
+            catch (Exception e) { ValCraftPlugin.Log.LogWarning("[build] piece menu: " + e.GetBaseException().Message); CloseMenu("error"); }
+        }
+
+        static void CloseMenu(string why)
+        {
+            try { if (_selVisible != null && (bool)_selVisible.Invoke(null, null)) _hideSel?.Invoke(null, null); } catch { }
+            if (_menuAskedAt >= 0 || _menuShownAt >= 0) ValCraftPlugin.Log.LogInfo($"[build] piece menu closed ({why}); input back to Minecraft");
+            _menuAskedAt = -1f; _menuShownAt = -1f;
+        }
+
+        static void MenuUpdate()
+        {
+            if (!MenuRequested()) return;
+            float t = Time.unscaledTime;
+            bool shown = BuildMenuShown();
+            bool flag = false; try { flag = _selVisible != null && (bool)_selVisible.Invoke(null, null); } catch { }
+            if (_menuShownAt < 0)
+            {
+                if (shown) { _menuShownAt = t; _menuAskedAt = -1f; ValCraftPlugin.Log.LogInfo("[build] piece menu visible: mouse/keyboard to Valheim (pick a piece; Esc or right-click closes)"); }
+                else if (t - _menuAskedAt > 1.5f) { ValCraftPlugin.Log.LogWarning($"[build] piece menu did not become visible within 1.5 s (Valheim flag {flag}); giving input back to Minecraft"); CloseMenu("not visible"); }
+                return;
+            }
+            var kb = BepInEx.UnityInput.Current;
+            if (!flag || !shown) { CloseMenu("piece chosen / closed by Valheim"); return; }
+            if (kb.GetKeyDown(KeyCode.Escape)) { CloseMenu("Esc"); return; }
+            if (kb.GetMouseButtonDown(1)) { CloseMenu("right-click"); return; }
+            if (t - _menuShownAt > 60f) { CloseMenu("60 s timeout"); return; }
         }
 
         static bool EnterBuild()
@@ -404,8 +465,8 @@ namespace ValCraft
         static void ExitBuild(string why)
         {
             if (!_building) return;
+            CloseMenu("leaving build mode");
             _building = false;
-            try { var hud = Hud(); if (_selVisible != null && (bool)_selVisible.Invoke(null, null)) _hideSel?.Invoke(null, null); } catch { }
             try
             {
                 var inv = Inv();
@@ -426,10 +487,11 @@ namespace ValCraft
         {
             if (!_building) return;
             if (!PlayerSync.Following || PlayerSync.Player == null) { _virtualHammer = null; ExitBuild("player gone"); return; }
+            MenuUpdate();
             if (!HeldIs(MaceId)) ExitBuild("mace no longer held");
         }
 
-        internal static void ResetBuild() { if (_building) { _building = false; _virtualHammer = null; } }
+        internal static void ResetBuild() { if (_building) { CloseMenu("disconnect"); _building = false; _virtualHammer = null; } }
 
         /// <summary>EvBuildAction: 1 place, 2 remove, 3 rotate.</summary>
         internal static void BuildAction(byte a)

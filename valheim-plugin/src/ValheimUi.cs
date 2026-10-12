@@ -49,7 +49,6 @@ namespace ValCraft
             Static("StoreGui", "IsVisible");      // trader
             Static("Console", "IsVisible");       // F5 console
             Static("TextViewer", "IsVisible");
-            Static("Hud", "IsPieceSelectionVisible"); // 0.8.3 build menu (mace)
             Static("PlayerCustomizaton", "IsBarberGuiVisible");
             Instance("Chat", "HasFocus");
             Instance("Console", "IsVisible");

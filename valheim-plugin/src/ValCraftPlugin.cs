@@ -286,7 +286,7 @@ namespace ValCraft
             if (_cfgAutoInput.Value)
             {
                 // Automatic: Minecraft gets input whenever we're in-game following MC and no Valheim UI is open.
-                bool want = _connected && PlayerSync.Following && !_valheimOverride && !ValheimUi.AnyOpen();
+                bool want = _connected && PlayerSync.Following && !_valheimOverride && !ValheimUi.AnyOpen() && !ItemBridge.BuildMenuShown();
                 if (want != _inputActive) SetInputActive(want);
             }
             try { ColliderExport.Update(Link, PlayerSync.Anchored); } catch (Exception e) { Diag.Warn("collision", "[collision] update error: " + e.GetBaseException().Message); }
