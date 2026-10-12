@@ -75,6 +75,9 @@ final class EntitySync {
 		}
 		// mobs / NPCs / other players: re-captured every frame-ish (nearest 100 ms, farther 300 ms) into a per-entity dynamic mesh
 		mobs.sort((a, b) -> Double.compare(a.distanceToSqr(mc.player), b.distanceToSqr(mc.player)));
+		// 0.10.1: third person: our own player is a captured in-world mesh (depth-tested in Valheim) instead of an overlay
+		boolean self = mc.gameRenderer.getMainCamera().isDetached() && !mc.player.isInvisible();
+		if (self) mobs.add(0, mc.player);
 		if (mobs.size() > maxMobs) mobs = mobs.subList(0, maxMobs);
 		java.util.HashSet<Integer> live = new java.util.HashSet<>();
 		int mobCaps = 0;
@@ -91,10 +94,11 @@ final class EntitySync {
 				try { q = capture(mc, e); } finally { Capture.CAPTURING = false; }
 				if (!q.isEmpty()) outbox.addAll(BlockCodec.entityMesh(mesh, q));
 				if (last == null && lastMobCapture.size() <= 10) ValCraft.LOG.info("[entities] mob {} ({} quads)", e.getType().getDescriptionId(), q.size());
+				if (last == null && DUMP != null) dump(e, q);
 			}
 			if (!lastMobCapture.containsKey(e.getId())) continue;
 			var p = e.position();
-			ents.add(ground(mc, e, new BlockCodec.Ent(e.getId(), mesh, (float) p.x, (float) p.y, (float) p.z, 2)));
+			ents.add(ground(mc, e, new BlockCodec.Ent(e.getId(), mesh, (float) p.x, (float) p.y, (float) p.z, e == mc.player ? 2 | ENT_LOCAL_PLAYER : 2)));
 		}
 		lastMobCapture.keySet().retainAll(live);
 		// chests / ender chests / shulker boxes: live block entities, mesh per (state, lid openness bucket)
@@ -143,6 +147,7 @@ final class EntitySync {
 	private static final java.util.HashMap<Long, int[]> liveMesh = new java.util.HashMap<>(); // pos -> {mesh, lastCaptureMs low bits}
 	private static final java.util.HashMap<Long, Long> liveLast = new java.util.HashMap<>();
 	private static int liveLogged;
+	private static final java.util.Map<Long, int[]> liveQuads = new java.util.HashMap<>();
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static void liveBlocks(Minecraft mc, List<BlockCodec.Ent> ents, long now) {
 		var pp = mc.player.blockPosition();
@@ -163,7 +168,8 @@ final class EntitySync {
 					int[] m = liveMesh.get(pk);
 					if (m == null) { m = new int[] { DYNAMIC_MESH | 0x20000000 | (nextMesh++ & 0x1FFFFFFF) }; liveMesh.put(pk, m); }
 					boolean kinetic = isKinetic(be);
-					long interval = kinetic ? (d2 < 256 ? 100 : 400) : 2000;
+					int[] qc = liveQuads.get(pk);
+					long interval = kinetic ? (qc != null && qc[0] > 300 ? 1500 : d2 < 256 ? 100 : 400) : 2000; // 0.10.1: big models (water wheels, 1000+ quads) ~0.7 Hz: they flooded the IPC ring
 					Long last = liveLast.get(pk);
 					if ((last == null || now - last >= interval) && caps < 10) {
 						caps++; liveLast.put(pk, now);
@@ -177,11 +183,12 @@ final class EntitySync {
 						var q = Capture.toTileQuads(cap.quads());
 						if (last == null && liveLogged++ < 20) ValCraft.LOG.info("[entities] live block entity {} at {}: {} quads{}", st.getBlock(), pos, q.size(), kinetic ? " (kinetic, re-captured)" : "");
 						outbox().addAll(BlockCodec.entityMesh(m[0], q));
+						liveQuads.put(pk, new int[] { q.size() });
 					}
 					if (liveLast.containsKey(pk)) ents.add(new BlockCodec.Ent(BLOCK_ENTITY_ID | 0x40000000 | ((int) (pk ^ (pk >>> 32)) & 0x3FFFFFFF), m[0], pos.getX(), pos.getY(), pos.getZ(), 0));
 				}
 			}
-		liveMesh.keySet().retainAll(seen); liveLast.keySet().retainAll(seen);
+		liveMesh.keySet().retainAll(seen); liveLast.keySet().retainAll(seen); liveQuads.keySet().retainAll(seen);
 	}
 	private static final java.util.Map<Class<?>, Boolean> kineticCls = new java.util.concurrent.ConcurrentHashMap<>();
 	private static boolean isKinetic(Object be) {
@@ -228,6 +235,17 @@ final class EntitySync {
 		if (e instanceof ItemFrame f) k.append('|').append(f.getDirection()).append(f.getItem().getItem()).append(f.getRotation());
 		if (e instanceof AbstractMinecart m) k.append('|').append(Block.getId(m.getDisplayBlockState()));
 		return k.toString();
+	}
+
+	static final int ENT_LOCAL_PLAYER = 16;
+	private static final String DUMP = System.getenv("VALCRAFT_CAPDUMP");
+	private static final java.util.Set<String> dumped = new java.util.HashSet<>();
+	private static void dump(Entity e, List<BlockCodec.Quad> q) {
+		String n = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).getPath();
+		if (!dumped.add(n)) return;
+		try (var w = new java.io.PrintWriter(DUMP + "/" + n + ".txt")) {
+			for (var x : q) { w.print(x.tile() + " " + x.dir()); for (float f : x.pos()) w.print(" " + f); for (float f : x.uv()) w.print(" " + f); w.println(); }
+		} catch (Exception ex) { ValCraft.LOG.warn("dump failed {}", ex.toString()); }
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })

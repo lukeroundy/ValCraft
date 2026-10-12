@@ -258,3 +258,7 @@ Proxies: Valheim instantiates [Mobs] ProxyPrefab (Greyling) per MC mob with AI/a
 
 Block-set notes (no wire change): minecraft:stone and minecraft:farmland are no longer terrain blocks (placeable/visible as normal blocks). Mirrored deep layers use deepslate, mat3 surface andesite, cultivated ground dirt; stone in old saves below the column top is still hidden until the column is rewritten. Mob (non-TNT) explosions no longer remove terrain blocks or edit Valheim terrain; TNT terrain edits save once per frame per TerrainComp.
 Item map: one-time migration of the old tin/bronze placeholder ids (only entries still exactly at the old default) to valcraft:* items.
+
+### 0.10.1 (still v18, no layout change)
+- EvEntUpdate entity flag 16 = the local MC player (third person). Valheim places that mesh at its own player transform every frame (no 10 Hz lag); MC no longer draws the player into the overlay frame.
+- Captured meshes: grey vertex colours (baked shading) no longer mint atlas tiles; coplanar layer quads (villager clothes, wool, armour) are pushed out 0.004 blocks per layer; up to 2048 quads per mesh; big kinetic meshes (>300 quads) re-captured every 1.5 s.

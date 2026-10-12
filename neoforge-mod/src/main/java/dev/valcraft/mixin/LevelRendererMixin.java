@@ -19,8 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * While linked, Valheim draws the world: skip MC's level pass and leave a transparent background (hand + HUD still render).
- * In third person (F5) the local player entity alone (model, armour, held items) is drawn into the frame so you see
- * your MC character over Valheim's world (no depth exchange: Valheim walls don't hide it).
+ * Third person (F5): the player is a captured mesh in Valheim's world (EntitySync), not drawn here.
  */
 @Mixin(LevelRenderer.class)
 public abstract class LevelRendererMixin {
@@ -36,30 +35,7 @@ public abstract class LevelRendererMixin {
 		}
 		RenderSystem.clearColor(0f, 0f, 0f, 0f);
 		RenderSystem.clear(16640, Minecraft.ON_OSX); // color + depth of the main target
-		if (mc.player != null && cam.isDetached()) {
-			try {
-				float pt = delta.getGameTimeDeltaPartialTick(false);
-				Matrix4fStack mv = RenderSystem.getModelViewStack();
-				mv.pushMatrix();
-				mv.mul(frustumMatrix);
-				RenderSystem.applyModelViewMatrix();
-				var p = mc.player;
-				var c = cam.getPosition();
-				double x = Mth.lerp(pt, p.xOld, p.getX()) - c.x, y = Mth.lerp(pt, p.yOld, p.getY()) - c.y, z = Mth.lerp(pt, p.zOld, p.getZ()) - c.z;
-				var buffers = mc.renderBuffers().bufferSource();
-				var erd = mc.getEntityRenderDispatcher();
-				erd.setRenderShadow(false);
-				light.turnOnLightLayer();
-				erd.render(p, x, y, z, Mth.lerp(pt, p.yRotO, p.getYRot()), pt, new PoseStack(), buffers, LightTexture.FULL_BRIGHT);
-				buffers.endBatch();
-				light.turnOffLightLayer();
-				erd.setRenderShadow(mc.options.entityShadows().get());
-				mv.popMatrix();
-				RenderSystem.applyModelViewMatrix();
-			} catch (Throwable t) {
-				// never take the frame down for a cosmetic
-			}
-		}
+		// 0.10.1: third person no longer draws the player here: EntitySync sends it as an in-world mesh (depth-tested in Valheim)
 		ci.cancel();
 	}
 }

@@ -318,7 +318,9 @@ namespace ValCraft
             // Only show MC over gameplay: not in the main menu / character select / loading (no local player), nor the Esc menu.
             bool inGame = PlayerSync.HasLocalPlayer && !ValheimUi.MenuOpen();
             if (inGame != _lastInGame) { _lastInGame = inGame; Log.LogInfo(inGame ? "[overlay] Valheim gameplay: overlay on" : "[overlay] Valheim menu/loading: overlay hidden"); }
-            _overlay.Update(Link, _connected && _overlayVisible && inGame, _inputActive);
+            // 0.10.1: the MC frame is only HUD + hand now (world/player are in-world meshes): hide it behind Valheim inventory/crafting UI
+            bool invOpen = ValheimUi.InventoryOpen() && (Link.PeerFlags & ValCraftLink.McFlagScreenOpen) == 0;
+            _overlay.Update(Link, _connected && _overlayVisible && inGame && !invOpen, _inputActive);
 
             if (_connected && t >= _nextStatus && Link.TryReadPlayerState(out var s))
             {

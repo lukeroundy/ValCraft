@@ -233,6 +233,7 @@ public final class BlockSync {
 		resetServer = true;
 		outbox.add(new ValCraftLink.Event(ValCraftLink.EV_BLOCKS_RESET, new byte[0]));
 	}
+	private static int entErr;
 	static void disconnected() { enabled = false; reset(); outbox.clear(); }
 
 	@SubscribeEvent
@@ -245,7 +246,10 @@ public final class BlockSync {
 			for (int i = 0; i < so.count; i++) pid[i] = (short) paletteFor(mc, so.state[i]);
 			outbox.addAll(BlockCodec.section(so.sx, so.sy, so.sz, so.local, pid, so.count));
 		}
-		if (enabled && outbox.size() < OUTBOX_MAX) EntitySync.tick(mc, outbox);
+		if (enabled && outbox.size() < OUTBOX_MAX) {
+			try { EntitySync.tick(mc, outbox); }
+			catch (Throwable t) { if (entErr++ < 5) ValCraft.LOG.warn("[entities] sync error: {}", t.toString(), t); }
+		}
 		long now = System.currentTimeMillis();
 		if (atlasDirty && now >= nextAtlasWrite) writeAtlas();
 		ValCraftLink.Event ev;
@@ -455,7 +459,7 @@ public final class BlockSync {
 		String key = sprite.contents().name() + "#" + tint;
 		Integer t = tileOf.get(key);
 		if (t != null) return t;
-		if (nextTile >= ATLAS_TILES) return 0;
+		if (nextTile >= ATLAS_TILES) { if (!atlasFullWarned) { atlasFullWarned = true; ValCraft.LOG.warn("[blocks] atlas full ({} tiles): new textures fall back to tile 0", ATLAS_TILES); } return 0; }
 		int tile = nextTile++;
 		tileOf.put(key, tile);
 		NativeImage src = sprite.contents().getOriginalImage();
@@ -520,11 +524,12 @@ public final class BlockSync {
 	}
 
 	/** Tile for an arbitrary image region (captured entity / block-entity textures). */
+	private static boolean atlasFullWarned;
 	static int tileForRegion(NativeImage img, String key, int x, int y, int w, int h, int tint) {
 		String k = key + "#" + tint;
 		Integer t = tileOf.get(k);
 		if (t != null) return t;
-		if (nextTile >= ATLAS_TILES) return 0;
+		if (nextTile >= ATLAS_TILES) { if (!atlasFullWarned) { atlasFullWarned = true; ValCraft.LOG.warn("[blocks] atlas full ({} tiles): new textures fall back to tile 0", ATLAS_TILES); } return 0; }
 		int tile = nextTile++;
 		tileOf.put(k, tile);
 		blit(img, x, y, w, h, tile, tint);

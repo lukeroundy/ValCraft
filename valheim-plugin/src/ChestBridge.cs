@@ -17,7 +17,7 @@ namespace ValCraft
     internal static partial class ItemBridge
     {
         static Component _chest; static object _chestInv; static uint _chestSerial; static int _chestHash; static float _chestNextPoll;
-        static MethodInfo _cGetInv, _cCheckAccess, _cSave, _iW, _iH, _getPlayerId, _iChanged; static FieldInfo _gridPos, _cName; static Type _containerT;
+        static MethodInfo _cGetInv, _cCheckAccess, _cSave, _iW, _iH, _getPlayerId, _iChanged; static FieldInfo _gridPos, _cName, _iOnChanged; static Type _containerT;
 
         static void ChestInit()
         {
@@ -28,7 +28,8 @@ namespace ValCraft
             _cSave = AccessTools.Method(_containerT, "Save", Type.EmptyTypes);
             _cName = AccessTools.Field(_containerT, "m_name");
             _iW = AccessTools.Method(_inventory, "GetWidth", Type.EmptyTypes); _iH = AccessTools.Method(_inventory, "GetHeight", Type.EmptyTypes);
-            _iChanged = AccessTools.Method(_inventory, "Changed", Type.EmptyTypes);
+            _iChanged = _inventory.GetMethod("Changed", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, Type.EmptyTypes, null); // 1.0.17: may be gone -> m_onChanged
+            _iOnChanged = _inventory.GetField("m_onChanged", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             _gridPos = AccessTools.Field(_itemData, "m_gridPos");
             _getPlayerId = AccessTools.Method(AccessTools.TypeByName("Player"), "GetPlayerID", Type.EmptyTypes);
             ValCraftPlugin.Log.LogInfo($"[chest] Container.GetInventory={_cGetInv != null} CheckAccess={_cCheckAccess != null} Inventory size={_iW != null && _iH != null} gridPos={_gridPos != null}");
@@ -132,7 +133,7 @@ namespace ValCraft
                         ValCraftPlugin.Log.LogInfo($"[chest] stored {count} x {id} as {v}");
                     }
                 }
-                try { _iChanged?.Invoke(_chestInv, null); } catch { }
+                try { if (_iChanged != null) _iChanged.Invoke(_chestInv, null); else (_iOnChanged?.GetValue(_chestInv) as Action)?.Invoke(); } catch { }
                 try { _cSave?.Invoke(_chest, null); } catch { }
                 _chestNextPoll = 0;
             }

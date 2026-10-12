@@ -95,7 +95,8 @@ namespace ValCraft
             {
                 ValCraftPlugin.Log.LogInfo($"[terrain-edit] {(kind == 0 ? "lowered" : "raised")} Valheim terrain at {pos} ({ground:F2} -> {target:F2}) for MC {(kind == 0 ? "break" : "place")} of {id} at ({x},{y},{z})");
                 TerrainExport.Invalidate(x, z);
-                _verify.Add(new KeyValuePair<float, Action>(Time.unscaledTime + 3.0f, () => Verify(x, z, target, ground)));
+                float t0 = Time.unscaledTime; var p0 = pos;
+                _verify.Add(new KeyValuePair<float, Action>(Time.unscaledTime + 3.0f, () => { if (!EditedSince(p0, t0)) Verify(x, z, target, ground); }));
             }
         }
 
@@ -255,7 +256,9 @@ namespace ValCraft
                 }
                 try { var csT = AccessTools.TypeByName("ClutterSystem"); var inst = csT == null ? null : (AccessTools.Field(csT, "m_instance")?.GetValue(null) ?? AccessTools.Property(csT, "instance")?.GetValue(null, null)); if (inst != null) _resetGrass?.Invoke(inst, new object[] { pos, Radius + 0.5f }); } catch { }
                 ValCraftPlugin.Log.LogInfo($"[terrain-edit] wrote {verts} vertices on {comps}/{list.Count} TerrainComp(s) to y={pos.y:F2}");
-                if (verts == 0) ValCraftPlugin.Log.LogWarning($"[terrain-edit] no terrain vertex within {Radius} m of {pos} needed changing");
+                _edits.Add(new KeyValuePair<float, Vector3>(Time.unscaledTime, pos));
+                if (_edits.Count > 64) _edits.RemoveAt(0);
+                if (verts == 0) ValCraftPlugin.Log.LogInfo($"[terrain-edit] no terrain vertex within {Radius} m of {pos} needed changing");
                 return verts > 0;
             }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] direct TerrainComp edit failed: {e.GetBaseException()}"); return false; }
@@ -280,6 +283,16 @@ namespace ValCraft
                 for (int dx = -3; dx <= 3; dx += 3) for (int dz = -3; dz <= 3; dz += 3) TerrainExport.Invalidate(cx + dx, cz + dz);
                 ValCraftPlugin.Log.LogInfo($"[terrain-edit] levelled ground at {hit.point} (r {r} m) to the player's feet y={feet:F2}");
             }
+        }
+
+        /// <summary>0.10.1: recent edits; a verify is skipped when a later edit (hoe levelling, place after break) touched the spot,
+        /// which produced false "NOT APPLIED" warnings in the 0.10.0 log.</summary>
+        static readonly List<KeyValuePair<float, Vector3>> _edits = new List<KeyValuePair<float, Vector3>>();
+        static bool EditedSince(Vector3 p, float t0)
+        {
+            foreach (var e in _edits)
+                if (e.Key > t0 + 0.001f && new Vector2(e.Value.x - p.x, e.Value.z - p.z).sqrMagnitude < 9f) return true;
+            return false;
         }
 
         /// <summary>Called on tile re-sample after an edit: report whether Valheim's ground actually moved.</summary>

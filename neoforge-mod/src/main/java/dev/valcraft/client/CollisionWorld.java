@@ -97,4 +97,27 @@ public final class CollisionWorld {
 			}
 		return out;
 	}
+
+	/** 0.10.1: nearest point where the segment a->b enters a Valheim box (line of sight, projectiles), or null. Any thread. */
+	public static net.minecraft.world.phys.Vec3 clip(net.minecraft.world.phys.Vec3 a, net.minecraft.world.phys.Vec3 b) {
+		if (index == null || !ValCraftClient.collisionActive()) return null;
+		net.minecraft.world.phys.Vec3 best = null; double bd = Double.MAX_VALUE;
+		for (VoxelShape s : query(new AABB(a, b).inflate(0.01)))
+			for (AABB box : s.toAabbs()) {
+				if (box.contains(a)) continue; // starting inside (e.g. shooter in a doorway box): ignore that box
+				var h = box.clip(a, b);
+				if (h.isPresent()) { double d = h.get().distanceToSqr(a); if (d < bd) { bd = d; best = h.get(); } }
+			}
+		return best;
+	}
+
+	/** Combine an MC clip result with Valheim boxes: the nearer wins (Valheim hit = block hit on air at that point). */
+	public static net.minecraft.world.phys.HitResult clip(net.minecraft.world.level.ClipContext ctx, net.minecraft.world.phys.BlockHitResult mc) {
+		var a = ctx.getFrom(); var h = clip(a, ctx.getTo());
+		if (h == null) return mc;
+		if (mc.getType() != net.minecraft.world.phys.HitResult.Type.MISS && mc.getLocation().distanceToSqr(a) <= h.distanceToSqr(a)) return mc;
+		var d = h.subtract(a);
+		var face = net.minecraft.core.Direction.getNearest(-d.x, -d.y, -d.z);
+		return new net.minecraft.world.phys.BlockHitResult(h, face, net.minecraft.core.BlockPos.containing(h), false);
+	}
 }

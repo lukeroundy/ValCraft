@@ -17,6 +17,14 @@ namespace ValCraft
             try { return _menuVisible != null && (bool)_menuVisible.Invoke(null, null); } catch { return false; }
         }
 
+        static System.Reflection.MethodInfo _invVisible; static bool _invInit;
+        /// <summary>0.10.1: Valheim inventory / workbench / crafting station UI open -> MC HUD hidden.</summary>
+        public static bool InventoryOpen()
+        {
+            if (!_invInit) { _invInit = true; _invVisible = AccessTools.Method("InventoryGui:IsVisible", Type.EmptyTypes); }
+            try { return _invVisible != null && (bool)_invVisible.Invoke(null, null); } catch { return false; }
+        }
+
         public static bool AnyOpen()
         {
             if (_checks == null) Init();

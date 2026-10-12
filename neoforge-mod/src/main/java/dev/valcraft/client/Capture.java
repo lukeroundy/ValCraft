@@ -35,7 +35,7 @@ public final class Capture implements MultiBufferSource {
 	private final List<float[]> verts = new ArrayList<>(); // x y z u v argb(bits) nx ny nz + tex index
 	private final List<ResourceLocation> texs = new ArrayList<>();
 	private final List<Integer> vtex = new ArrayList<>();
-	static final int MAX_QUADS = 2048;
+	static final int MAX_QUADS = 4096;
 
 	private static final VertexConsumer NOOP = new VertexConsumer() {
 		public VertexConsumer addVertex(float x, float y, float z) { return this; }
@@ -123,6 +123,7 @@ public final class Capture implements MultiBufferSource {
 	/** Convert captured quads to atlas-tile quads (each quad's UV rect cropped into a tile). Positions are kept as captured. */
 	static List<BlockCodec.Quad> toTileQuads(List<CQuad> in) {
 		List<BlockCodec.Quad> out = new ArrayList<>();
+		Map<String, Integer> seenPos = new HashMap<>();
 		for (CQuad q : in) {
 			NativeImage img = image(q.tex);
 			if (img == null) continue;
@@ -133,16 +134,46 @@ public final class Capture implements MultiBufferSource {
 			int y0 = Math.max(0, (int) Math.floor(vmin + 1e-3f)), y1 = Math.min(H, (int) Math.ceil(vmax - 1e-3f));
 			if (x1 <= x0) x1 = Math.min(W, x0 + 1); if (y1 <= y0) y1 = Math.min(H, y0 + 1);
 			if (x1 <= x0 || y1 <= y0) continue;
-			int tint = q.argb == -1 ? -1 : q.argb & 0xFFFFFF;
+			int tint = normTint(q.argb);
 			int tile = BlockSync.tileForRegion(img, q.tex + "@" + x0 + "," + y0 + "," + x1 + "," + y1, x0, y0, x1 - x0, y1 - y0, tint == 0xFFFFFF ? -1 : tint);
 			float[] uv = new float[8];
 			for (int i = 0; i < 4; i++) { uv[i * 2] = (q.uv[i * 2] * W - x0) / (x1 - x0); uv[i * 2 + 1] = (q.uv[i * 2 + 1] * H - y0) / (y1 - y0); }
 			int dir = Direction.getNearest(q.nx, q.ny, q.nz).ordinal();
 			if (q.nx == 0 && q.ny == 0 && q.nz == 0) dir = normalDir(q.pos);
-			out.add(new BlockCodec.Quad(tile, dir, 6, q.pos, uv));
-			if (out.size() >= 1024) break;
+			float[] pos = q.pos;
+			// 0.10.1: layer renderers (villager type/profession, sheep wool, armour, eyes) redraw the same faces with another
+			// texture; MC's draw order hides that, Valheim's depth buffer z-fights. Push each repeat out along its normal.
+			String pk = posKey(pos);
+			int rep = seenPos.merge(pk, 1, Integer::sum) - 1;
+			if (rep > 0) {
+				var nd = Direction.values()[dir].getNormal(); float o = 0.004f * rep;
+				pos = pos.clone(); for (int i = 0; i < 4; i++) { pos[i * 3] += nd.getX() * o; pos[i * 3 + 1] += nd.getY() * o; pos[i * 3 + 2] += nd.getZ() * o; }
+			}
+			out.add(new BlockCodec.Quad(tile, dir, 6, pos, uv));
+			if (out.size() >= 2048) break;
 		}
 		return out;
+	}
+
+	/** 0.10.1: vertex colour -> tile tint. Grey colours are baked shading/light (Create BERs, AO) that change every re-capture and
+	 *  used to mint a new atlas tile each time until the atlas was full (broken textures on later mobs / water wheels): ignored.
+	 *  Real tints (leaves, dyed leather, sheep) are quantized so near-identical colours share a tile. */
+	static int normTint(int argb) {
+		if (argb == -1) return -1;
+		int r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
+		int mx = Math.max(r, Math.max(g, b)), mn = Math.min(r, Math.min(g, b));
+		if (mx - mn < 24) return -1;
+		// normalise brightness (shading) away, keep the hue/saturation, quantize to 16 levels
+		float k = 255f / Math.max(1, mx);
+		r = Math.min(255, Math.round(r * k)) & 0xF0 | 0x08; g = Math.min(255, Math.round(g * k)) & 0xF0 | 0x08; b = Math.min(255, Math.round(b * k)) & 0xF0 | 0x08;
+		return (r << 16) | (g << 8) | b;
+	}
+
+	private static String posKey(float[] p) {
+		long[] k = new long[4];
+		for (int i = 0; i < 4; i++) k[i] = (Math.round(p[i * 3] * 256) & 0x1FFFFF) << 42 | (Math.round(p[i * 3 + 1] * 256) & 0x1FFFFF) << 21 | (Math.round(p[i * 3 + 2] * 256) & 0x1FFFFF);
+		java.util.Arrays.sort(k);
+		return k[0] + ":" + k[1] + ":" + k[2] + ":" + k[3];
 	}
 
 	/** Facing from geometry (MC quads are counter-clockwise seen from the front). */

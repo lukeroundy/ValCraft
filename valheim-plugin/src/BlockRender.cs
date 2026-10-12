@@ -410,6 +410,13 @@ namespace ValCraft
                 GroundOffset[e.Id] = off;
                 target.y += off;
                 if ((e.Flags & 1) != 0) target.y += Mathf.Sin(t * 2f + e.Id) * 0.1f + 0.1f;
+                // 0.10.1: the MC player (third person) is drawn in-world at the Valheim player's own position (no 10 Hz lag)
+                if ((e.Flags & 16) != 0 && PlayerSync.Player != null)
+                {
+                    go.transform.position = PlayerSync.Player.transform.position;
+                    go.transform.localRotation = Quaternion.identity;
+                    continue;
+                }
                 var lp = go.transform.localPosition;
                 go.transform.localPosition = (lp - target).sqrMagnitude > 16f ? target : Vector3.Lerp(lp, target, Mathf.Clamp01(Time.deltaTime * 12f));
                 go.transform.localRotation = (e.Flags & 1) != 0 ? Quaternion.Euler(0, (t * 60f + e.Id * 37) % 360f, 0) : Quaternion.identity;
