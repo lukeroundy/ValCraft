@@ -152,8 +152,9 @@ namespace ValCraft
             _findHms = AccessTools.Method(_hmType, "FindHeightmap", new[] { typeof(Vector3), typeof(float), listT });
             _getComp = AccessTools.Method(_hmType, "GetAndCreateTerrainCompiler");
             DumpMembers(_tcType); DumpMembers(_hmType);
-            _poke = FindMethod(_hmType, new[] { "Poke", "Regenerate", "RequestRebuild", "Rebuild" }, false);
-            _save = FindMethod(_tcType, new[] { "Save", "SaveData", "SaveTerrain", "Store", "Serialize" }, true);
+            // Confirmed on Valheim 1.0.17 (0.6.4 log): TerrainComp.Save(Boolean), Heightmap.Poke(Int32,Boolean). Scan is the fallback.
+            _poke = AccessTools.DeclaredMethod(_hmType, "Poke", new[] { typeof(int), typeof(bool) }) ?? FindMethod(_hmType, new[] { "Poke", "Regenerate", "RequestRebuild", "Rebuild" }, false);
+            _save = AccessTools.DeclaredMethod(_tcType, "Save", new[] { typeof(bool) }) ?? FindMethod(_tcType, new[] { "Save", "SaveData", "SaveTerrain", "Store", "Serialize" }, true);
             var znv = AccessTools.TypeByName("ZNetView");
             _claim = znv == null ? null : AccessTools.Method(znv, "ClaimOwnership");
             var cs = AccessTools.TypeByName("ClutterSystem");

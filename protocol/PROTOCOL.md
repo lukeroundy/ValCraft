@@ -109,3 +109,22 @@ File grows to 0x1174040 bytes. Collision region at `OffColl = 0xFF4000` (Valheim
 Writer fills the non-latest buffer (seq odd -> data -> count -> seq even), then publishes index and bumps the counter.
 Reader copies the latest buffer and re-checks seq (retry if changed). A snapshot with 0 boxes means "Valheim collision off".
 MC also converts exported frames to straight (non-premultiplied) alpha by default (`-Dvalcraft.unpremultiply=false` to disable).
+
+
+## v5 changes (ValCraft 0.7.0): Minecraft blocks rendered in Valheim
+File layout unchanged; version = **5**. New ring events (little-endian). MC sends only blocks that are not mirrored
+Valheim terrain (terrain-type blocks at/below the column's mirrored terrain top are skipped), in 16³ sections.
+
+| Type | Name | Dir | Payload |
+|---|---|---|---|
+| 30 | BlockSyncConfig | V→MC | u32 enabled, u32 radius (blocks). Sent after HelloAck and on config change. MC streams nothing until enabled. |
+| 31 | BlockPalette | MC→V | u16 paletteId (≥1), u8 flags (1 full opaque cube, 2 has collision, 4 cutout/translucent), u8 nBoxes (≤8), u16 tile[6] (atlas tile per face, MC Direction order down,up,north,south,west,east), then nBoxes × u8[6] (minX,minY,minZ,maxX,maxY,maxZ in 1/16 block) at offset 16 |
+| 32 | SectionBegin | MC→V | i32 sx, sy, sz (MC block >> 4), u32 blockCount |
+| 33 | SectionBlocks | MC→V | i32 sx, sy, sz, u16 n (≤58), n × (u16 local = y<<8 \| z<<4 \| x, u16 paletteId) |
+| 34 | SectionEnd | MC→V | i32 sx, sy, sz — Valheim replaces the section's contents (0 blocks = remove) and re-meshes it + its 6 neighbours |
+| 35 | BlockAtlas | MC→V | u32 revision, u32 tilesUsed, u32 tilesPerRow (64), u32 tileSize (16), UTF-8 path of the PNG (`%LOCALAPPDATA%\ValCraft\blocks-atlas.png`); tile t at column t % perRow, row t / perRow from the top; tile 0 = missing texture |
+| 36 | BlocksReset | MC→V | – : drop all sections + palette (sent first after every (re)link) |
+
+Palette entries always precede the sections that use them (same ordered ring). Sections that leave the radius are sent
+as empty. MC scans changed sections (break/place/neighbour-notify events, terrain-top changes) first, then a
+round-robin pass nearest-first (initial sync + anything missed). Mesh coordinates: `unity = anchor + (x, y, -z)`.

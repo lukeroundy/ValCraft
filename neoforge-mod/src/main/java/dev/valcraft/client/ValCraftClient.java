@@ -115,6 +115,7 @@ public final class ValCraftClient {
 						link.setAckedSession(session);
 						ValCraft.LOG.info("[link] connected to Valheim pid {} (session {})", link.peerPid(), Integer.toHexString(session));
 						WindowControl.onActivated(mc);
+						BlockSync.reset();
 					}
 				}
 				case ValCraftLink.EV_PING -> link.trySend(ValCraftLink.EV_PONG, ev.payload());
@@ -123,6 +124,7 @@ public final class ValCraftClient {
 					PlayerDims.set(mc, bb.getFloat(0), bb.getFloat(4));
 				}
 				case ValCraftLink.EV_TERRAIN_TILE -> TerrainSync.receive(ev.payload());
+				case ValCraftLink.EV_BLOCK_SYNC_CONFIG -> BlockSync.receiveConfig(ev.payload());
 				case ValCraftLink.EV_TERRAIN_HEIGHTS -> HeightField.receive(ev.payload());
 				case ValCraftLink.EV_ATTACK_TARGET -> ValheimAttack.receiveTarget(ev.payload());
 				case ValCraftLink.EV_TELEPORT -> {
@@ -214,7 +216,7 @@ public final class ValCraftClient {
 		FrameExporter.reset();
 		CollisionWorld.clear();
 		ValheimInteract.hoverText = "";
-		TerrainSync.clearClient(); HeightField.clear(); ValheimAttack.clear();
+		TerrainSync.clearClient(); HeightField.clear(); BlockSync.disconnected(); ValheimAttack.clear();
 		PlayerDims.set(mc, 0, 0);
 		AutoWorld.reset();
 		loggedBoxes = -1;

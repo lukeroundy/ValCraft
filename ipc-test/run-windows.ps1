@@ -4,7 +4,7 @@ Set-Location $PSScriptRoot
 $shm = if ($args.Count -gt 0) { $args[0] } else { "$env:TEMP\valcraft-test.shm" }
 Remove-Item $shm -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force build\java | Out-Null
-javac -d build\java ..\neoforge-mod\src\main\java\dev\valcraft\link\ValCraftLink.java java\IpcTestPeer.java
+javac -d build\java ..\neoforge-mod\src\main\java\dev\valcraft\link\ValCraftLink.java ..\neoforge-mod\src\main\java\dev\valcraft\link\BlockCodec.java java\IpcTestPeer.java java\BlockCodecTest.java
 dotnet build csharp -c Release -o build\cs -v q --nologo | Out-Null
 $j = Start-Process java -ArgumentList "-Dvalcraft.unpremultiply=false","-cp","build\java","IpcTestPeer",$shm -NoNewWindow -PassThru
 dotnet build\cs\IpcTest.dll $shm 20000

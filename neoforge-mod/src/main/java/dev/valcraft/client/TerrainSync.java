@@ -32,7 +32,10 @@ public final class TerrainSync {
 	private TerrainSync() {}
 	static final int DEPTH = 16, TILES_PER_TICK = 24, STALE_BAND = 64;
 
-	private static boolean isTerrainBlock(BlockState s) {
+	private static final Long2IntOpenHashMap colTop = new Long2IntOpenHashMap(); // server thread: column -> mirrored terrain top (kept across MC edits)
+	static int terrainTop(int x, int z) { long k = key(x, z); return colTop.containsKey(k) ? colTop.get(k) : Integer.MIN_VALUE; }
+
+	static boolean isTerrainBlock(BlockState s) {
 		for (byte m = 1; m <= 10; m++) if (s == surface(m) || s == sub(m)) return true;
 		return s.is(Blocks.STONE);
 	}
@@ -103,6 +106,8 @@ public final class TerrainSync {
 				if (oldTop != Integer.MIN_VALUE || isTerrainBlock(cur)) level.setBlock(pos, Blocks.AIR.defaultBlockState(), flags);
 			}
 			applied.put(k, packed);
+			int prevTop = colTop.containsKey(k) ? colTop.get(k) : Integer.MIN_VALUE;
+			if (prevTop != top) { colTop.put(k, top); BlockSync.markColumnDirty(x, z, prevTop, top); }
 			columnsChanged++;
 		}
 		tilesApplied++;

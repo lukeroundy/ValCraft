@@ -292,3 +292,8 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
 ## 0.6.4
 - TerrainComp/Heightmap methods are now resolved by scanning the live types (exact name, then name-contains, any bool/int/float params); full method lists of both types are logged at first edit. A missing Save/Poke no longer disables edits (edits apply in-session; a warning says they won't persist).
 - Placement "resting" check relaxed: a terrain block counts as resting when Valheim ground is inside the block or up to ~1 m below its bottom (block tops are floored); terrain is raised to the block top.
+
+## 0.7.0
+- Minecraft blocks that aren't Valheim terrain (builds, placed blocks) are drawn inside Valheim: MC streams 16³ sections within `[Blocks] Radius` (64) over the link (protocol v5), Valheim builds face-culled meshes textured from a PNG atlas of MC's block textures (`%LOCALAPPDATA%\ValCraft\blocks-atlas.png`), with MeshColliders on the `piece` layer (`[Blocks] Collision`). Toggle: `[Blocks] RenderBlocks`.
+- Terrain edits use the confirmed 1.0.17 API first: `TerrainComp.Save(bool)`, `Heightmap.Poke(int,bool)`.
+- IPC test adds a Java→C# block-stream + mesher test (`BlockCodecTest`, `IpcTest blocks`).

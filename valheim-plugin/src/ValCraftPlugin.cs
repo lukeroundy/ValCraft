@@ -99,6 +99,12 @@ namespace ValCraft
             ValheimHit.Enabled = cfgHit.Value;
             try { var t = Array.ConvertAll(cfgTier.Value.Split(','), x => int.Parse(x.Trim())); if (t.Length == 6) ValheimHit.TierMap = t; } catch { Log.LogWarning("[hit] bad ToolTiers config"); }
             try { var d = Array.ConvertAll(cfgDmg.Value.Split(','), x => float.Parse(x.Trim(), System.Globalization.CultureInfo.InvariantCulture)); if (d.Length == 6) ValheimHit.DamageMap = d; } catch { Log.LogWarning("[hit] bad ToolDamage config"); }
+            var cfgBr = Config.Bind("Blocks", "RenderBlocks", true, "Draw Minecraft blocks that aren't Valheim terrain (your builds, placed blocks) inside Valheim.");
+            var cfgBrR = Config.Bind("Blocks", "Radius", 64, "Radius (m = blocks) around the player in which Minecraft blocks are drawn (16-160).");
+            var cfgBrC = Config.Bind("Blocks", "Collision", true, "Give drawn Minecraft blocks Valheim colliders (piece layer), so Valheim physics/raycasts see them.");
+            void ApplyBlocks() { BlockRender.Enabled = cfgBr.Value; BlockRender.Radius = Mathf.Clamp(cfgBrR.Value, 16, 160); BlockRender.Collision = cfgBrC.Value; }
+            ApplyBlocks();
+            Config.SettingChanged += (_, __) => ApplyBlocks();
             var cfgYOff = Config.Bind("Terrain", "YOffset", 32f, "MC Y = Valheim Y + YOffset (sea level 30 -> MC 62; Valheim -96..288 fits MC -64..320).");
             void ApplyTerrain() { TerrainExport.Enabled = cfgTerrain.Value; TerrainExport.Radius = Mathf.Clamp(cfgTerrainR.Value, 16f, 128f); PlayerSync.FixedAnchorY = cfgTerrain.Value ? -cfgYOff.Value : (float?)null; }
             ApplyTerrain();
@@ -192,6 +198,7 @@ namespace ValCraft
                         if (seen != Link.Session) break; // stale Hello from before our restart; MC will re-send
                         Link.TrySend(ValCraftLink.EvHelloAck, Payload.U32(Link.Session, pid));
                         if (!_connected || pid != _mcPid) Log.LogInfo($"[link] Minecraft pid {pid} connected (Hello acked)");
+                        BlockRender.OnConnected();
                         _connected = true; _mcPid = pid;
                         break;
                     case ValCraftLink.EvPing:
@@ -205,6 +212,9 @@ namespace ValCraft
                         break;
                     case ValCraftLink.EvInteract:
                         InteractBridge.Interact();
+                        break;
+                    default:
+                        BlockRender.Handle(ev);
                         break;
                 }
             }
@@ -225,7 +235,7 @@ namespace ValCraft
             if (_connected && !alive)
             {
                 Log.LogInfo("[link] Minecraft heartbeat lost for 20 s; waiting for it to reconnect");
-                _connected = false; ValheimHit.Reset();
+                _connected = false; ValheimHit.Reset(); BlockRender.Clear();
                 SetInputActive(false);
                 PlayerSync.Stop("Minecraft disconnected");
             }
@@ -250,6 +260,7 @@ namespace ValCraft
             if (kb.GetKeyDown(_cfgReAnchor.Value)) PlayerSync.ReAnchor();
             PlayerSync.Update(Link, _connected);
             TerrainExport.Update(Link, _connected);
+            BlockRender.Update(Link, _connected);
             if (_connected) InteractBridge.Update(Link, PlayerSync.Following && _inputActive);
             if (_connected) ValheimHit.Update(Link, PlayerSync.Following && _inputActive);
             if (_cfgAutoInput.Value)

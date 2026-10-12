@@ -29,8 +29,37 @@ static unsafe class Program
         return false;
     }
 
+    static int BlocksTest(string file)
+    {
+        var st = new BlockStore();
+        var b = System.IO.File.ReadAllBytes(file);
+        int n = 0;
+        for (int o = 0; o < b.Length;) { ushort t = BitConverter.ToUInt16(b, o); int len = BitConverter.ToInt32(b, o + 2); var p = new byte[len]; Array.Copy(b, o + 6, p, 0, len); o += 6 + len; if (!st.Handle(t, p)) return Fail("unhandled type " + t); n++; }
+        var m = new BlockStore.MeshData();
+        bool ok = true;
+        void Expect((int, int, int) k, int faces) { st.Build(k, m); Console.WriteLine($"[cs] section {k}: {m.Faces} faces (expected {faces}), {m.ColTris.Count / 6} collider quads"); if (m.Faces != faces) ok = false;
+            for (int i = 0; i < m.Tris.Count; i += 3) { int a = m.Tris[i], c1 = m.Tris[i + 1], c2 = m.Tris[i + 2];
+                float ex = m.Pos[c1 * 3] - m.Pos[a * 3], ey = m.Pos[c1 * 3 + 1] - m.Pos[a * 3 + 1], ez = m.Pos[c1 * 3 + 2] - m.Pos[a * 3 + 2];
+                float fx = m.Pos[c2 * 3] - m.Pos[a * 3], fy = m.Pos[c2 * 3 + 1] - m.Pos[a * 3 + 1], fz = m.Pos[c2 * 3 + 2] - m.Pos[a * 3 + 2];
+                float d = (ey * fz - ez * fy) * m.Nrm[a * 3] + (ez * fx - ex * fz) * m.Nrm[a * 3 + 1] + (ex * fy - ey * fx) * m.Nrm[a * 3 + 2];
+                if (d <= 0) { Console.WriteLine("[cs] back-facing triangle"); ok = false; break; } }
+            foreach (var u in m.Uv) if (u < 0 || u > 1) { Console.WriteLine("[cs] uv out of range"); ok = false; break; } }
+        Expect((0, 4, 0), 10 + 6 + 5);
+        Expect((1, 4, 0), 5); // -x face hidden by x=15 of section 0
+        Expect((2, 4, 0), 6 * 256);
+        if (st.Sections.ContainsKey((9, 4, 9))) { Console.WriteLine("[cs] removed section still present"); ok = false; }
+        if (st.AtlasRevision != 3 || st.AtlasPath != "C:/x/blocks-atlas.png") { Console.WriteLine("[cs] atlas msg wrong"); ok = false; }
+        st.Build((0, 4, 0), m);
+        // slab top face at y=0.5 (Unity local); cube face at z: MC z=0 -> Unity -0
+        bool slabTop = false; for (int i = 0; i < m.Pos.Count; i += 3) if (Math.Abs(m.Pos[i + 1] - 0.5f) < 1e-4 && Math.Abs(m.Pos[i + 2] + 6f) < 1e-4) slabTop = true;
+        if (!slabTop) { Console.WriteLine("[cs] slab geometry wrong"); ok = false; }
+        Console.WriteLine($"[cs] blocks test: {n} messages, {(ok ? "PASS" : "FAIL")}");
+        return ok ? 0 : 1;
+    }
+
     static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "blocks") return BlocksTest(args[1]);
         if (args.Length > 0 && args[0] == "host") return FakeValheim.Run(args.Length > 1 ? args[1] : ValCraftLink.DefaultPath(), args.Length > 2 ? int.Parse(args[2]) : 300, args.Length > 3 ? args[3] : "cmd.txt");
         path = args.Length > 0 ? args[0] : ValCraftLink.DefaultPath();
         int pings = args.Length > 1 ? int.Parse(args[1]) : 20000;

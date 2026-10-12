@@ -84,6 +84,7 @@ namespace ValCraft
                 var c = _overlap[i];
                 if (c == null || !c.enabled || c.isTrigger) continue;
                 if (c.transform.IsChildOf(player.transform)) continue;
+                if (BlockRender.Root != null && c.transform.IsChildOf(BlockRender.Root)) continue; // MC's own blocks: MC already collides with them
                 var rb = c.attachedRigidbody;
                 if (rb != null && !rb.isKinematic && rb.gameObject.layer != LayerMask.NameToLayer("piece")) continue; // loose physics objects
                 int id = c.GetInstanceID();
