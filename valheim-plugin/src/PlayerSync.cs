@@ -113,16 +113,54 @@ namespace ValCraft
             catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[sync] {target}: {e.Message}"); return 0; }
         }
 
+        internal static float NearClip = 0.05f, HitboxWidth = 0f, HitboxHeight = 0f, HitboxScale = 1f;
+        static float _wantFalseSince = -1f;
+        static Component _anchorPlayer;
+        static float _sentW = -1, _sentH = -1, _nextDims;
+        static Camera _clipCam; static float _clipOrig;
+
+        static void SendDims(ValCraftLink link)
+        {
+            if (Time.unscaledTime < _nextDims) return;
+            _nextDims = Time.unscaledTime + 1f;
+            float w = HitboxWidth, h = HitboxHeight;
+            if ((w <= 0 || h <= 0) && _player != null)
+            {
+                var cap = _player.GetComponent<CapsuleCollider>();
+                if (cap != null)
+                {
+                    var sc = _player.transform.lossyScale;
+                    if (w <= 0) w = 2f * cap.radius * Mathf.Max(Mathf.Abs(sc.x), Mathf.Abs(sc.z));
+                    if (h <= 0) h = cap.height * Mathf.Abs(sc.y);
+                }
+            }
+            if (w <= 0) w = 0.6f; if (h <= 0) h = 1.8f;
+            w *= HitboxScale; h *= HitboxScale;
+            if (Mathf.Abs(w - _sentW) < 0.001f && Mathf.Abs(h - _sentH) < 0.001f) return;
+            if (link.TrySend(ValCraftLink.EvPlayerDims, Payload.F32(w, h)))
+            {
+                _sentW = w; _sentH = h;
+                ValCraftPlugin.Log.LogInfo($"[sync] MC player hitbox -> {w:F2} x {h:F2} m (eye {0.9f * h:F2}){(HitboxWidth > 0 || HitboxHeight > 0 ? " (config)" : " (Valheim capsule)")}");
+            }
+        }
+        internal static void ResendDims() { _sentW = _sentH = -1; _nextDims = 0; }
+
         static Component LocalPlayer() { try { return _localPlayerField?.GetValue(null) as Component; } catch { return null; } }
 
         /// <summary>Called from the plugin's Update every frame.</summary>
         public static void Update(ValCraftLink link, bool connected)
         {
-            _haveState = connected && link.TryReadPlayerState(out _state) && (_state.Flags & ValCraftLink.PsHasPlayer) != 0;
+            // 0.4.0 log: one failed/odd read stopped following and re-anchored (≈2 m jump). Keep the last good state on
+            // a failed seqlock read, and only stop after the conditions have been false for a full second.
+            if (!connected) _haveState = false;
+            else if (link.TryReadPlayerState(out var fresh)) { _state = fresh; _haveState = (fresh.Flags & ValCraftLink.PsHasPlayer) != 0; }
             var player = LocalPlayer();
             bool want = Enabled && _haveState && player != null && (link.PeerFlags & ValCraftLink.McFlagWorldLoaded) != 0;
+            if (want) _wantFalseSince = -1f;
+            else if (_wantFalseSince < 0) _wantFalseSince = Time.unscaledTime;
             if (want && !Following) Start(player);
-            else if (!want && Following) Stop("follow conditions ended");
+            else if (!want && Following && (!connected || Time.unscaledTime - _wantFalseSince > 1f)) Stop("follow conditions ended");
+            if (Following && connected) SendDims(link);
             else if (Following && player != _player) { Stop("local player changed"); if (want) Start(player); }
             if (!Following) return;
 
@@ -139,7 +177,9 @@ namespace ValCraft
             _player = player;
             _body = _bodyField?.GetValue(player) as Rigidbody ?? player.GetComponent<Rigidbody>();
             if (_body != null) { _bodyWasKinematic = _body.isKinematic; _bodyWasGravity = _body.useGravity; _body.useGravity = false; _body.isKinematic = true; }
-            _anchored = false; _haveY = false;
+            if (_anchorPlayer != player) { _anchored = false; _anchorPlayer = player; } // keep the anchor across brief stops/reconnects
+            _haveY = false;
+            ResendDims();
             Following = true;
             ValCraftPlugin.Log.LogInfo($"[sync] following Minecraft (vertical={Vertical}, hidePlayer={HidePlayer}, hideHud={HideHud})");
         }
@@ -151,6 +191,7 @@ namespace ValCraft
             if (_body != null) { _body.isKinematic = _bodyWasKinematic; _body.useGravity = _bodyWasGravity; }
             ShowRenderers();
             SetHud(true);
+            if (_clipCam != null) { _clipCam.nearClipPlane = _clipOrig; _clipCam = null; }
             _player = null; _body = null;
             ValCraftPlugin.Log.LogInfo($"[sync] stopped following: {why}");
         }
@@ -242,6 +283,9 @@ namespace ValCraft
             // GameCamera may move a parent; set world-space pose on the camera itself.
             t.SetPositionAndRotation(eye, rot);
             if (s.FovDeg > 1f && s.FovDeg < 179f) cam.fieldOfView = s.FovDeg;
+            // Near plane well inside the hitbox radius so walls you touch aren't clipped away (see-through).
+            if (_clipCam != cam) { if (_clipCam != null) _clipCam.nearClipPlane = _clipOrig; _clipCam = cam; _clipOrig = cam.nearClipPlane; ValCraftPlugin.Log.LogInfo($"[sync] camera near clip {_clipOrig:F3} -> {NearClip:F3}"); }
+            cam.nearClipPlane = NearClip;
         }
 
         // --- visuals ---

@@ -10,7 +10,7 @@ namespace ValCraft
     /// - Building pieces/rocks/trees: Physics.OverlapSphere around the player. Each collider's boxes are computed once
     ///   (Unity world AABBs) and cached by instance id; recomputed only when its transform moves (doors) — incremental.
     ///   * axis-aligned upright box -> 1 exact AABB
-    ///   * upright box rotated in yaw (22.5° build snaps) or a thin wall-like mesh -> sliced into ≤0.3 m segments along
+    ///   * upright box rotated in yaw (22.5° build snaps) or a thin wall-like mesh -> sliced into ≤0.15 m segments along
     ///     its long axis, each segment's AABB (thin walls stay thin-ish, no gaps)
     ///   * everything else (tilted roofs/ramps, stairs meshes, rocks, big meshes) -> vertical column raster with
     ///     collider.Raycast (top + bottom per 0.5 m cell), which gives MC-steppable stairs/ramps
@@ -173,7 +173,7 @@ namespace ValCraft
                 for (int i = 0; i < 3; i++) { float d = axes[i].sqrMagnitude < 1e-8f ? 0 : Mathf.Abs(Vector3.Dot(axes[i].normalized, Vector3.up)); if (d > best) { best = d; vi = i; } }
                 var h1 = axes[(vi + 1) % 3]; var h2 = axes[(vi + 2) % 3]; var v = axes[vi];
                 if (h1.sqrMagnitude >= h2.sqrMagnitude) { hl = h1; hs = h2; } else { hl = h2; hs = h1; }
-                int n = Mathf.Clamp(Mathf.CeilToInt(hl.magnitude / 0.3f), 1, 128);
+                int n = Mathf.Clamp(Mathf.CeilToInt(hl.magnitude / 0.15f), 1, 256);
                 Vector3 seg = hl / n;
                 Vector3 ext = Abs(seg) * 0.5f + Abs(hs) * 0.5f + Abs(v) * 0.5f;
                 for (int i = 0; i < n; i++)

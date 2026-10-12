@@ -85,6 +85,8 @@ namespace ValCraft.Protocol
         // events
         public const ushort EvHello = 1, EvPing = 2, EvPong = 3, EvHelloAck = 4, EvQuit = 5;
         public const ushort EvKey = 10, EvChar = 11, EvMouseMove = 12, EvMouseButton = 13, EvScroll = 14, EvReleaseAll = 15;
+        /// <summary>V2M: f32 width, f32 height (m) for the MC player hitbox (0,0 = vanilla). Eye = 0.9 x height.</summary>
+        public const ushort EvPlayerDims = 20;
 
         readonly MemoryMappedFile _mmf;
         readonly MemoryMappedViewAccessor _view;

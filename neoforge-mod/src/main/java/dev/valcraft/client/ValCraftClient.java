@@ -33,7 +33,11 @@ public final class ValCraftClient {
 	/** True while connected to Valheim and the Hello was acknowledged: hidden window, no world render, injected input. */
 	public static boolean active() { return link != null && acked && !stopping; }
 	/** Valheim collision replaces MC's blocks for players (only once Valheim sent a non-empty snapshot). */
-	public static boolean collisionActive() { return active() && CollisionWorld.boxCount() > 0; }
+	public static boolean collisionActive() {
+		// Also while waiting for Valheim's first snapshot (player is held in place), so MC terrain can't suffocate us;
+		// an explicitly empty snapshot (Valheim ExportCollision=false) hands control back to MC's own blocks.
+		return active() && (link.collisionSnapshotCount() == 0 || CollisionWorld.boxCount() > 0);
+	}
 	private static boolean heldForCollision;
 	private static int loggedBoxes = -1;
 
@@ -68,6 +72,10 @@ public final class ValCraftClient {
 					}
 				}
 				case ValCraftLink.EV_PING -> link.trySend(ValCraftLink.EV_PONG, ev.payload());
+				case ValCraftLink.EV_PLAYER_DIMS -> {
+					var bb = java.nio.ByteBuffer.wrap(ev.payload()).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+					PlayerDims.set(mc, bb.getFloat(0), bb.getFloat(4));
+				}
 				case ValCraftLink.EV_QUIT -> { quit(mc, "Valheim sent Quit"); return; }
 				default -> { if (acked) VirtualInput.handle(mc, ev); }
 			}
@@ -114,6 +122,8 @@ public final class ValCraftClient {
 		if (link != null && System.currentTimeMillis() >= nextHeartbeat) { link.heartbeat(); nextHeartbeat = System.currentTimeMillis() + 100; }
 		Minecraft mc = Minecraft.getInstance();
 		if (active()) {
+			AutoWorld.tick(mc);
+			PlayerDims.tick(mc);
 			CollisionWorld.poll(link);
 			if (CollisionWorld.boxCount() != loggedBoxes && (loggedBoxes <= 0 || Math.abs(CollisionWorld.boxCount() - loggedBoxes) > 500)) {
 				loggedBoxes = CollisionWorld.boxCount();
@@ -148,6 +158,8 @@ public final class ValCraftClient {
 		VirtualInput.releaseAll(mc);
 		FrameExporter.reset();
 		CollisionWorld.clear();
+		PlayerDims.set(mc, 0, 0);
+		AutoWorld.reset();
 		loggedBoxes = -1;
 		if (heldForCollision && mc.player != null) mc.player.setNoGravity(false);
 		heldForCollision = false;

@@ -34,6 +34,8 @@ namespace ValCraft
         ConfigEntry<bool> _cfgAutoLaunch, _cfgKillOnExit;
         ConfigEntry<string> _cfgPrismExe, _cfgInstance, _cfgExtraArgs;
         ConfigEntry<KeyCode> _cfgToggleInput, _cfgToggleOverlay;
+        ConfigEntry<bool> _cfgAutoInput;
+        bool _valheimOverride;
         ConfigEntry<int> _cfgQuitGrace;
         internal ConfigEntry<float> CfgMouseScale;
         ConfigEntry<bool> _cfgFollow, _cfgHidePlayer, _cfgHideHud, _cfgViewBob;
@@ -74,6 +76,7 @@ namespace ValCraft
             _cfgExtraArgs = Config.Bind("Minecraft", "ExtraArgs", "", "Extra Prism arguments (optional; --profile/--offline are not needed).");
             _cfgKillOnExit = Config.Bind("Minecraft", "StopMinecraftOnExit", true, "When Valheim quits: ask Minecraft to quit (it saves its world), and kill it if it is still running after QuitGraceSeconds.");
             _cfgQuitGrace = Config.Bind("Minecraft", "QuitGraceSeconds", 10, "Seconds Valheim waits on exit for Minecraft to shut down by itself before killing it.");
+            _cfgAutoInput = Config.Bind("Controls", "AutoInput", true, "Send input to Minecraft automatically while in-game and no Valheim menu is open. ToggleInputKey then temporarily hands controls to Valheim.");
             _cfgToggleInput = Config.Bind("Controls", "ToggleInputKey", KeyCode.F7, "Toggle sending keyboard/mouse to Minecraft (Valheim ignores input while on).");
             _cfgToggleOverlay = Config.Bind("Controls", "ToggleOverlayKey", KeyCode.F8, "Show/hide the Minecraft overlay.");
             CfgMouseScale = Config.Bind("Controls", "MouseScale", 1.0f, "Multiplier for mouse movement sent to Minecraft (tune if turning is too slow/fast).");
@@ -88,7 +91,19 @@ namespace ValCraft
             void ApplyColl() { ColliderExport.Enabled = _cfgCollision.Value; ColliderExport.Radius = Mathf.Clamp(_cfgCollRadius.Value, 8f, 96f); }
             ApplyColl();
             Config.SettingChanged += (_, __) => ApplyColl();
-            void ApplySync() { PlayerSync.Enabled = _cfgFollow.Value; PlayerSync.HidePlayer = _cfgHidePlayer.Value; PlayerSync.HideHud = _cfgHideHud.Value; PlayerSync.ViewBob = _cfgViewBob.Value; PlayerSync.Vertical = _cfgVertical.Value; }
+            var cfgNear = Config.Bind("Sync", "NearClip", 0.05f, "Valheim camera near clip plane while following (m). Must be smaller than half the hitbox width or walls get see-through when you touch them.");
+            var cfgHw = Config.Bind("Sync", "HitboxWidth", 0f, "Minecraft player width in m (0 = from the Valheim player's CapsuleCollider; vanilla MC is 0.6).");
+            var cfgHh = Config.Bind("Sync", "HitboxHeight", 0f, "Minecraft player height in m (0 = from the Valheim capsule; vanilla MC is 1.8). Eye height = 0.9 x height.");
+            var cfgHs = Config.Bind("Sync", "HitboxScale", 1f, "Multiplier on the hitbox width/height above.");
+            var cfgVer = Config.Bind("Internal", "ConfigVersion", 0, "Used for one-time config migrations; don't edit.");
+            if (cfgVer.Value < 2)
+            {
+                // 0.4.0 log: an existing 0.3.0 config kept VerticalMode=GroundSnap (BepInEx keeps old values), which fights collision.
+                if (_cfgVertical.Value == VerticalMode.GroundSnap) { _cfgVertical.Value = VerticalMode.FollowMinecraft; Log.LogInfo("[config] migrated VerticalMode GroundSnap -> FollowMinecraft (collision needs it)"); }
+                cfgVer.Value = 2;
+            }
+            void ApplySync() {
+                PlayerSync.NearClip = Mathf.Clamp(cfgNear.Value, 0.01f, 1f); PlayerSync.HitboxWidth = cfgHw.Value; PlayerSync.HitboxHeight = cfgHh.Value; PlayerSync.HitboxScale = Mathf.Clamp(cfgHs.Value, 0.25f, 4f); PlayerSync.ResendDims(); PlayerSync.Enabled = _cfgFollow.Value; PlayerSync.HidePlayer = _cfgHidePlayer.Value; PlayerSync.HideHud = _cfgHideHud.Value; PlayerSync.ViewBob = _cfgViewBob.Value; PlayerSync.Vertical = _cfgVertical.Value; }
             ApplySync();
             Config.SettingChanged += (_, __) => ApplySync();
         }
@@ -174,12 +189,19 @@ namespace ValCraft
             var kb = UnityInput.Current;
             if (kb.GetKeyDown(_cfgToggleInput.Value))
             {
-                if (_connected) SetInputActive(!_inputActive);
-                else Log.LogInfo("[input] Minecraft not connected; F7 ignored");
+                if (!_connected) Log.LogInfo("[input] Minecraft not connected; F7 ignored");
+                else if (_cfgAutoInput.Value) { _valheimOverride = !_valheimOverride; Log.LogInfo(_valheimOverride ? "[input] F7: controls to Valheim (press F7 again to return to Minecraft)" : "[input] F7: back to automatic (Minecraft)"); }
+                else SetInputActive(!_inputActive);
             }
             if (kb.GetKeyDown(_cfgToggleOverlay.Value)) _overlayVisible = !_overlayVisible;
             if (kb.GetKeyDown(_cfgReAnchor.Value)) PlayerSync.ReAnchor();
             PlayerSync.Update(Link, _connected);
+            if (_cfgAutoInput.Value)
+            {
+                // Automatic: Minecraft gets input whenever we're in-game following MC and no Valheim UI is open.
+                bool want = _connected && PlayerSync.Following && !_valheimOverride && !ValheimUi.AnyOpen();
+                if (want != _inputActive) SetInputActive(want);
+            }
             ColliderExport.Update(Link, PlayerSync.Anchored);
 
             uint flags = 0;

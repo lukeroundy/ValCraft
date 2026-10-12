@@ -3,9 +3,11 @@
   "minVersion": "0.8",
   "package": "dev.valcraft.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": ["EntityCollisionMixin", "ServerMoveCheckMixin"],
+  "mixins": ["EntityCollisionMixin", "EntityFluidAccessor", "McWorldIrrelevantMixin", "PlayerDimsMixin", "ServerMoveCheckMixin"],
   "client": [
     "GameRendererAccessor",
+    "GameRendererPickMixin",
+    "ScreenEffectMixin",
     "GlStateManagerMixin",
     "InputConstantsMixin",
     "KeyboardHandlerAccessor",

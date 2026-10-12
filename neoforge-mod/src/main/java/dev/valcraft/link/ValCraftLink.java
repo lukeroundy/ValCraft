@@ -61,6 +61,7 @@ public final class ValCraftLink implements AutoCloseable {
 
 	public static final short EV_HELLO = 1, EV_PING = 2, EV_PONG = 3, EV_HELLO_ACK = 4, EV_QUIT = 5;
 	public static final short EV_KEY = 10, EV_CHAR = 11, EV_MOUSE_MOVE = 12, EV_MOUSE_BUTTON = 13, EV_SCROLL = 14, EV_RELEASE_ALL = 15;
+	public static final short EV_PLAYER_DIMS = 20;
 
 	private static final VarHandle I32 = MethodHandles.byteBufferViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
 	private static final VarHandle I64 = MethodHandles.byteBufferViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);

@@ -146,3 +146,37 @@ Windows test (0.4.0) — both sides must be 0.4.0 (protocol v4):
    upper floors, around rocks/trees. Jump onto a 1 m ledge. Walk off a ledge (fall).
 5. Open/close a door in Valheim with input back (F7) and check it updates in MC within ~0.25 s.
 6. Send both logs; note any place you fall through or get stuck (and the piece type).
+
+
+## 0.4.1 — fit, see-through fixes, MC world made irrelevant, auto world, auto input
+
+- **Hitbox = Valheim capsule:** Valheim reads the local player's CapsuleCollider (width = 2 x radius, height) and sends it to MC
+  (event 20); MC scales every player pose (eye = 0.9 x height), client and integrated server, re-applied after respawn.
+  `[Sync] HitboxWidth/HitboxHeight` (0 = auto), `HitboxScale`. Rotated wall slices are now 0.15 m (less inflation).
+- **See-through walls:** Valheim camera near clip = `[Sync] NearClip` (0.05 m) while following, restored afterwards.
+- **MC terrain irrelevant while linked:** no in-wall/underwater/fire screen overlays, no fluid physics/drowning, no
+  fire/cactus/cobweb/portal effects from MC blocks, no suffocation, crosshair never targets MC blocks (entities still pickable),
+  hand lit full-bright. Also while waiting for Valheim's first collision snapshot (0.4.0 could suffocate there).
+- **No world selection:** linked MC on the title screen opens/creates world `ValCraft` (void generator, survival, cheats on).
+  `config/valcraft.properties` in the Prism instance: `autoWorld`, `worldName`, `gameMode`, `generator=void|flat`.
+- **No control swapping:** `[Controls] AutoInput=true` — input goes to MC whenever following and no Valheim UI (menu,
+  inventory, map, chat, console, text input, trader) is open. F7 now temporarily hands controls to Valheim (press again to return).
+  `AutoInput=false` restores the old F7 toggle.
+- From Luke's 0.4.0 log: his old config kept `VerticalMode=GroundSnap` -> migrated once to FollowMinecraft; a one-frame
+  state blip stopped following and re-anchored (~2 m jump) -> last good state is kept, 1 s debounce, anchor kept per player.
+
+Windows test (0.4.1): install both; delete nothing. Start Valheim -> MC should go straight into world "ValCraft" and you control
+MC without pressing F7. Check doorways, walls up close (no see-through), Tab/Esc in Valheim after F7, MC chat/inventory.
+
+## Roadmap: Valheim terrain as real MC blocks (Luke's request (c))
+Phase A (next, 0.5.0): Valheim -> MC voxel terrain. Valheim samples heightmap + biome (Heightmap/WorldGenerator) in a
+  ring around the player (e.g. 48 m), sends chunks (16x16 columns: height, biome, top material) over a new ring/region; MC
+  fills the void world with grass/dirt/stone/sand/snow by biome, 1 block = 1 m, aligned to the anchor (anchor snapped to
+  integer + offset so blocks line up). Terrain collision boxes are then dropped (pieces/rocks stay boxes); MC terrain stops
+  being ignored for collision (only the old non-ValCraft MC blocks issue disappears because the world is void).
+Phase B: MC break/place -> Valheim. MC sends BlockChanged(x,y,z,old,new); Valheim maps to a world point and applies
+  TerrainComp/TerrainModifier (lower/raise at that cell, level = new top) — the same op the hoe/pickaxe use, so it's saved and
+  networked by Valheim. Rocks: hits on MineRock/Destructible within the box -> Damage(HitData) with pickaxe damage.
+Phase C: Valheim -> MC terrain edits (other players digging) re-sync the affected chunks; drops/item mapping.
+Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs later), chunk volume (send on demand),
+  multiplayer authority (Valheim owns terrain; MC edits are requests).

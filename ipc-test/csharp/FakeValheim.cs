@@ -81,6 +81,7 @@ static unsafe class FakeValheim
                             Console.WriteLine($"[host] published {vals.Count / 6} collision boxes");
                             break;
                         }
+                    case "dims": link.TrySend(ValCraftLink.EvPlayerDims, Payload.F32(F(0), F(1))); break;
                     case "quit": goto done;
                 }
                 Console.WriteLine($"[host] {string.Join(" ", c)}");
