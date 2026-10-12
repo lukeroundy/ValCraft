@@ -18,7 +18,7 @@ namespace ValCraft
         internal static bool Enabled = true;
         internal static float Radius = 48f;
         internal static bool Active => Enabled && PlayerSync.Anchored;
-        const int T = ValCraftLink.TerrainTile, SamplePerFrame = 6, RescanPerFrame = 2;
+        const int T = ValCraftLink.TerrainTile, SamplePerFrame = 4, RescanPerFrame = 2;
         const float SeaLevel = 30f;
 
         static readonly Dictionary<long, int> _sentHash = new Dictionary<long, int>();
@@ -90,24 +90,54 @@ namespace ValCraft
             var payload = new byte[8 + T * T * 3];
             BitConverter.GetBytes(tx).CopyTo(payload, 0);
             BitConverter.GetBytes(tz).CopyTo(payload, 4);
+            // Fine grid: 0.5 m over the tile plus a 1-block border. g[2*(i+1)+1, ...] is block (i,j)'s centre.
+            const int G = 2 * (T + 2) + 1;
+            var g = new float[G, G];
+            for (int i = 0; i < G; i++)
+                for (int j = 0; j < G; j++)
+                    g[i, j] = HeightAt(tx * T - 1 + i * 0.5f, tz * T - 1 + j * 0.5f, a);
             var h = new float[T + 2, T + 2];
             for (int i = 0; i < T + 2; i++)
                 for (int j = 0; j < T + 2; j++)
-                    h[i, j] = Height(tx * T + i - 1, tz * T + j - 1, a);
+                    h[i, j] = g[2 * i + 1, 2 * j + 1];
             int hash = 17;
             for (int i = 0; i < T; i++)
                 for (int j = 0; j < T; j++)
                 {
                     float y = h[i + 1, j + 1];
-                    short top = float.IsNaN(y) ? short.MinValue : (short)Mathf.Clamp(Mathf.RoundToInt(y - a.y) - 1, -64, 319);
+                    // Block top surface = floor(true height): blocks never stick out above the real ground (no ledges);
+                    // the smooth heightfield below carries the player at the true height anyway.
+                    short top = float.IsNaN(y) ? short.MinValue : (short)Mathf.Clamp(Mathf.FloorToInt(y - a.y) - 1, -64, 319);
                     byte mat = float.IsNaN(y) ? (byte)0 : Material(tx * T + i, tz * T + j, a, y, h, i + 1, j + 1);
                     int o = 8 + (i * T + j) * 3;
                     BitConverter.GetBytes(top).CopyTo(payload, o);
                     payload[o + 2] = mat;
                     hash = hash * 31 + top * 17 + mat;
                 }
+            // Smooth heightfield cells (4 m, 0.5 m samples) for movement; included in the change hash (cm).
+            var cells = new List<byte[]>();
+            for (int cx = 0; cx < T / ValCraftLink.HeightCell; cx++)
+                for (int cz = 0; cz < T / ValCraftLink.HeightCell; cz++)
+                {
+                    const int R = ValCraftLink.HeightRes;
+                    var pl = new byte[12 + R * R * 2];
+                    int cellX = tx * (T / ValCraftLink.HeightCell) + cx, cellZ = tz * (T / ValCraftLink.HeightCell) + cz;
+                    float baseY = float.MaxValue;
+                    for (int i = 0; i < R; i++) for (int j = 0; j < R; j++) { float v = g[2 + cx * 8 + i, 2 + cz * 8 + j]; if (!float.IsNaN(v)) baseY = Mathf.Min(baseY, v - a.y); }
+                    if (baseY == float.MaxValue) continue;
+                    BitConverter.GetBytes(cellX).CopyTo(pl, 0); BitConverter.GetBytes(cellZ).CopyTo(pl, 4); BitConverter.GetBytes(baseY).CopyTo(pl, 8);
+                    for (int i = 0; i < R; i++) for (int j = 0; j < R; j++)
+                    {
+                        float v = g[2 + cx * 8 + i, 2 + cz * 8 + j];
+                        short cm = float.IsNaN(v) ? short.MinValue : (short)Mathf.Clamp(Mathf.RoundToInt((v - a.y - baseY) * 100f), 0, 32767);
+                        BitConverter.GetBytes(cm).CopyTo(pl, 12 + (i * R + j) * 2);
+                        hash = hash * 31 + cm;
+                    }
+                    cells.Add(pl);
+                }
             long k = Key(tx, tz);
             if (_sentHash.TryGetValue(k, out int old) && old == hash) { _rescan.Enqueue(k); return true; }
+            foreach (var c in cells) if (!link.TrySend(ValCraftLink.EvTerrainHeights, c)) return false; // resent whole next time
             if (!link.TrySend(ValCraftLink.EvTerrainTile, payload)) return false;
             _sentHash[k] = hash;
             _rescan.Enqueue(k);
@@ -117,9 +147,10 @@ namespace ValCraft
 
         static Vector3 ToUnity(int bx, int bz, Vector3 a) => new Vector3(bx + 0.5f + a.x, 0f, -(bz + 0.5f) + a.z);
 
-        static float Height(int bx, int bz, Vector3 a)
+        /// <summary>True Valheim ground height at MC (x, z) (continuous coordinates).</summary>
+        static float HeightAt(float mx, float mz, Vector3 a)
         {
-            var p = ToUnity(bx, bz, a);
+            var p = new Vector3(mx + a.x, 0f, -mz + a.z);
             if (Physics.Raycast(new Vector3(p.x, 1500f, p.z), Vector3.down, out var hit, 3000f, _terrainMask, QueryTriggerInteraction.Ignore)) return hit.point.y;
             try { var z = _zone?.Invoke(); if (z != null && _groundHeight != null) return (float)_groundHeight.Invoke(z, new object[] { p }); } catch { }
             return float.NaN; // terrain not loaded there yet: column skipped, tile re-sent on rescan

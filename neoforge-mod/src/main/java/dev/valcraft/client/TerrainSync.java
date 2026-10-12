@@ -30,7 +30,12 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @EventBusSubscriber(modid = ValCraft.MOD_ID, value = Dist.CLIENT)
 public final class TerrainSync {
 	private TerrainSync() {}
-	static final int DEPTH = 16, TILES_PER_TICK = 24;
+	static final int DEPTH = 16, TILES_PER_TICK = 24, STALE_BAND = 64;
+
+	private static boolean isTerrainBlock(BlockState s) {
+		for (byte m = 1; m <= 10; m++) if (s == surface(m) || s == sub(m)) return true;
+		return s.is(Blocks.STONE);
+	}
 	private record Tile(int tx, int tz, short[] top, byte[] mat) {}
 	private static final ConcurrentLinkedQueue<Tile> pending = new ConcurrentLinkedQueue<>();
 	private static final Long2IntOpenHashMap applied = new Long2IntOpenHashMap(); // server thread: column -> top<<8|mat
@@ -88,7 +93,15 @@ public final class TerrainSync {
 				pos.set(x, y, z);
 				if (level.getBlockState(pos) != s) level.setBlock(pos, s, flags);
 			}
-			for (int y = top + 1; y <= oldTop; y++) { pos.set(x, y, z); level.setBlock(pos, Blocks.AIR.defaultBlockState(), flags); }
+			// First time this session: the saved world may hold terrain from an earlier session/anchor above the new
+			// top (stale ledges). Clear our terrain block types in a band above; player-built blocks of other types stay.
+			int clearTo = oldTop == Integer.MIN_VALUE ? Math.min(level.getMaxBuildHeight() - 1, top + STALE_BAND) : oldTop;
+			for (int y = top + 1; y <= clearTo; y++) {
+				pos.set(x, y, z);
+				BlockState cur = level.getBlockState(pos);
+				if (cur.isAir()) continue;
+				if (oldTop != Integer.MIN_VALUE || isTerrainBlock(cur)) level.setBlock(pos, Blocks.AIR.defaultBlockState(), flags);
+			}
 			applied.put(k, packed);
 			columnsChanged++;
 		}

@@ -3,7 +3,14 @@
   "minVersion": "0.8",
   "package": "dev.valcraft.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": ["EntityCollisionMixin", "EntityFluidAccessor", "McWorldIrrelevantMixin", "PlayerDimsMixin", "ServerMoveCheckMixin"],
+  "mixins": [
+    "EntityCollisionMixin",
+    "EntityFluidAccessor",
+    "McWorldIrrelevantMixin",
+    "PlayerDimsMixin",
+    "ServerMoveCheckMixin",
+    "TerrainMoveMixin"
+  ],
   "client": [
     "CameraMixin",
     "GameRendererAccessor",
@@ -16,7 +23,10 @@
     "MinecraftMixin",
     "MinecraftUseMixin",
     "MouseHandlerAccessor",
-    "WindowMixin"
+    "WindowMixin",
+    "LocalPlayerPushMixin"
   ],
-  "injectors": { "defaultRequire": 1 }
+  "injectors": {
+    "defaultRequire": 1
+  }
 }

@@ -98,6 +98,9 @@ namespace ValCraft.Protocol
         public const ushort EvBlockChanged = 24;
         /// <summary>V2M: f32 x, y, z MC feet position to teleport the MC player to (vertical re-anchoring).</summary>
         public const ushort EvTeleport = 25;
+        /// <summary>V->M smooth terrain heights: i32 cellX, i32 cellZ (4 m cells), f32 baseY, 9x9 i16 cm above base (x-major), NaN cell = -32768.</summary>
+        public const ushort EvTerrainHeights = 26;
+        public const int HeightCell = 4, HeightRes = 9;
         public const int TerrainTile = 8;
         public const uint VFlagTerrainBlocks = 32;
 

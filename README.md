@@ -234,3 +234,15 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
   kiln, workbench) holding a mapped MC item: MC sends EvUseItemOn(itemId,count) with the interact; Valheim adds the mapped
   Valheim item to the station (Smelter.QueueOre/AddFuel, Fireplace fuel, Container) and MC consumes the stack on ack.
   Risks: duplication on lost acks (use request ids + ack), station APIs differ per type, multiplayer ownership.
+
+## 0.5.1: smooth terrain movement
+- Valheim now samples the true ground at 0.5 m (17x17 per tile) and also sends `EvTerrainHeights` (26): 4 m cells of 9x9
+  samples (cm above a base). MC's linked player is carried by this bilinear heightfield (feet = true Valheim height,
+  sticks to the ground going downhill, counts as on-ground). Terrain blocks are ignored for **movement only**. Anything
+  sticking out more than 0.25 m above the smooth surface still blocks (placed blocks, stale blocks). Mining and raycasts still hit the blocks.
+- Block tops now use floor(height) instead of round(height), so blocks never stick out above the real ground.
+- Stale terrain from an earlier session/anchor (saved in the ValCraft world) is cleared above each column the first
+  time it's written in a session (terrain block types only).
+- Integrated server no longer rubber-bands the player for overlapping terrain blocks; LocalPlayer push-out disabled on smooth terrain.
+- Valheim camera: small vertical steps (0.3–1.1 m, e.g. stair/box edges) are smoothed (decays in ~0.1 s).
+- Debug: `VC_DEBUGMOVE=true` (dev run) / `-Dvalcraft.debugMove=true` logs collide in/out vs ground height.

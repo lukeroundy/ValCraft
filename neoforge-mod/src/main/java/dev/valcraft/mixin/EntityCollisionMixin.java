@@ -37,7 +37,17 @@ public abstract class EntityCollisionMixin {
 	@Redirect(method = "collectColliders", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;getBlockCollisions(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/phys/AABB;)Ljava/lang/Iterable;"))
 	private static Iterable<VoxelShape> valcraft$ignoreMcBlocks(Level level, Entity entity, AABB box) {
 		if (CollisionWorld.IGNORE_MC_BLOCKS && CollisionWorld.appliesTo(entity) && !dev.valcraft.client.ValCraftClient.terrainMode()) return List.of();
-		return level.getBlockCollisions(entity, box);
+		Iterable<VoxelShape> it = level.getBlockCollisions(entity, box);
+		if (!dev.valcraft.client.HeightField.active() || !CollisionWorld.appliesTo(entity)) return it;
+		// Terrain blocks (top at/below Valheim's smooth ground) don't block movement; the heightfield carries the player.
+		List<VoxelShape> keep = new ArrayList<>();
+		for (VoxelShape s : it) {
+			if (s.isEmpty()) continue;
+			AABB b = s.bounds();
+			double g = dev.valcraft.client.HeightField.maxOver(b.minX, b.minZ, b.maxX, b.maxZ);
+			if (Double.isNaN(g) || b.maxY > g + 0.25) keep.add(s);
+		}
+		return keep;
 	}
 
 	@Inject(method = "isInWall", at = @At("HEAD"), cancellable = true)

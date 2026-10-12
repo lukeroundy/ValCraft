@@ -10,6 +10,6 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft() {
-		LOG.info("ValCraft loaded (0.5.0: Valheim terrain as MC blocks)");
+		LOG.info("ValCraft loaded (0.5.1: smooth Valheim terrain movement)");
 	}
 }

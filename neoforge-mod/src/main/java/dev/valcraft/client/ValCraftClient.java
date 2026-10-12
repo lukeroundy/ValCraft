@@ -123,6 +123,7 @@ public final class ValCraftClient {
 					PlayerDims.set(mc, bb.getFloat(0), bb.getFloat(4));
 				}
 				case ValCraftLink.EV_TERRAIN_TILE -> TerrainSync.receive(ev.payload());
+				case ValCraftLink.EV_TERRAIN_HEIGHTS -> HeightField.receive(ev.payload());
 				case ValCraftLink.EV_TELEPORT -> {
 					var bb = java.nio.ByteBuffer.wrap(ev.payload()).order(java.nio.ByteOrder.LITTLE_ENDIAN);
 					teleport(mc, bb.getFloat(0), bb.getFloat(4), bb.getFloat(8));
@@ -212,7 +213,7 @@ public final class ValCraftClient {
 		FrameExporter.reset();
 		CollisionWorld.clear();
 		ValheimInteract.hoverText = "";
-		TerrainSync.clearClient();
+		TerrainSync.clearClient(); HeightField.clear();
 		PlayerDims.set(mc, 0, 0);
 		AutoWorld.reset();
 		loggedBoxes = -1;

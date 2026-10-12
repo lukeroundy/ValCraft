@@ -33,6 +33,7 @@ namespace ValCraft
         static bool _anchored;
         static double _lastGroundFeetY;
         static float _smoothedY;
+        static double _camFeetY; static bool _haveCamFeet; static float _camYOff;
         static bool _haveY;
         static Vector3 _targetPos;
         static Quaternion _targetRot;
@@ -300,6 +301,16 @@ namespace ValCraft
             CoordMap.ToUnity(s.X, s.Y, s.Z, out float ex, out float ey, out float ez);
             var eye = new Vector3(_anchor.x + ex, _anchor.y + ey, _anchor.z + ez);
             if (Vertical == VerticalMode.GroundSnap) eye.y = _targetPos.y + (float)(s.Y - s.FeetY); // same vertical rule as the body
+            else
+            {
+                // Smooth small vertical steps (stairs, box edges): absorb the jump into an offset that decays quickly.
+                float dyFeet = _haveCamFeet ? (float)(s.FeetY - _camFeetY) : 0f;
+                _camFeetY = s.FeetY; _haveCamFeet = true;
+                if ((s.Flags & ValCraftLink.PsOnGround) != 0 && Mathf.Abs(dyFeet) > 0.3f && Mathf.Abs(dyFeet) <= 1.1f) _camYOff -= dyFeet;
+                _camYOff = Mathf.Clamp(_camYOff * Mathf.Exp(-12f * Time.deltaTime), -1.1f, 1.1f);
+                if (Mathf.Abs(_camYOff) < 0.002f) _camYOff = 0f;
+                eye.y += _camYOff;
+            }
             var rot = Quaternion.Euler(CoordMap.PitchToUnity(s.Pitch), CoordMap.YawToUnity(s.Yaw), 0f);
             if (ViewBob && (s.Flags & ValCraftLink.PsViewBob) != 0)
             {
