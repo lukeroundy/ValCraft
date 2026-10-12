@@ -32,6 +32,10 @@ import net.minecraft.world.level.block.Block;
 final class EntitySync {
 	private EntitySync() {}
 	static volatile int maxEntities = 64, maxMobs = 24;
+	/** 0.12.0: animation capture at 24 fps near the player (LOD: 12 fps to 32 blocks, 4 fps beyond), time + IPC backlog budget. */
+	static final long FRAME_MS = 41;
+	static final long CAPTURE_BUDGET_NS = 6_000_000L;
+	static final int OUTBOX_BACKLOG = 300;
 	static final int MAX_LID_BLOCKS = 96, DYNAMIC_MESH = 0x40000000, BLOCK_ENTITY_ID = 0x80000000;
 	private static final java.util.HashMap<Integer, Long> lastMobCapture = new java.util.HashMap<>();
 	private static final Map<String, Integer> meshOf = new HashMap<>();
@@ -44,7 +48,7 @@ final class EntitySync {
 		outboxRef = outbox;
 		long now = System.currentTimeMillis();
 		if (now < nextUpdate || mc.level == null || mc.player == null || maxEntities <= 0) return;
-		nextUpdate = now + 100;
+		nextUpdate = now + FRAME_MS;
 		double r = BlockSync.radius, r2 = r * r;
 		List<Entity> list = new ArrayList<>();
 		List<Entity> mobs = new ArrayList<>();
@@ -71,7 +75,8 @@ final class EntitySync {
 				if (meshOf.size() <= 20 || meshOf.size() % 50 == 0) ValCraft.LOG.info("[entities] mesh {} for {} ({} quads)", mesh, key, q.size());
 			}
 			var p = e.position();
-			ents.add(ground(mc, e, new BlockCodec.Ent(e.getId(), mesh, (float) p.x, (float) p.y, (float) p.z, e instanceof ItemEntity ? 1 : 0)));
+			var en = new BlockCodec.Ent(e.getId(), mesh, (float) p.x, (float) p.y, (float) p.z, e instanceof ItemEntity ? 1 : 0);
+			ents.add(e instanceof net.minecraft.world.entity.projectile.Projectile ? en : ground(mc, e, en)); // projectiles: exact position (stuck arrows)
 		}
 		// mobs / NPCs / other players: re-captured every frame-ish (nearest 100 ms, farther 300 ms) into a per-entity dynamic mesh
 		mobs.sort((a, b) -> Double.compare(a.distanceToSqr(mc.player), b.distanceToSqr(mc.player)));
@@ -80,13 +85,15 @@ final class EntitySync {
 		if (self) mobs.add(0, mc.player);
 		if (mobs.size() > maxMobs) mobs = mobs.subList(0, maxMobs);
 		java.util.HashSet<Integer> live = new java.util.HashSet<>();
-		int mobCaps = 0;
+		int mobCaps = 0; long t0 = System.nanoTime();
 		for (var e : mobs) {
 			int mesh = DYNAMIC_MESH | (e.getId() & 0x3FFFFFFF);
 			live.add(e.getId());
 			Long last = lastMobCapture.get(e.getId());
-			long interval = e.distanceToSqr(mc.player) < 256 ? 100 : 300;
-			if ((last == null || now - last >= interval) && mobCaps < 12) {
+			double md2 = e.distanceToSqr(mc.player);
+			long interval = e == mc.player || md2 < 256 ? FRAME_MS : md2 < 1024 ? 2 * FRAME_MS : 250;
+			boolean budget = System.nanoTime() - t0 < CAPTURE_BUDGET_NS && outbox.size() < OUTBOX_BACKLOG;
+			if ((last == null || now - last >= interval - 5) && mobCaps < 16 && (budget || last == null)) {
 				mobCaps++;
 				lastMobCapture.put(e.getId(), now);
 				Capture.CAPTURING = true;
@@ -169,9 +176,9 @@ final class EntitySync {
 					if (m == null) { m = new int[] { DYNAMIC_MESH | 0x20000000 | (nextMesh++ & 0x1FFFFFFF) }; liveMesh.put(pk, m); }
 					boolean kinetic = isKinetic(be);
 					int[] qc = liveQuads.get(pk);
-					long interval = kinetic ? (qc != null && qc[0] > 300 ? 1500 : d2 < 256 ? 100 : 400) : 2000; // 0.10.1: big models (water wheels, 1000+ quads) ~0.7 Hz: they flooded the IPC ring
+					long interval = kinetic ? (qc != null && qc[0] > 300 ? 1500 : d2 < 256 ? FRAME_MS : d2 < 1024 ? 2 * FRAME_MS : 400) : 2000; // 0.10.1: big models (water wheels, 1000+ quads) ~0.7 Hz: they flooded the IPC ring
 					Long last = liveLast.get(pk);
-					if ((last == null || now - last >= interval) && caps < 10) {
+					if ((last == null || now - last >= interval - 5) && caps < 10 && (last == null || outbox().size() < OUTBOX_BACKLOG)) {
 						caps++; liveLast.put(pk, now);
 						Capture cap = new Capture();
 						Capture.CAPTURING = true;
@@ -216,7 +223,8 @@ final class EntitySync {
 
 	static boolean wanted(Entity e) {
 		return e instanceof ItemEntity || e instanceof ArmorStand || e instanceof ItemFrame || e instanceof FallingBlockEntity || e instanceof PrimedTnt
-				|| e instanceof AbstractMinecart || e instanceof Boat;
+				|| e instanceof AbstractMinecart || e instanceof Boat
+				|| e instanceof net.minecraft.world.entity.projectile.Projectile; // 0.12.0: arrows (flying + stuck), tridents, thrown items
 	}
 
 	private static int bucket(float deg) { return Math.round(((deg % 360) + 360) % 360 / 5f); }

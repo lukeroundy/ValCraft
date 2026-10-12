@@ -15,12 +15,18 @@ public final class ValCraftConfig {
 		if (props != null) return props;
 		props = new Properties();
 		props.setProperty("dragonChancePerMinute", "0.002");
+		props.setProperty("emeraldChance", "0.005");
 		Path f = Path.of("config", "valcraft.properties");
 		try {
 			if (Files.exists(f)) try (Reader r = Files.newBufferedReader(f)) { props.load(r); }
-			else { Files.createDirectories(f.getParent()); try (Writer w = Files.newBufferedWriter(f)) { props.store(w, "ValCraft (Minecraft side). dragonChancePerMinute: chance per minute per player in the Deep North (end_highlands) that an ender dragon appears; 0 = never"); } }
+			else { Files.createDirectories(f.getParent()); try (Writer w = Files.newBufferedWriter(f)) { props.store(w, "ValCraft (Minecraft side). dragonChancePerMinute: chance per minute per player in the Deep North (end_highlands) that an ender dragon appears; 0 = never. emeraldChance: chance that breaking a stone block drops an emerald"); } }
 		} catch (Exception e) { ValCraft.LOG.warn("[config] {}: {}", f, e.toString()); }
 		return props;
+	}
+
+	/** 0.12.0: missing keys of older files get their defaults. */
+	public static double emeraldChance() {
+		try { return Double.parseDouble(p().getProperty("emeraldChance", "0.005").trim()); } catch (NumberFormatException e) { return 0.005; }
 	}
 
 	public static double dragonChancePerMinute() {

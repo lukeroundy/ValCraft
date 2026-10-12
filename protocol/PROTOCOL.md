@@ -272,3 +272,11 @@ Item map: one-time migration of the old tin/bronze placeholder ids (only entries
 
 Biomes (no wire change): AshLands columns map to nether biomes per ~64-block patch (nether wastes, basalt deltas, soul sand valley, crimson/warped forest) with nether spawns; DeepNorth maps to end_highlands (endermen). A rare vanilla ender dragon (config/valcraft.properties dragonChancePerMinute, default 0.002, ≤ 1 per 512 blocks) can appear above Deep North players; it does not break blocks outside the End.
 Item map: ~350 generated valcraft:* items for every Valheim item without an exact MC equivalent (tools/valheim_items.py). Where a vanilla stand-in exists it stays first (Valheim→MC gives it) and the ValCraft item is appended as an accepted alternative; keys without a stand-in default to the ValCraft item. One-time migration appends the ValCraft id to user entries still exactly at the old single default.
+
+## v20 (0.12.0) — map key, weather
+| Event | Dir | Payload |
+|---|---|---|
+| 66 EvMapToggle | MC→V | empty. MC key "Valheim Map" (default M). Valheim toggles Minimap large mode; while it is open Valheim owns input (auto-input watches Minimap.IsOpen) and the MC overlay is hidden, so panning/zoom/pins and M/Esc are Valheim's own. |
+| 67 EvWeather | V→MC | u8 flags (1 rain, 2 thunder, 4 snow), u8 len, utf8 EnvMan environment name (≤ 64 B). Every 2 s. rain = EnvSetup.m_isWet or name contains rain/snow/thunder/storm; MC sets overworld rain/thunder (snow in cold biomes such as Mountain = snowy slopes); doWeatherCycle off while linked, restored on unlink. |
+
+No wire change: entity animation capture runs at 24 fps (41 ms) within 16 blocks, 12 fps to 32, 4 fps beyond, budget 6 ms per frame and skipped while > 300 events are queued. Projectiles (arrows, tridents, thrown items) are synced entities at their exact position; arrows stuck in Valheim boxes stay stuck. MC fluids do not spread into block cells a Valheim box fills. Emeralds: 0.5 % per broken MC stone block (config/valcraft.properties emeraldChance) and per mined-out Valheim rock piece ([Items] EmeraldChance). Items: TrophyBoar, TrophyDeer, TrophySkeleton added.

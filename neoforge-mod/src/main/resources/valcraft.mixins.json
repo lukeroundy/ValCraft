@@ -6,7 +6,7 @@
   "mixins": [
     "BoatWaterMixin",
     "PathValheimMixin",
-    "EntityCollisionMixin", "LineOfSightMixin", "ProjectileClipMixin", "ArrowClipMixin", "DragonNoGriefMixin", "MapValheimMixin",
+    "EntityCollisionMixin", "LineOfSightMixin", "ProjectileClipMixin", "ArrowClipMixin", "DragonNoGriefMixin", "MapValheimMixin", "FluidValheimMixin", "ArrowStickMixin",
     "EntityFluidAccessor",
     "McWorldIrrelevantMixin",
     "PlayerDimsMixin",

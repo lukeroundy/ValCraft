@@ -67,6 +67,7 @@ namespace ValCraft
             ItemBridge.Apply(_harmony);
             HealthLink.Apply(_harmony);
             try { Saplings.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[sapling] hook failed: " + e.Message); }
+            try { Emeralds.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[emerald] hook failed: " + e.Message); }
             _overlay = new Overlay(gameObject, Config.Bind("Overlay", "PremultipliedShader", false, "(Minecraft 0.4.0+ already sends straight alpha; leave off.) Use a premultiplied-alpha material for the Minecraft overlay if a suitable shader is found (turn off if the overlay looks wrong or invisible).").Value);
             _input = new InputForwarder(this);
             InputForwarder.ExcludeKeys(_cfgToggleInput.Value, _cfgToggleOverlay.Value, _cfgReAnchor.Value);
@@ -129,6 +130,8 @@ namespace ValCraft
             ValheimHit.Combat = Config.Bind("Combat", "Enabled", true, "Minecraft left-click on Valheim creatures damages them (attacker = your Valheim player, so aggro, skills and drops work).").Value;
             Saplings.Chance = Config.Bind("Items", "SaplingChance", 0.05f, "Chance (0..1) that a chopped-down Valheim tree drops a Minecraft sapling (beech/birch -> birch, pine/fir -> spruce, swamp -> dark oak, others -> oak).").Value;
             Logo.Enabled = Config.Bind("General", "ValCraftLogo", true, "Replace the Valheim main menu title with 'ValCraft'.").Value;
+            Emeralds.Chance = Config.Bind("Items", "EmeraldChance", 0.005f, "Chance that a mined-out Valheim rock piece gives a Minecraft emerald (0 = off).").Value;
+            WeatherLink.Enabled = Config.Bind("General", "SyncWeather", true, "Valheim weather (rain / thunderstorm / snow) drives Minecraft weather.").Value;
             Logo.ShowVersion = Config.Bind("General", "ValCraftLogoVersion", true, "Show the ValCraft version under the main menu title.").Value;
             ValheimHit.CombatScale = Config.Bind("Combat", "DamageScale", 6f, "Valheim damage per point of Minecraft attack damage at full swing (iron sword 6 -> 36, about a bronze/iron sword).").Value;
             ValheimHit.CombatPush = Config.Bind("Combat", "Knockback", 30f, "Valheim push force of a full-strength hit.").Value;
@@ -247,6 +250,7 @@ namespace ValCraft
                         else if (ev.Type == ValCraftLink.EvMobList) MobBridge.Receive(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvVMobHurt) MobBridge.VMobHurt(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvLevelGround) TerrainEdit.LevelGround();
+                        else if (ev.Type == ValCraftLink.EvMapToggle) MapToggle.Toggle();
                         else if (ev.Type == ValCraftLink.EvReach) InteractBridge.SetReach(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvBuildAction) { if (ev.Payload != null && ev.Payload.Length > 0) ItemBridge.BuildAction(ev.Payload[0]); }
                         else if (!ItemBridge.Handle(ev)) BlockRender.Handle(ev);
@@ -298,6 +302,7 @@ namespace ValCraft
             try { BlockRender.Update(Link, _connected); } catch (Exception e) { Diag.Warn("blocks", "[blocks] update error: " + e.GetBaseException().Message); }
             try { ItemBridge.Update(Link, _connected); } catch (Exception e) { Diag.Warn("items", "[items] update error: " + e.GetBaseException().Message); }
             try { if (_connected) WorldInfo.Update(Link); } catch (Exception e) { Diag.Warn("world", "[world] " + e.GetBaseException().Message); }
+            try { if (_connected && PlayerSync.Following) WeatherLink.Update(Link); } catch { }
             try { if (_connected && PlayerSync.Following) DayLink.Update(Link); } catch (Exception e) { Diag.Warn("day", "[time] update error: " + e.GetBaseException().Message); }
             try { if (_connected) Hazards.Update(Link); } catch (Exception e) { Diag.Warn("hazard", "[hazard] update error: " + e.GetBaseException().Message); }
             try { if (_connected) MobBridge.Update(Link); else MobBridge.Clear("disconnected"); } catch (Exception e) { Diag.Warn("mobs", "[mobs] update error: " + e.GetBaseException().Message); }
@@ -325,7 +330,7 @@ namespace ValCraft
             bool inGame = PlayerSync.HasLocalPlayer && !ValheimUi.MenuOpen();
             if (inGame != _lastInGame) { _lastInGame = inGame; Log.LogInfo(inGame ? "[overlay] Valheim gameplay: overlay on" : "[overlay] Valheim menu/loading: overlay hidden"); }
             // 0.10.1: the MC frame is only HUD + hand now (world/player are in-world meshes): hide it behind Valheim inventory/crafting UI
-            bool invOpen = ValheimUi.InventoryOpen() && (Link.PeerFlags & ValCraftLink.McFlagScreenOpen) == 0;
+            bool invOpen = (ValheimUi.InventoryOpen() || MapToggle.Open()) && (Link.PeerFlags & ValCraftLink.McFlagScreenOpen) == 0; // 0.12.0: + large map
             _overlay.Update(Link, _connected && _overlayVisible && inGame && !invOpen, _inputActive);
 
             if (_connected && t >= _nextStatus && Link.TryReadPlayerState(out var s))

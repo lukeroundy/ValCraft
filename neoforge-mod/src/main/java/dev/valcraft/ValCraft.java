@@ -11,9 +11,11 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft(IEventBus modBus) {
-		LOG.info("ValCraft loaded (0.11.1: ValCraft creative tab; 0.11.0: lore stones, all Valheim items, nether/end biomes, MC combat damage, boat clamp)");
+		LOG.info("ValCraft loaded (0.12.0: M = Valheim map, 24 fps animation, weather sync, fluids vs Valheim buildings, stuck arrows, emeralds)");
 		dev.valcraft.mobs.MobSync.register(modBus);
 		dev.valcraft.content.ModContent.register(modBus);
+		net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(dev.valcraft.content.Emerald::onBreak);
+		if (net.neoforged.fml.loading.FMLEnvironment.dist.isClient()) modBus.addListener(dev.valcraft.client.MapKey::register);
 		if (net.neoforged.fml.loading.FMLEnvironment.dist.isClient())
 			modBus.addListener((net.neoforged.neoforge.client.event.EntityRenderersEvent.RegisterRenderers e) -> e.registerEntityRenderer(dev.valcraft.mobs.MobSync.PROXY.get(), net.minecraft.client.renderer.entity.NoopRenderer::new));
 	}

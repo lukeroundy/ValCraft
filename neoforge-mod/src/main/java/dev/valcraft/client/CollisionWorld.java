@@ -120,4 +120,19 @@ public final class CollisionWorld {
 		var face = net.minecraft.core.Direction.getNearest(-d.x, -d.y, -d.z);
 		return new net.minecraft.world.phys.BlockHitResult(h, face, net.minecraft.core.BlockPos.containing(h), false);
 	}
+
+	/** 0.12.0: a Valheim box fills a real part of this block cell (fluids must not flow there). Any thread. */
+	public static boolean occupies(net.minecraft.core.BlockPos p) {
+		if (index == null || !ValCraftClient.collisionActive()) return false;
+		var cell = new AABB(p).deflate(0.2);
+		for (VoxelShape s : query(cell)) for (AABB b : s.toAabbs()) if (b.intersects(cell)) return true;
+		return false;
+	}
+	/** 0.12.0: a Valheim box touches this point (stuck arrows keep sticking). Any thread. */
+	public static boolean near(net.minecraft.world.phys.Vec3 v, double r) {
+		if (index == null || !ValCraftClient.collisionActive()) return false;
+		var q = new AABB(v, v).inflate(r);
+		for (VoxelShape s : query(q)) for (AABB b : s.toAabbs()) if (b.intersects(q)) return true;
+		return false;
+	}
 }

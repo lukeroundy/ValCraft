@@ -112,11 +112,12 @@ namespace ValCraft
                     var nm = ((UnityEngine.Object)f).name.ToLowerInvariant();
                     if (nm.Contains("norse")) { font = f; if (nm.Contains("bold")) break; }
                 }
-            var title = Text(_ours.transform, "Title", "VALCRAFT", font, new Vector2(0, 0.18f), new Vector2(1, 1),
+            // 0.12.0: bigger (wider than the original rect, full height); the version is a small suffix on the same line, so it
+            // sits right next to the title on the text baseline
+            rect.sizeDelta = logo.sizeDelta + new Vector2(logo.rect.width * 0.3f, 0f); // works for fixed and stretched anchors
+            string txt = "VALCRAFT" + (ShowVersion ? "<size=20%><cspace=0> </cspace><color=#E6E9F0>v" + MyPluginInfo.PLUGIN_VERSION + "</color></size>" : "");
+            var title = Text(_ours.transform, "Title", txt, font, new Vector2(-0.0f, 0.05f), new Vector2(1f, 1f),
                 new Color(1f, 0.86f, 0.55f), new Color(1f, 0.55f, 0.18f), new Color(0.55f, 0.16f, 0.05f), 0.28f, new Color(0.12f, 0.04f, 0.02f), new Color(1f, 0.42f, 0.08f, 0.85f));
-            if (ShowVersion)
-                Text(_ours.transform, "Version", "v" + MyPluginInfo.PLUGIN_VERSION, font, new Vector2(0.62f, 0f), new Vector2(0.98f, 0.24f),
-                    new Color(0.85f, 0.88f, 0.92f), new Color(0.62f, 0.66f, 0.72f), new Color(0.35f, 0.38f, 0.44f), 0.2f, new Color(0.05f, 0.05f, 0.08f), new Color(0.6f, 0.8f, 1f, 0.35f));
             ValCraftPlugin.Log.LogInfo($"[logo] ValCraft title placed at '{Path(logo)}' ({logo.rect.width:F0}x{logo.rect.height:F0}, font {(font != null ? ((UnityEngine.Object)font).name : "default")}, ok={title != null})");
         }
 
@@ -128,7 +129,7 @@ namespace ValCraft
             void P(string n, object v) { try { AccessTools.Property(_tmpT, n)?.SetValue(tmp, v, null); } catch (Exception e) { ValCraftPlugin.Log.LogDebug($"[logo] {n}: {e.Message}"); } }
             if (font != null) P("font", font);
             P("text", text);
-            P("enableAutoSizing", true); P("fontSizeMin", 12f); P("fontSizeMax", 600f);
+            P("enableAutoSizing", true); P("fontSizeMin", 12f); P("fontSizeMax", 900f); P("richText", true); P("enableWordWrapping", false);
             var align = AccessTools.TypeByName("TMPro.TextAlignmentOptions"); if (align != null) P("alignment", Enum.ToObject(align, 514));
             P("color", Color.white); P("characterSpacing", 6f); P("raycastTarget", false);
             var grad = AccessTools.TypeByName("TMPro.VertexGradient");

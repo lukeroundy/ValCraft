@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-/** 0.10.1: arrows stop at Valheim structures (hit point = block hit on air: the arrow stops there, then drops). */
+/** 0.10.1: arrows stop at Valheim structures (hit point = block hit on air); 0.12.0: they stay stuck there (ArrowStickMixin). */
 @Mixin(AbstractArrow.class)
 public abstract class ArrowClipMixin {
 	@Redirect(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;clip(Lnet/minecraft/world/level/ClipContext;)Lnet/minecraft/world/phys/BlockHitResult;"))

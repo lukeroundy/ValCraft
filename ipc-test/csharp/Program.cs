@@ -247,6 +247,7 @@ static unsafe class Program
         Check(map.McFor("SwordIron") == "minecraft:diamond_sword" && map.ValheimFor("valcraft:iron_sword") == "SwordIron", "stand-in kept + valcraft appended");
         Check(map.McFor("HelmetFlametal") == "valcraft:flametal_helmet" && map.McFor("SwordMistwalker") == "valcraft:mistwalker" && map.McFor("CookedLoxMeat") == "valcraft:cooked_lox_meat", "new defaults");
         Check(map.McFor("FishingRod") == "minecraft:fishing_rod" && n >= 300, "fishing rod / count " + n);
+        Check(map.McFor("TrophyBoar") == "valcraft:trophy_boar" && map.McFor("TrophyDeer") == "valcraft:trophy_deer" && map.ValheimFor("valcraft:trophy_skeleton") == "TrophySkeleton", "0.12.0 trophies");
         var app = ValCraft.Protocol.ItemMap.Merge("{\n  \"SwordIron\": [\"minecraft:diamond_sword\"],\n  \"SwordSilver\": [\"minecraft:iron_sword\"]\n}", out _);
         Check(app.Contains("\"SwordIron\": [\"minecraft:diamond_sword\", \"valcraft:iron_sword\"]") && app.Contains("\"SwordSilver\": [\"minecraft:iron_sword\"]"), "append migration");
         Check(ReferenceEquals(ValCraft.Protocol.ItemMap.Merge(app, out var aa), app) && aa.Count == 0, "append migration idempotent");

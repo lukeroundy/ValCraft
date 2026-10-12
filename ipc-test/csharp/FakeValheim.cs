@@ -73,6 +73,7 @@ static unsafe class FakeValheim
                 if (ev.Type == ValCraftLink.EvBlockChanged)
                     Console.WriteLine($"[host] MC block {(BitConverter.ToInt32(ev.Payload, 12) == 0 ? "BROKEN" : "PLACED")} {System.Text.Encoding.UTF8.GetString(ev.Payload, 16, ev.Payload.Length - 16)} at ({BitConverter.ToInt32(ev.Payload, 0)},{BitConverter.ToInt32(ev.Payload, 4)},{BitConverter.ToInt32(ev.Payload, 8)})");
                 else if (ev.Type == ValCraftLink.EvAttack) Console.WriteLine($"[host] MC ATTACK kind {BitConverter.ToInt32(ev.Payload, 0)} tier {BitConverter.ToInt32(ev.Payload, 4)} at {sw.Elapsed.TotalSeconds:F1}s");
+                else if (ev.Type == ValCraftLink.EvMapToggle) Console.WriteLine($"[host] MC MAP TOGGLE at {sw.Elapsed.TotalSeconds:F1}s");
                 else if (ev.Type == ValCraftLink.EvInteract) Console.WriteLine($"[host] MC asked Valheim to INTERACT at {sw.Elapsed.TotalSeconds:F1}s");
                 else if (ev.Type == ValCraftLink.EvHello && Payload.GetU32(ev.Payload, 2) == link.Session)
                 {
@@ -166,6 +167,11 @@ static unsafe class FakeValheim
                             Console.WriteLine($"[host] queued {tileQueue.Count} terrain tiles");
                             break;
                         }
+                    case "weather": // weather <flags> <name>: 0.12.0 EvWeather (1 rain, 2 thunder, 4 snow)
+                    {
+                        var wn = System.Text.Encoding.UTF8.GetBytes(a.Length > 1 ? a[1] : "Rain"); var wp = new byte[2 + wn.Length]; wp[0] = (byte)F(0); wp[1] = (byte)wn.Length; Array.Copy(wn, 0, wp, 2, wn.Length);
+                        Console.WriteLine($"[host] weather sent={link.TrySend(ValCraftLink.EvWeather, wp)}"); break;
+                    }
                     case "lore": // lore <text>: 0.11.0 EvLoreText ("|" = newline), split in 2 chunks
                     {
                         var lb = System.Text.Encoding.UTF8.GetBytes((c.Length > 1 ? c[1] : "Rune\nText").Replace('|', '\n')); int h = lb.Length / 2;
