@@ -429,11 +429,13 @@ namespace ValCraft
             {
                 var hit = Activator.CreateInstance(_hitT);
                 var dtF = AccessTools.Field(_hitT, "m_damage"); object dt = dtF.GetValue(hit);
-                AccessTools.Field(dt.GetType(), "m_blunt")?.SetValue(dt, dmg * ValheimHit.CombatScale); dtF.SetValue(hit, dt);
+                bool byPlayer = attacker == uint.MaxValue; // 0.11.0: MC player projectile
+                AccessTools.Field(dt.GetType(), byPlayer ? "m_pierce" : "m_blunt")?.SetValue(dt, dmg * ValheimHit.CombatScale); dtF.SetValue(hit, dt);
                 AccessTools.Field(_hitT, "m_point")?.SetValue(hit, c.transform.position + Vector3.up);
                 Proxy src = null; if (attacker != 0) _proxies.TryGetValue(attacker, out src);
                 if (src != null) AccessTools.Field(_hitT, "m_dir")?.SetValue(hit, (c.transform.position - src.Go.transform.position).normalized);
                 if (src != null && _setAttacker != null) _setAttacker.Invoke(hit, new object[] { src.Ch });
+                if (byPlayer && PlayerSync.Player != null && _setAttacker != null) { _setAttacker.Invoke(hit, new object[] { PlayerSync.Player }); AccessTools.Field(_hitT, "m_dir")?.SetValue(hit, (c.transform.position - PlayerSync.Player.transform.position).normalized); }
                 AccessTools.Field(_hitT, "m_pushForce")?.SetValue(hit, 10f);
                 _damage.Invoke(c, new[] { hit });
                 Diag.Info("vmobhit", $"[mobs] MC mob {attacker} hit Valheim {c.gameObject.name}: MC {dmg:F1} -> {dmg * ValheimHit.CombatScale:F1}");

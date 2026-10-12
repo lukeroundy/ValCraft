@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " MW",
+    "L W",
+    " MW"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:carapace"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    },
+    "W": {
+      "item": "minecraft:string"
+    }
+  },
+  "result": {
+    "id": "valcraft:spinesnap",
+    "count": 1
+  }
+}

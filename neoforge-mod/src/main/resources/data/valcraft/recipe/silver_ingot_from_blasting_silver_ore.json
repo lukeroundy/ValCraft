@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:blasting",
+  "category": "misc",
+  "ingredient": {
+    "item": "valcraft:silver_ore"
+  },
+  "result": {
+    "id": "valcraft:silver_ingot"
+  },
+  "experience": 0.7,
+  "cookingtime": 100
+}

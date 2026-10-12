@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "  M",
+    " L ",
+    "S  "
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:wolf_pelt"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "id": "valcraft:fang_spear",
+    "count": 1
+  }
+}

@@ -1,7 +1,15 @@
 {
   "replace": false,
   "values": [
-    "valcraft:tin_axe",
-    "valcraft:bronze_axe"
+    "valcraft:berserkir_axes",
+    "valcraft:blackmetal_axe",
+    "valcraft:bronze_axe",
+    "valcraft:crystal_battleaxe",
+    "valcraft:flint_axe",
+    "valcraft:iron_axe",
+    "valcraft:iron_battleaxe",
+    "valcraft:jotun_bane",
+    "valcraft:stone_axe",
+    "valcraft:tin_axe"
   ]
 }

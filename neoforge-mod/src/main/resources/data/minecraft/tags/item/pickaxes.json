@@ -1,7 +1,11 @@
 {
   "replace": false,
   "values": [
-    "valcraft:tin_pickaxe",
-    "valcraft:bronze_pickaxe"
+    "valcraft:antler_pickaxe",
+    "valcraft:blackmetal_pickaxe",
+    "valcraft:bronze_pickaxe",
+    "valcraft:iron_pickaxe",
+    "valcraft:stone_pickaxe",
+    "valcraft:tin_pickaxe"
   ]
 }

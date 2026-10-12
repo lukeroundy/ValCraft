@@ -1,0 +1,364 @@
+{
+ "_comment": [
+  "Valheim prefab name -> Minecraft items. First item is what Valheim gives you; any listed item is accepted by Valheim stations. Edit and save: reloaded automatically."
+ ],
+ "Wood": [
+  "minecraft:oak_log",
+  "minecraft:jungle_log",
+  "minecraft:acacia_log",
+  "minecraft:mangrove_log",
+  "minecraft:cherry_log",
+  "minecraft:oak_planks",
+  "minecraft:spruce_planks",
+  "minecraft:birch_planks",
+  "minecraft:jungle_planks",
+  "minecraft:acacia_planks",
+  "minecraft:dark_oak_planks",
+  "minecraft:mangrove_planks",
+  "minecraft:cherry_planks"
+ ],
+ "FineWood": [
+  "minecraft:birch_log"
+ ],
+ "RoundLog": [
+  "minecraft:spruce_log"
+ ],
+ "ElderBark": [
+  "minecraft:dark_oak_log"
+ ],
+ "Stone": [
+  "minecraft:cobblestone",
+  "minecraft:stone"
+ ],
+ "Flint": [
+  "minecraft:flint"
+ ],
+ "Resin": [
+  "minecraft:honeycomb"
+ ],
+ "Coal": [
+  "minecraft:charcoal",
+  "minecraft:coal"
+ ],
+ "CopperOre": [
+  "minecraft:raw_copper"
+ ],
+ "Copper": [
+  "minecraft:copper_ingot"
+ ],
+ "TinOre": [
+  "valcraft:raw_tin"
+ ],
+ "Tin": [
+  "valcraft:tin_ingot"
+ ],
+ "Bronze": [
+  "valcraft:bronze_ingot"
+ ],
+ "IronScrap": [
+  "minecraft:raw_iron"
+ ],
+ "Iron": [
+  "minecraft:iron_ingot"
+ ],
+ "Obsidian": [
+  "minecraft:obsidian"
+ ],
+ "Crystal": [
+  "minecraft:amethyst_shard"
+ ],
+ "Coins": [
+  "minecraft:gold_nugget"
+ ],
+ "Raspberry": [
+  "minecraft:sweet_berries"
+ ],
+ "Blueberries": [
+  "minecraft:glow_berries"
+ ],
+ "Mushroom": [
+  "minecraft:red_mushroom"
+ ],
+ "MushroomYellow": [
+  "minecraft:brown_mushroom"
+ ],
+ "Carrot": [
+  "minecraft:carrot"
+ ],
+ "Turnip": [
+  "minecraft:beetroot"
+ ],
+ "Barley": [
+  "minecraft:wheat"
+ ],
+ "Flax": [
+  "minecraft:string"
+ ],
+ "Dandelion": [
+  "minecraft:dandelion"
+ ],
+ "Honey": [
+  "minecraft:honey_bottle"
+ ],
+ "LeatherScraps": [
+  "minecraft:leather"
+ ],
+ "DeerHide": [
+  "minecraft:rabbit_hide"
+ ],
+ "BoneFragments": [
+  "minecraft:bone"
+ ],
+ "Feathers": [
+  "minecraft:feather"
+ ],
+ "RawMeat": [
+  "minecraft:beef"
+ ],
+ "DeerMeat": [
+  "minecraft:mutton"
+ ],
+ "CookedMeat": [
+  "minecraft:cooked_beef"
+ ],
+ "CookedDeerMeat": [
+  "minecraft:cooked_mutton"
+ ],
+ "ArrowWood": [
+  "minecraft:arrow"
+ ],
+ "ArrowFire": [
+  "minecraft:arrow"
+ ],
+ "ArrowFlint": [
+  "minecraft:arrow"
+ ],
+ "ArrowBronze": [
+  "minecraft:arrow"
+ ],
+ "ArrowIron": [
+  "minecraft:arrow"
+ ],
+ "ArrowSilver": [
+  "minecraft:arrow"
+ ],
+ "ArrowObsidian": [
+  "minecraft:arrow"
+ ],
+ "ArrowPoison": [
+  "minecraft:arrow"
+ ],
+ "ArrowFrost": [
+  "minecraft:arrow"
+ ],
+ "ArrowNeedle": [
+  "minecraft:arrow"
+ ],
+ "ArrowCarapace": [
+  "minecraft:arrow"
+ ],
+ "ArrowCharred": [
+  "minecraft:arrow"
+ ],
+ "Bow": [
+  "minecraft:bow"
+ ],
+ "BowFineWood": [
+  "minecraft:bow"
+ ],
+ "BowHuntsman": [
+  "minecraft:bow"
+ ],
+ "BowDraugrFang": [
+  "minecraft:bow"
+ ],
+ "BowSpineSnap": [
+  "minecraft:bow"
+ ],
+ "CrossbowArbalest": [
+  "minecraft:crossbow"
+ ],
+ "AxeStone": [
+  "minecraft:wooden_axe"
+ ],
+ "AxeFlint": [
+  "minecraft:stone_axe"
+ ],
+ "AxeBronze": [
+  "valcraft:bronze_axe"
+ ],
+ "AxeIron": [
+  "minecraft:diamond_axe"
+ ],
+ "AxeBlackMetal": [
+  "minecraft:netherite_axe"
+ ],
+ "AxeJotunBane": [
+  "minecraft:netherite_axe"
+ ],
+ "PickaxeAntler": [
+  "minecraft:stone_pickaxe"
+ ],
+ "PickaxeBronze": [
+  "valcraft:bronze_pickaxe"
+ ],
+ "PickaxeIron": [
+  "minecraft:diamond_pickaxe"
+ ],
+ "PickaxeBlackMetal": [
+  "minecraft:netherite_pickaxe"
+ ],
+ "Club": [
+  "minecraft:wooden_sword"
+ ],
+ "KnifeFlint": [
+  "minecraft:stone_sword"
+ ],
+ "KnifeCopper": [
+  "minecraft:stone_sword"
+ ],
+ "SwordBronze": [
+  "valcraft:bronze_sword"
+ ],
+ "MaceBronze": [
+  "valcraft:bronze_sword"
+ ],
+ "SwordIron": [
+  "minecraft:diamond_sword"
+ ],
+ "MaceIron": [
+  "minecraft:diamond_sword"
+ ],
+ "SwordSilver": [
+  "minecraft:diamond_sword"
+ ],
+ "MaceSilver": [
+  "minecraft:diamond_sword"
+ ],
+ "SwordBlackmetal": [
+  "minecraft:netherite_sword"
+ ],
+ "Torch": [
+  "minecraft:torch"
+ ],
+ "Hoe": [
+  "minecraft:stone_hoe"
+ ],
+ "Cultivator": [
+  "minecraft:iron_hoe"
+ ],
+ "Hammer": [
+  "minecraft:mace"
+ ],
+ "SpearFlint": [
+  "minecraft:trident"
+ ],
+ "SpearBronze": [
+  "minecraft:trident"
+ ],
+ "SpearElderbark": [
+  "minecraft:trident"
+ ],
+ "SpearWolfFang": [
+  "minecraft:trident"
+ ],
+ "ShieldWood": [
+  "minecraft:shield"
+ ],
+ "ShieldWoodTower": [
+  "minecraft:shield"
+ ],
+ "ShieldBronzeBuckler": [
+  "minecraft:shield"
+ ],
+ "ShieldBanded": [
+  "minecraft:shield"
+ ],
+ "ShieldIronSquare": [
+  "minecraft:shield"
+ ],
+ "ShieldIronTower": [
+  "minecraft:shield"
+ ],
+ "ShieldSilver": [
+  "minecraft:shield"
+ ],
+ "ShieldBlackmetal": [
+  "minecraft:shield"
+ ],
+ "ArmorRagsChest": [
+  "minecraft:leather_chestplate"
+ ],
+ "ArmorRagsLegs": [
+  "minecraft:leather_leggings"
+ ],
+ "ArmorLeatherChest": [
+  "minecraft:leather_chestplate"
+ ],
+ "ArmorLeatherLegs": [
+  "minecraft:leather_leggings"
+ ],
+ "HelmetLeather": [
+  "minecraft:leather_helmet"
+ ],
+ "ArmorTrollLeatherChest": [
+  "minecraft:leather_chestplate"
+ ],
+ "ArmorTrollLeatherLegs": [
+  "minecraft:leather_leggings"
+ ],
+ "HelmetTrollLeather": [
+  "minecraft:leather_helmet"
+ ],
+ "ArmorBronzeChest": [
+  "valcraft:bronze_chestplate"
+ ],
+ "ArmorBronzeLegs": [
+  "valcraft:bronze_leggings"
+ ],
+ "HelmetBronze": [
+  "valcraft:bronze_helmet"
+ ],
+ "ArmorIronChest": [
+  "minecraft:iron_chestplate"
+ ],
+ "ArmorIronLegs": [
+  "minecraft:iron_leggings"
+ ],
+ "HelmetIron": [
+  "minecraft:iron_helmet"
+ ],
+ "ArmorWolfChest": [
+  "minecraft:diamond_chestplate"
+ ],
+ "ArmorWolfLegs": [
+  "minecraft:diamond_leggings"
+ ],
+ "HelmetDrake": [
+  "minecraft:diamond_helmet"
+ ],
+ "ArmorPaddedCuirass": [
+  "minecraft:netherite_chestplate"
+ ],
+ "ArmorPaddedGreaves": [
+  "minecraft:netherite_leggings"
+ ],
+ "HelmetPadded": [
+  "minecraft:netherite_helmet"
+ ],
+ "CapeDeerHide": [
+  "minecraft:leather_boots"
+ ],
+ "CapeTrollHide": [
+  "minecraft:chainmail_boots"
+ ],
+ "CapeLinen": [
+  "minecraft:iron_boots"
+ ],
+ "CapeWolf": [
+  "minecraft:diamond_boots"
+ ],
+ "CapeLox": [
+  "minecraft:netherite_boots"
+ ]
+}

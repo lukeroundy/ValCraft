@@ -129,4 +129,9 @@ for metal in ('tin', 'bronze'):
         key = {'M': f'valcraft:{metal}_ingot'}
         if 'S' in ''.join(pat): key['S'] = 'minecraft:stick'
         shaped(f'{metal}_{tool}', pat, key, f'valcraft:{metal}_{tool}')
+import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gen_valheim
+_cov, _nmap, _napp = gen_valheim.run(png, wj, A, D, R, lang, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'protocol', 'ItemMap.cs'))
+print(f'valheim items: {len(_cov)} generated, item map {_nmap} entries, {_napp} migrations')
+wj(f'{A}/lang/en_us.json', lang)
 print('generated')

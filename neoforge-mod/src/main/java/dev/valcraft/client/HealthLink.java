@@ -61,7 +61,9 @@ public final class HealthLink {
 			boolean ok = sp.hurt(ds, amount);
 			if (ok && push > 0 && (dx != 0 || dz != 0)) { sp.knockback(Math.min(1.5, push / 40.0), -dx, -dz); sp.hurtMarked = true; }
 			if (type == 5 || type == 20) ValCraft.LOG.info("[hazard] Valheim fire damage {} -> applied {} (fire ticks {}, in water {})", amount, ok, sp.getRemainingFireTicks(), sp.isInWater());
-			ValCraft.LOG.debug("[health] Valheim damage {} (type {}) -> {}", amount, type, ok);
+			if (ok) ValCraft.LOG.debug("[health] Valheim damage {} (type {}) -> applied", amount, type);
+			else ValCraft.LOG.debug("[health] Valheim damage {} (type {}) -> not applied (mode {}, blocking {}, invulnerable {}, dead {}, attacker {})", amount, type,
+				sp.gameMode.getGameModeForPlayer(), sp.isBlocking(), sp.isInvulnerableTo(ds), sp.isDeadOrDying(), proxy != null ? "proxy" : "none");
 		});
 	}
 }

@@ -262,3 +262,13 @@ Item map: one-time migration of the old tin/bronze placeholder ids (only entries
 ### 0.10.1 (still v18, no layout change)
 - EvEntUpdate entity flag 16 = the local MC player (third person). Valheim places that mesh at its own player transform every frame (no 10 Hz lag); MC no longer draws the player into the overlay frame.
 - Captured meshes: grey vertex colours (baked shading) no longer mint atlas tiles; coplanar layer quads (villager clothes, wool, armour) are pushed out 0.004 blocks per layer; up to 2048 quads per mesh; big kinetic meshes (>300 quads) re-captured every 1.5 s.
+
+## v19 (0.11.0) — lore stones, MC combat damage, all Valheim items
+| Event | Dir | Payload |
+|---|---|---|
+| 65 EvLoreText | V→MC | Split over messages: u8 flags (1 first, 2 last), utf8 chunk ≤ 247 B (cut on a char boundary). Joined text = "title\ntext". Sent when MC right-clicks a rune stone / boss stone / vegvisir (Valheim marks the location on its map, AddKnownText, and suppresses its own TextViewer / large map for 2 s so input never moves to Valheim). MC shows a non-pausing lore screen (chat line if another screen is open). |
+| EvAttack | MC→V | + 4 bytes → 20: u32 flags. Flag 1 = the f32 damage is the final MC damage (attack attribute × cooldown² curve + enchantment bonus × cooldown, ×1.5 on a vanilla crit); Valheim applies damage × [Combat] DamageScale with no further curve. 16-byte payloads still use the old curve. |
+| 57 EvVMobHurt | MC→V | attacker id 0xFFFFFFFF = the MC player: Valheim sets its own player as HitData attacker (aggro, XP, death credit), pierce damage, direction from the player. |
+
+Biomes (no wire change): AshLands columns map to nether biomes per ~64-block patch (nether wastes, basalt deltas, soul sand valley, crimson/warped forest) with nether spawns; DeepNorth maps to end_highlands (endermen). A rare vanilla ender dragon (config/valcraft.properties dragonChancePerMinute, default 0.002, ≤ 1 per 512 blocks) can appear above Deep North players; it does not break blocks outside the End.
+Item map: ~350 generated valcraft:* items for every Valheim item without an exact MC equivalent (tools/valheim_items.py). Where a vanilla stand-in exists it stays first (Valheim→MC gives it) and the ValCraft item is appended as an accepted alternative; keys without a stand-in default to the ValCraft item. One-time migration appends the ValCraft id to user entries still exactly at the old single default.

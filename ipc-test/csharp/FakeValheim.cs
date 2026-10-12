@@ -166,6 +166,12 @@ static unsafe class FakeValheim
                             Console.WriteLine($"[host] queued {tileQueue.Count} terrain tiles");
                             break;
                         }
+                    case "lore": // lore <text>: 0.11.0 EvLoreText ("|" = newline), split in 2 chunks
+                    {
+                        var lb = System.Text.Encoding.UTF8.GetBytes((c.Length > 1 ? c[1] : "Rune\nText").Replace('|', '\n')); int h = lb.Length / 2;
+                        var p1 = new byte[1 + h]; p1[0] = 1; Array.Copy(lb, 0, p1, 1, h); var p2 = new byte[1 + lb.Length - h]; p2[0] = 2; Array.Copy(lb, h, p2, 1, lb.Length - h);
+                        Console.WriteLine($"[host] lore sent={link.TrySend(ValCraftLink.EvLoreText, p1) && link.TrySend(ValCraftLink.EvLoreText, p2)}"); break;
+                    }
                     case "dims": link.TrySend(ValCraftLink.EvPlayerDims, Payload.F32(F(0), F(1))); break;
                     case "quit": goto done;
                 }

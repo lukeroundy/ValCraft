@@ -1,7 +1,20 @@
 {
   "replace": false,
   "values": [
+    "valcraft:ask_leggings",
+    "valcraft:bronze_leggings",
+    "valcraft:carapace_leggings",
+    "valcraft:eitr_weave_leggings",
+    "valcraft:embla_leggings",
+    "valcraft:fenris_leggings",
+    "valcraft:flametal_leggings",
+    "valcraft:iron_leggings",
+    "valcraft:leather_leggings",
+    "valcraft:padded_leggings",
+    "valcraft:rag_leggings",
+    "valcraft:root_leggings",
     "valcraft:tin_leggings",
-    "valcraft:bronze_leggings"
+    "valcraft:troll_leggings",
+    "valcraft:wolf_leggings"
   ]
 }

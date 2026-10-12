@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MLM",
+    "MMM",
+    " M "
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:carapace"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:carapace_buckler",
+    "count": 1
+  }
+}

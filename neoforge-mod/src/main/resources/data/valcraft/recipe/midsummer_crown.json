@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MMM",
+    "MLM"
+  ],
+  "key": {
+    "M": {
+      "item": "minecraft:dandelion"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:midsummer_crown",
+    "count": 1
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MLM",
+    "MMM",
+    "MMM"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:fenris_hair"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:fenris_chestplate",
+    "count": 1
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:smoking",
+  "category": "food",
+  "ingredient": {
+    "item": "valcraft:raw_fish"
+  },
+  "result": {
+    "id": "valcraft:cooked_fish"
+  },
+  "experience": 0.35,
+  "cookingtime": 100
+}

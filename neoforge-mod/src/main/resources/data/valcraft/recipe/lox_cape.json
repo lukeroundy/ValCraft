@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MLM",
+    "MMM",
+    "M M"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:lox_pelt"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:lox_cape",
+    "count": 1
+  }
+}

@@ -32,7 +32,14 @@ final class BiomeSync {
 	@SuppressWarnings("unchecked")
 	private static final ResourceKey<Biome>[] MAP = new ResourceKey[] { null,
 		Biomes.PLAINS, Biomes.SWAMP, Biomes.SNOWY_SLOPES, Biomes.OLD_GROWTH_SPRUCE_TAIGA, Biomes.SAVANNA,
-		Biomes.BADLANDS, Biomes.SNOWY_PLAINS, Biomes.OCEAN, Biomes.DARK_FOREST };
+		Biomes.NETHER_WASTES, Biomes.END_HIGHLANDS, Biomes.OCEAN, Biomes.DARK_FOREST }; // 0.11.0: AshLands -> Nether, DeepNorth -> End
+	/** 0.11.0: Ashlands is split into Nether biomes in ~64-block patches (spawn lists: piglins, ghasts, magma cubes, skeletons...). */
+	@SuppressWarnings("unchecked")
+	private static final ResourceKey<Biome>[] ASH = new ResourceKey[] { Biomes.NETHER_WASTES, Biomes.BASALT_DELTAS, Biomes.SOUL_SAND_VALLEY, Biomes.CRIMSON_FOREST, Biomes.NETHER_WASTES, Biomes.WARPED_FOREST };
+	static ResourceKey<Biome> biomeFor(int code, int qx, int qz) {
+		if (code == 6) { int h = (qx >> 4) * 73856093 ^ (qz >> 4) * 19349663; return ASH[Math.floorMod(h, ASH.length)]; }
+		return MAP[code];
+	}
 	static final String[] NAMES = { "?", "Meadows", "Swamp", "Mountain", "BlackForest", "Plains", "AshLands", "DeepNorth", "Ocean", "Mistlands" };
 
 	private static final Long2ByteOpenHashMap quart = new Long2ByteOpenHashMap();      // (x>>2, z>>2) -> code
@@ -74,7 +81,7 @@ final class BiomeSync {
 			boolean[] any = { false };
 			chunk.fillBiomesFromNoise((qx, qy, qz, s) -> {
 				long k = key(qx, qz);
-				if (quart.containsKey(k)) { var h = reg.getHolder(MAP[quart.get(k)]); if (h.isPresent()) { any[0] = true; return h.get(); } }
+				if (quart.containsKey(k)) { var h = reg.getHolder(biomeFor(quart.get(k), qx, qz)); if (h.isPresent()) { any[0] = true; return h.get(); } }
 				return chunk.getNoiseBiome(qx, qy, qz);
 			}, null);
 			if (any[0]) { chunk.setUnsaved(true); resend.add(chunk); biomeChunks++; }

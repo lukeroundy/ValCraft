@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:smoking",
+  "category": "food",
+  "ingredient": {
+    "item": "valcraft:neck_tail"
+  },
+  "result": {
+    "id": "valcraft:grilled_neck_tail"
+  },
+  "experience": 0.35,
+  "cookingtime": 100
+}

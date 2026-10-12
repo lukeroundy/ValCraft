@@ -40,7 +40,8 @@ public class ValheimProxy extends Mob {
 	@Override public boolean hurt(DamageSource source, float amount) {
 		if (level().isClientSide || amount <= 0 || vid == 0) return false;
 		Entity att = source.getEntity();
-		MobSync.forwardToValheim(vid, amount, att == null ? 0 : att.getId());
+		// 0.11.0: -1 = the player (arrows, tridents...): Valheim credits the hit to your Valheim player (skills, aggro, drops)
+		MobSync.forwardToValheim(vid, amount, att instanceof net.minecraft.world.entity.player.Player ? -1 : att == null ? 0 : att.getId());
 		return true; // health untouched: Valheim owns the monster's health
 	}
 

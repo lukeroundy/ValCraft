@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " MW",
+    "L W",
+    " MW"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:silver_ingot"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    },
+    "W": {
+      "item": "minecraft:string"
+    }
+  },
+  "result": {
+    "id": "valcraft:draugr_fang",
+    "count": 1
+  }
+}

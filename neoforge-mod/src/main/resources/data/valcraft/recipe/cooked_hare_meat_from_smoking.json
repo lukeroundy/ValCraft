@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:smoking",
+  "category": "food",
+  "ingredient": {
+    "item": "valcraft:hare_meat"
+  },
+  "result": {
+    "id": "valcraft:cooked_hare_meat"
+  },
+  "experience": 0.35,
+  "cookingtime": 100
+}

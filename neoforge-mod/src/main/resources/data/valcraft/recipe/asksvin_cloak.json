@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MLM",
+    "MMM",
+    "M M"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:asksvin_hide"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:asksvin_cloak",
+    "count": 1
+  }
+}

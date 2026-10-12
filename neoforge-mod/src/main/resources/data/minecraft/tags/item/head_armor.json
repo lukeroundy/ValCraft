@@ -1,7 +1,24 @@
 {
   "replace": false,
   "values": [
+    "valcraft:ask_helmet",
+    "valcraft:bronze_helmet",
+    "valcraft:carapace_helmet",
+    "valcraft:dverger_circlet",
+    "valcraft:eitr_weave_helmet",
+    "valcraft:embla_helmet",
+    "valcraft:fenris_helmet",
+    "valcraft:fishing_hat",
+    "valcraft:flametal_helmet",
+    "valcraft:hood_of_odin",
+    "valcraft:iron_helmet",
+    "valcraft:leather_helmet",
+    "valcraft:midsummer_crown",
+    "valcraft:padded_helmet",
+    "valcraft:root_helmet",
     "valcraft:tin_helmet",
-    "valcraft:bronze_helmet"
+    "valcraft:troll_helmet",
+    "valcraft:wolf_helmet",
+    "valcraft:yule_hat"
   ]
 }

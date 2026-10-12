@@ -243,6 +243,13 @@ static unsafe class Program
         Check(map.McFor("Hammer") == "minecraft:mace" && map.ValheimFor("minecraft:mace") == "Hammer", "hammer<->mace");
         Check(map.McFor("ArrowBronze") == "minecraft:arrow" && map.ValheimFor("minecraft:arrow") == "ArrowWood", "arrows");
         Check(map.McFor("AxeBronze") == "valcraft:bronze_axe" && map.ValheimFor("valcraft:bronze_sword") == "SwordBronze" && map.McFor("Tin") == "valcraft:tin_ingot", "tools");
+        // 0.11.0 generated Valheim items: stand-in first, ValCraft item accepted; new defaults where there was no stand-in
+        Check(map.McFor("SwordIron") == "minecraft:diamond_sword" && map.ValheimFor("valcraft:iron_sword") == "SwordIron", "stand-in kept + valcraft appended");
+        Check(map.McFor("HelmetFlametal") == "valcraft:flametal_helmet" && map.McFor("SwordMistwalker") == "valcraft:mistwalker" && map.McFor("CookedLoxMeat") == "valcraft:cooked_lox_meat", "new defaults");
+        Check(map.McFor("FishingRod") == "minecraft:fishing_rod" && n >= 300, "fishing rod / count " + n);
+        var app = ValCraft.Protocol.ItemMap.Merge("{\n  \"SwordIron\": [\"minecraft:diamond_sword\"],\n  \"SwordSilver\": [\"minecraft:iron_sword\"]\n}", out _);
+        Check(app.Contains("\"SwordIron\": [\"minecraft:diamond_sword\", \"valcraft:iron_sword\"]") && app.Contains("\"SwordSilver\": [\"minecraft:iron_sword\"]"), "append migration");
+        Check(ReferenceEquals(ValCraft.Protocol.ItemMap.Merge(app, out var aa), app) && aa.Count == 0, "append migration idempotent");
         string user = "{\n  \"Wood\": [\"minecraft:spruce_log\"],\n  \"Stone\": [\"minecraft:deepslate\"]\n}";
         var merged = ValCraft.Protocol.ItemMap.Merge(user, out var added);
         var mm = new ValCraft.Protocol.ItemMap(); mm.Load(merged);

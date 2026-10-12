@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:smoking",
+  "category": "food",
+  "ingredient": {
+    "item": "valcraft:valheim_egg"
+  },
+  "result": {
+    "id": "valcraft:fried_egg"
+  },
+  "experience": 0.35,
+  "cookingtime": 100
+}

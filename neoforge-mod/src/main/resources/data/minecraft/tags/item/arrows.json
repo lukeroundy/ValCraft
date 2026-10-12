@@ -1,0 +1,22 @@
+{
+  "replace": false,
+  "values": [
+    "valcraft:blackmetal_bolt",
+    "valcraft:bone_bolt",
+    "valcraft:bronze_arrow",
+    "valcraft:carapace_arrow",
+    "valcraft:carapace_bolt",
+    "valcraft:charred_arrow",
+    "valcraft:charred_bolt",
+    "valcraft:fire_arrow",
+    "valcraft:flint_arrow",
+    "valcraft:frost_arrow",
+    "valcraft:iron_arrow",
+    "valcraft:iron_bolt",
+    "valcraft:needle_arrow",
+    "valcraft:obsidian_arrow",
+    "valcraft:poison_arrow",
+    "valcraft:silver_arrow",
+    "valcraft:wood_arrow"
+  ]
+}

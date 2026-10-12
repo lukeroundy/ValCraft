@@ -25,7 +25,7 @@ namespace ValCraft
         const float Interval = 0.25f, TerrainRadius = 24f, TerrainCell = 1f, TerrainSlab = 2f;
         const int RecomputeBudget = 400;
 
-        sealed class Entry { public Vector3 Pos; public Quaternion Rot; public Vector3 Scale; public readonly List<Bounds> Boxes = new List<Bounds>(); }
+        sealed class Entry { public Vector3 Pos; public Quaternion Rot; public Vector3 Scale; public Bounds B; public int MeshId; public bool Visible = true; public readonly List<Bounds> Boxes = new List<Bounds>(); }
 
         static readonly Dictionary<int, Entry> _cache = new Dictionary<int, Entry>();
         static readonly Dictionary<long, float> _terrain = new Dictionary<long, float>(); // cell -> height (NaN = none)
@@ -90,17 +90,22 @@ namespace ValCraft
                 int id = c.GetInstanceID();
                 seen.Add(id);
                 var t = c.transform;
-                if (!_cache.TryGetValue(id, out var e) || e.Pos != t.position || e.Rot != t.rotation || e.Scale != t.lossyScale)
+                // 0.11.0: also recompute when the collider's shape changes in place (MineRock5 rebuilds its mesh collider as
+                // pieces break: the cached full-rock boxes were invisible walls) or its bounds move
+                int meshId = c is MeshCollider mcol && mcol.sharedMesh != null ? mcol.sharedMesh.GetInstanceID() ^ mcol.sharedMesh.vertexCount : 0;
+                if (!_cache.TryGetValue(id, out var e) || e.Pos != t.position || e.Rot != t.rotation || e.Scale != t.lossyScale || e.MeshId != meshId || e.B != c.bounds)
                 {
                     if (budget-- <= 0) { if (e == null) continue; }
                     else
                     {
                         if (e == null) _cache[id] = e = new Entry();
-                        e.Pos = t.position; e.Rot = t.rotation; e.Scale = t.lossyScale;
+                        e.Pos = t.position; e.Rot = t.rotation; e.Scale = t.lossyScale; e.MeshId = meshId; e.B = c.bounds;
                         e.Boxes.Clear();
+                        e.Visible = HasVisual(c);
                         try { Compute(c, e.Boxes); } catch (Exception ex) { ValCraftPlugin.Log.LogDebug($"[collision] {c.name}: {ex.Message}"); }
                     }
                 }
+                if (!e.Visible) continue; // 0.11.0: invisible blockers (no renderer anywhere near) were hit while flying
                 foreach (var b in e.Boxes) Emit(b);
             }
             if (_cache.Count > seen.Count + 2048) // forget far-away colliders
@@ -141,6 +146,25 @@ namespace ValCraft
                     ValCraftPlugin.Log.LogInfo($"[collision] exported {n} boxes ({found} colliders in {Radius} m, {_cache.Count} cached)");
                 }
             }
+        }
+
+        /// <summary>
+        /// 0.11.0: does anything visible occupy this collider? Invisible gameplay colliders (location blockers, leftover
+        /// LOD/destruction proxies) made phantom walls in MC. Pieces and terrain-ish things always count.
+        /// </summary>
+        static bool HasVisual(Collider c)
+        {
+            int layer = c.gameObject.layer;
+            if (layer == LayerMask.NameToLayer("piece") || layer == LayerMask.NameToLayer("vehicle")) return true;
+            var cb = c.bounds; cb.Expand(0.5f);
+            Transform root = c.transform;
+            for (int i = 0; i < 4 && root.parent != null; i++) root = root.parent; // the object's own hierarchy, not the whole location
+            foreach (var r in root.GetComponentsInChildren<Renderer>(false))
+            {
+                if (!r.enabled || r is ParticleSystemRenderer) continue;
+                if (r.bounds.Intersects(cb)) return true;
+            }
+            return false;
         }
 
         /// <summary>Unity-world AABBs approximating one collider.</summary>

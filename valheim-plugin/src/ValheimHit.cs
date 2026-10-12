@@ -128,7 +128,9 @@ namespace ValCraft
             {
                 var me = PlayerSync.Player;
                 var hit = Activator.CreateInstance(_hitDataT);
-                float dmg = Mathf.Max(0f, mcDmg * (0.2f + 0.8f * str * str) * CombatScale); // vanilla-like cooldown curve
+                // 0.11.0 (v19): MC sends its final vanilla melee damage (attribute incl. effects, enchantments, cooldown, crit) with flag 1
+                bool final = p.Length >= 20 && (BitConverter.ToInt32(p, 16) & 1) != 0;
+                float dmg = Mathf.Max(0f, (final ? mcDmg : mcDmg * (0.2f + 0.8f * str * str)) * CombatScale);
                 var dtF = AccessTools.Field(_hitDataT, "m_damage");
                 object dt = dtF.GetValue(hit);
                 string type = kind == 3 || kind == 2 ? "m_slash" : kind == 1 ? "m_pierce" : "m_blunt";
@@ -145,7 +147,7 @@ namespace ValCraft
                 if (me != null && setAtt != null) setAtt.Invoke(hit, new object[] { me });
                 else if (me != null && _getZdoid != null) AccessTools.Field(_hitDataT, "m_attacker")?.SetValue(hit, _getZdoid.Invoke(me, null));
                 _damage.Invoke(t, new[] { hit });
-                ValCraftPlugin.Log.LogInfo($"[combat] {t.gameObject.name}: {type.Substring(2)} {dmg:F1} (MC damage {mcDmg:F1}, strength {str:F2}, x{CombatScale})");
+                ValCraftPlugin.Log.LogInfo($"[combat] {t.gameObject.name}: {type.Substring(2)} {dmg:F1} (MC {(final ? "final " : "")}damage {mcDmg:F1}, strength {str:F2}, x{CombatScale})");
             }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[combat] hit failed: {e.GetBaseException().Message}"); }
         }

@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "  M",
+    " L ",
+    "S  "
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:freeze_gland"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "id": "valcraft:dundr",
+    "count": 1
+  }
+}

@@ -1,7 +1,20 @@
 {
   "replace": false,
   "values": [
+    "valcraft:ask_chestplate",
+    "valcraft:bronze_chestplate",
+    "valcraft:carapace_chestplate",
+    "valcraft:eitr_weave_chestplate",
+    "valcraft:embla_chestplate",
+    "valcraft:fenris_chestplate",
+    "valcraft:flametal_chestplate",
+    "valcraft:iron_chestplate",
+    "valcraft:leather_chestplate",
+    "valcraft:padded_chestplate",
+    "valcraft:rag_chestplate",
+    "valcraft:root_chestplate",
     "valcraft:tin_chestplate",
-    "valcraft:bronze_chestplate"
+    "valcraft:troll_chestplate",
+    "valcraft:wolf_chestplate"
   ]
 }

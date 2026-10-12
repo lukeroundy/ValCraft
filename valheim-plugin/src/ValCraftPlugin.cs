@@ -66,6 +66,7 @@ namespace ValCraft
             PlayerSync.Apply(_harmony);
             ItemBridge.Apply(_harmony);
             HealthLink.Apply(_harmony);
+            try { Saplings.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[sapling] hook failed: " + e.Message); }
             _overlay = new Overlay(gameObject, Config.Bind("Overlay", "PremultipliedShader", false, "(Minecraft 0.4.0+ already sends straight alpha; leave off.) Use a premultiplied-alpha material for the Minecraft overlay if a suitable shader is found (turn off if the overlay looks wrong or invisible).").Value);
             _input = new InputForwarder(this);
             InputForwarder.ExcludeKeys(_cfgToggleInput.Value, _cfgToggleOverlay.Value, _cfgReAnchor.Value);
@@ -126,6 +127,8 @@ namespace ValCraft
             MobBridge.HostileFaction = Config.Bind("Mobs", "HostileMcFaction", "Players", "Valheim faction for hostile Minecraft mobs (Players = every Valheim monster attacks them).").Value;
             InteractBridge.MaxDistanceCfg = Config.Bind("Interact", "MaxDistance", 0f, "Max reach (m) for Valheim interact/hover, build placement and hits; 0 = use Minecraft's reach (survival 4.5 m blocks, 3 m entities).").Value; InteractBridge.ApplyReach();
             ValheimHit.Combat = Config.Bind("Combat", "Enabled", true, "Minecraft left-click on Valheim creatures damages them (attacker = your Valheim player, so aggro, skills and drops work).").Value;
+            Saplings.Chance = Config.Bind("Items", "SaplingChance", 0.05f, "Chance (0..1) that a chopped-down Valheim tree drops a Minecraft sapling (beech/birch -> birch, pine/fir -> spruce, swamp -> dark oak, others -> oak).").Value;
+            Logo.Enabled = Config.Bind("General", "ValCraftLogo", true, "Replace the Valheim main menu title with 'ValCraft'.").Value;
             ValheimHit.CombatScale = Config.Bind("Combat", "DamageScale", 6f, "Valheim damage per point of Minecraft attack damage at full swing (iron sword 6 -> 36, about a bronze/iron sword).").Value;
             ValheimHit.CombatPush = Config.Bind("Combat", "Knockback", 30f, "Valheim push force of a full-strength hit.").Value;
             var cfgYOff = Config.Bind("Terrain", "YOffset", 32f, "MC Y = Valheim Y + YOffset (sea level 30 -> MC 62; Valheim -96..288 fits MC -64..320).");
@@ -298,6 +301,8 @@ namespace ValCraft
             try { if (_connected) Hazards.Update(Link); } catch (Exception e) { Diag.Warn("hazard", "[hazard] update error: " + e.GetBaseException().Message); }
             try { if (_connected) MobBridge.Update(Link); else MobBridge.Clear("disconnected"); } catch (Exception e) { Diag.Warn("mobs", "[mobs] update error: " + e.GetBaseException().Message); }
             try { HealthLink.Update(Link); } catch (Exception e) { Diag.Warn("health", "[health] update error: " + e.GetBaseException().Message); }
+            try { Logo.Tick(PlayerSync.HasLocalPlayer); } catch { }
+            StoneBridge.SetLink(Link); try { StoneBridge.Guard(); } catch { }
             try { if (_connected) InteractBridge.Update(Link, PlayerSync.Following && _inputActive); } catch (Exception e) { Diag.Warn("interact", "[interact] update error: " + e.GetBaseException().Message); }
             try { if (_connected) ValheimHit.Update(Link, PlayerSync.Following && _inputActive); } catch (Exception e) { Diag.Warn("hit", "[hit] update error: " + e.GetBaseException().Message); }
             if (_cfgAutoInput.Value)

@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MLM",
+    "MMM",
+    " M "
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:bone_fragments"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:bone_tower_shield",
+    "count": 1
+  }
+}

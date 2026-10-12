@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MLM",
+    "MMM",
+    "MMM"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:refined_eitr"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:eitr_weave_chestplate",
+    "count": 1
+  }
+}

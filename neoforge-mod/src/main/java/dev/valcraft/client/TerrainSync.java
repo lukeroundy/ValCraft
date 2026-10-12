@@ -74,6 +74,7 @@ public final class TerrainSync {
 	public static void onServerTick(ServerTickEvent.Post e) {
 		ServerLevel level = e.getServer().overworld();
 		BiomeSync.tick(level);
+		dev.valcraft.mobs.DragonSpawner.tick(level);
 		if (pending.isEmpty()) return;
 		for (int i = 0; i < TILES_PER_TICK; i++) {
 			Tile t = pending.poll();

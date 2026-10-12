@@ -134,6 +134,7 @@ public final class ValCraftClient {
 				case ValCraftLink.EV_DAY_TIME -> DayLink.receive(mc, ev.payload());
 				case ValCraftLink.EV_WORLD_INFO -> AutoWorld.worldInfo(ev.payload());
 				case ValCraftLink.EV_CHEST_CONTENTS -> ChestLink.contents(mc, ev.payload());
+				case ValCraftLink.EV_LORE_TEXT -> LoreScreen.receive(mc, ev.payload());
 				case ValCraftLink.EV_VMOB_LIST -> dev.valcraft.mobs.MobSync.receiveVList(mc, ev.payload());
 				case ValCraftLink.EV_MOB_HURT -> dev.valcraft.mobs.MobSync.hurtMob(mc, ev.payload());
 				case ValCraftLink.EV_BLOCK_SYNC_CONFIG -> BlockSync.receiveConfig(ev.payload());

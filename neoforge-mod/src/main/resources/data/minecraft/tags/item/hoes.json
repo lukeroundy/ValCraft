@@ -1,7 +1,9 @@
 {
   "replace": false,
   "values": [
+    "valcraft:bronze_hoe",
+    "valcraft:cultivator",
     "valcraft:tin_hoe",
-    "valcraft:bronze_hoe"
+    "valcraft:valheim_hoe"
   ]
 }

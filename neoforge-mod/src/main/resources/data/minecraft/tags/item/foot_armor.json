@@ -1,7 +1,20 @@
 {
   "replace": false,
   "values": [
+    "valcraft:ask_boots",
+    "valcraft:bronze_boots",
+    "valcraft:carapace_boots",
+    "valcraft:eitr_weave_boots",
+    "valcraft:embla_boots",
+    "valcraft:fenris_boots",
+    "valcraft:flametal_boots",
+    "valcraft:iron_boots",
+    "valcraft:leather_boots",
+    "valcraft:padded_boots",
+    "valcraft:rag_boots",
+    "valcraft:root_boots",
     "valcraft:tin_boots",
-    "valcraft:bronze_boots"
+    "valcraft:troll_boots",
+    "valcraft:wolf_boots"
   ]
 }

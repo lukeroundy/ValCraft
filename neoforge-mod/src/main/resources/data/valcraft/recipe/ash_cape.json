@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MLM",
+    "MMM",
+    "M M"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:ashwood"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:ash_cape",
+    "count": 1
+  }
+}

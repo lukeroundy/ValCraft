@@ -89,7 +89,8 @@ namespace ValCraft
                     if (hov == null) { if (!h.collider.isTrigger) break; else continue; } // solid non-interactable blocks the ray
                     _target = (hov as Component).gameObject;
                     try { text = Clean(_getHoverText.Invoke(hov, null) as string); } catch { text = ""; }
-                    if (string.IsNullOrEmpty(text)) text = _target.name;
+                    // 0.11.0: no raw object/component names (broken MineRock5 showed "___MineRock5 m_meshFilter")
+                    if (!Proper(text, _target)) text = "";
                     break;
                 }
             }
@@ -108,6 +109,7 @@ namespace ValCraft
             if (player == null || go == null) return;
             if (ItemBridge.TryUseHeld(go)) return; // 0.8.0: holding a mapped MC item on a Valheim station
             if (ItemBridge.TryOpenChest(go)) return; // 0.10.0: chests open as a Minecraft screen
+            if (StoneBridge.TryInteract(go, player)) return; // 0.11.0: vegvisir / rune stone text in MC, map pin without opening the map
             try
             {
                 if (_playerInteract != null) { _playerInteract.Invoke(player, new object[] { go, false, false }); ValCraftPlugin.Log.LogInfo($"[interact] {go.name}"); return; }
@@ -115,6 +117,15 @@ namespace ValCraft
                 if (it != null && _interactI != null) { _interactI.Invoke(it, new object[] { player, false, false }); ValCraftPlugin.Log.LogInfo($"[interact] {go.name} (Interactable)"); }
             }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[interact] {go.name}: {e.InnerException?.Message ?? e.Message}"); }
+        }
+
+        /// <summary>Hover text worth showing: localized, not an unlocalized $token or a GameObject/component name.</summary>
+        static bool Proper(string t, GameObject go)
+        {
+            if (string.IsNullOrEmpty(t)) return false;
+            if (t.Contains("$") || t.StartsWith("_") || t.Contains("(Clone)") || t.Contains("m_")) return false;
+            if (go != null && (t == go.name || t == go.name.Replace("(Clone)", "").Trim())) return false;
+            return true;
         }
 
         static readonly Regex Tags = new Regex("<[^>]+>");

@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MMM",
+    " L ",
+    " S "
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:black_metal"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "id": "valcraft:blackmetal_pickaxe",
+    "count": 1
+  }
+}

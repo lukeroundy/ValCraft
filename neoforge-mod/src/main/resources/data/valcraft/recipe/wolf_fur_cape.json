@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MLM",
+    "MMM",
+    "M M"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:wolf_pelt"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:wolf_fur_cape",
+    "count": 1
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:smelting",
+  "category": "food",
+  "ingredient": {
+    "item": "valcraft:serpent_meat"
+  },
+  "result": {
+    "id": "valcraft:cooked_serpent_meat"
+  },
+  "experience": 0.35,
+  "cookingtime": 200
+}

@@ -1,0 +1,2319 @@
+{
+  "sets": [
+    {
+      "name": "rag",
+      "def": [
+        1,
+        1,
+        2,
+        1
+      ],
+      "tough": 0.0,
+      "ench": 12,
+      "dur": 8
+    },
+    {
+      "name": "leather",
+      "def": [
+        1,
+        2,
+        3,
+        1
+      ],
+      "tough": 0.0,
+      "ench": 15,
+      "dur": 8
+    },
+    {
+      "name": "troll",
+      "def": [
+        1,
+        3,
+        4,
+        1
+      ],
+      "tough": 0.0,
+      "ench": 15,
+      "dur": 13
+    },
+    {
+      "name": "iron",
+      "def": [
+        2,
+        4,
+        6,
+        2
+      ],
+      "tough": 0.5,
+      "ench": 9,
+      "dur": 18
+    },
+    {
+      "name": "root",
+      "def": [
+        2,
+        4,
+        5,
+        2
+      ],
+      "tough": 0.0,
+      "ench": 14,
+      "dur": 18
+    },
+    {
+      "name": "wolf",
+      "def": [
+        3,
+        5,
+        7,
+        3
+      ],
+      "tough": 1.0,
+      "ench": 12,
+      "dur": 23
+    },
+    {
+      "name": "fenris",
+      "def": [
+        2,
+        4,
+        6,
+        2
+      ],
+      "tough": 0.5,
+      "ench": 16,
+      "dur": 23
+    },
+    {
+      "name": "padded",
+      "def": [
+        3,
+        5,
+        7,
+        3
+      ],
+      "tough": 2.0,
+      "ench": 10,
+      "dur": 28
+    },
+    {
+      "name": "carapace",
+      "def": [
+        3,
+        6,
+        8,
+        3
+      ],
+      "tough": 2.5,
+      "ench": 12,
+      "dur": 33
+    },
+    {
+      "name": "eitr_weave",
+      "def": [
+        2,
+        4,
+        5,
+        2
+      ],
+      "tough": 1.0,
+      "ench": 22,
+      "dur": 33
+    },
+    {
+      "name": "flametal",
+      "def": [
+        3,
+        6,
+        8,
+        3
+      ],
+      "tough": 3.5,
+      "ench": 15,
+      "dur": 38
+    },
+    {
+      "name": "embla",
+      "def": [
+        2,
+        4,
+        6,
+        2
+      ],
+      "tough": 2.0,
+      "ench": 25,
+      "dur": 38
+    },
+    {
+      "name": "ask",
+      "def": [
+        3,
+        5,
+        7,
+        3
+      ],
+      "tough": 3.0,
+      "ench": 18,
+      "dur": 38
+    },
+    {
+      "name": "cloth",
+      "def": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "tough": 0.0,
+      "ench": 20,
+      "dur": 6
+    }
+  ],
+  "items": [
+    {
+      "id": "rag_chestplate",
+      "kind": "chestplate",
+      "tier": 0,
+      "set": "rag"
+    },
+    {
+      "id": "rag_leggings",
+      "kind": "leggings",
+      "tier": 0,
+      "set": "rag"
+    },
+    {
+      "id": "rag_boots",
+      "kind": "boots",
+      "tier": 0,
+      "set": "rag"
+    },
+    {
+      "id": "leather_helmet",
+      "kind": "helmet",
+      "tier": 0,
+      "set": "leather"
+    },
+    {
+      "id": "leather_chestplate",
+      "kind": "chestplate",
+      "tier": 0,
+      "set": "leather"
+    },
+    {
+      "id": "leather_leggings",
+      "kind": "leggings",
+      "tier": 0,
+      "set": "leather"
+    },
+    {
+      "id": "leather_boots",
+      "kind": "boots",
+      "tier": 0,
+      "set": "leather"
+    },
+    {
+      "id": "troll_helmet",
+      "kind": "helmet",
+      "tier": 1,
+      "set": "troll"
+    },
+    {
+      "id": "troll_chestplate",
+      "kind": "chestplate",
+      "tier": 1,
+      "set": "troll"
+    },
+    {
+      "id": "troll_leggings",
+      "kind": "leggings",
+      "tier": 1,
+      "set": "troll"
+    },
+    {
+      "id": "troll_boots",
+      "kind": "boots",
+      "tier": 1,
+      "set": "troll"
+    },
+    {
+      "id": "iron_helmet",
+      "kind": "helmet",
+      "tier": 2,
+      "set": "iron"
+    },
+    {
+      "id": "iron_chestplate",
+      "kind": "chestplate",
+      "tier": 2,
+      "set": "iron"
+    },
+    {
+      "id": "iron_leggings",
+      "kind": "leggings",
+      "tier": 2,
+      "set": "iron"
+    },
+    {
+      "id": "iron_boots",
+      "kind": "boots",
+      "tier": 2,
+      "set": "iron"
+    },
+    {
+      "id": "root_helmet",
+      "kind": "helmet",
+      "tier": 2,
+      "set": "root"
+    },
+    {
+      "id": "root_chestplate",
+      "kind": "chestplate",
+      "tier": 2,
+      "set": "root"
+    },
+    {
+      "id": "root_leggings",
+      "kind": "leggings",
+      "tier": 2,
+      "set": "root"
+    },
+    {
+      "id": "root_boots",
+      "kind": "boots",
+      "tier": 2,
+      "set": "root"
+    },
+    {
+      "id": "wolf_helmet",
+      "kind": "helmet",
+      "tier": 3,
+      "set": "wolf"
+    },
+    {
+      "id": "wolf_chestplate",
+      "kind": "chestplate",
+      "tier": 3,
+      "set": "wolf"
+    },
+    {
+      "id": "wolf_leggings",
+      "kind": "leggings",
+      "tier": 3,
+      "set": "wolf"
+    },
+    {
+      "id": "wolf_boots",
+      "kind": "boots",
+      "tier": 3,
+      "set": "wolf"
+    },
+    {
+      "id": "fenris_helmet",
+      "kind": "helmet",
+      "tier": 3,
+      "set": "fenris"
+    },
+    {
+      "id": "fenris_chestplate",
+      "kind": "chestplate",
+      "tier": 3,
+      "set": "fenris"
+    },
+    {
+      "id": "fenris_leggings",
+      "kind": "leggings",
+      "tier": 3,
+      "set": "fenris"
+    },
+    {
+      "id": "fenris_boots",
+      "kind": "boots",
+      "tier": 3,
+      "set": "fenris"
+    },
+    {
+      "id": "padded_helmet",
+      "kind": "helmet",
+      "tier": 4,
+      "set": "padded"
+    },
+    {
+      "id": "padded_chestplate",
+      "kind": "chestplate",
+      "tier": 4,
+      "set": "padded"
+    },
+    {
+      "id": "padded_leggings",
+      "kind": "leggings",
+      "tier": 4,
+      "set": "padded"
+    },
+    {
+      "id": "padded_boots",
+      "kind": "boots",
+      "tier": 4,
+      "set": "padded"
+    },
+    {
+      "id": "carapace_helmet",
+      "kind": "helmet",
+      "tier": 5,
+      "set": "carapace"
+    },
+    {
+      "id": "carapace_chestplate",
+      "kind": "chestplate",
+      "tier": 5,
+      "set": "carapace"
+    },
+    {
+      "id": "carapace_leggings",
+      "kind": "leggings",
+      "tier": 5,
+      "set": "carapace"
+    },
+    {
+      "id": "carapace_boots",
+      "kind": "boots",
+      "tier": 5,
+      "set": "carapace"
+    },
+    {
+      "id": "eitr_weave_helmet",
+      "kind": "helmet",
+      "tier": 5,
+      "set": "eitr_weave"
+    },
+    {
+      "id": "eitr_weave_chestplate",
+      "kind": "chestplate",
+      "tier": 5,
+      "set": "eitr_weave"
+    },
+    {
+      "id": "eitr_weave_leggings",
+      "kind": "leggings",
+      "tier": 5,
+      "set": "eitr_weave"
+    },
+    {
+      "id": "eitr_weave_boots",
+      "kind": "boots",
+      "tier": 5,
+      "set": "eitr_weave"
+    },
+    {
+      "id": "flametal_helmet",
+      "kind": "helmet",
+      "tier": 6,
+      "set": "flametal"
+    },
+    {
+      "id": "flametal_chestplate",
+      "kind": "chestplate",
+      "tier": 6,
+      "set": "flametal"
+    },
+    {
+      "id": "flametal_leggings",
+      "kind": "leggings",
+      "tier": 6,
+      "set": "flametal"
+    },
+    {
+      "id": "flametal_boots",
+      "kind": "boots",
+      "tier": 6,
+      "set": "flametal"
+    },
+    {
+      "id": "embla_helmet",
+      "kind": "helmet",
+      "tier": 6,
+      "set": "embla"
+    },
+    {
+      "id": "embla_chestplate",
+      "kind": "chestplate",
+      "tier": 6,
+      "set": "embla"
+    },
+    {
+      "id": "embla_leggings",
+      "kind": "leggings",
+      "tier": 6,
+      "set": "embla"
+    },
+    {
+      "id": "embla_boots",
+      "kind": "boots",
+      "tier": 6,
+      "set": "embla"
+    },
+    {
+      "id": "ask_helmet",
+      "kind": "helmet",
+      "tier": 6,
+      "set": "ask"
+    },
+    {
+      "id": "ask_chestplate",
+      "kind": "chestplate",
+      "tier": 6,
+      "set": "ask"
+    },
+    {
+      "id": "ask_leggings",
+      "kind": "leggings",
+      "tier": 6,
+      "set": "ask"
+    },
+    {
+      "id": "ask_boots",
+      "kind": "boots",
+      "tier": 6,
+      "set": "ask"
+    },
+    {
+      "id": "dverger_circlet",
+      "kind": "helmet_misc",
+      "tier": 5,
+      "set": "cloth"
+    },
+    {
+      "id": "yule_hat",
+      "kind": "helmet_misc",
+      "tier": 0,
+      "set": "cloth"
+    },
+    {
+      "id": "midsummer_crown",
+      "kind": "helmet_misc",
+      "tier": 0,
+      "set": "cloth"
+    },
+    {
+      "id": "hood_of_odin",
+      "kind": "helmet_misc",
+      "tier": 0,
+      "set": "cloth"
+    },
+    {
+      "id": "fishing_hat",
+      "kind": "helmet_misc",
+      "tier": 0,
+      "set": "cloth"
+    },
+    {
+      "id": "deer_hide_cape",
+      "kind": "cape",
+      "tier": 0
+    },
+    {
+      "id": "troll_hide_cape",
+      "kind": "cape",
+      "tier": 1
+    },
+    {
+      "id": "wolf_fur_cape",
+      "kind": "cape",
+      "tier": 3
+    },
+    {
+      "id": "lox_cape",
+      "kind": "cape",
+      "tier": 4
+    },
+    {
+      "id": "linen_cape",
+      "kind": "cape",
+      "tier": 4
+    },
+    {
+      "id": "feather_cape",
+      "kind": "cape",
+      "tier": 5
+    },
+    {
+      "id": "asksvin_cloak",
+      "kind": "cape",
+      "tier": 6
+    },
+    {
+      "id": "ash_cape",
+      "kind": "cape",
+      "tier": 6
+    },
+    {
+      "id": "cape_of_odin",
+      "kind": "cape",
+      "tier": 0
+    },
+    {
+      "id": "club",
+      "kind": "club",
+      "tier": 0
+    },
+    {
+      "id": "bronze_mace",
+      "kind": "mace",
+      "tier": 1
+    },
+    {
+      "id": "iron_mace",
+      "kind": "mace",
+      "tier": 2
+    },
+    {
+      "id": "frostner",
+      "kind": "mace",
+      "tier": 3
+    },
+    {
+      "id": "porcupine",
+      "kind": "mace",
+      "tier": 4
+    },
+    {
+      "id": "flametal_mace",
+      "kind": "mace",
+      "tier": 6
+    },
+    {
+      "id": "iron_sword",
+      "kind": "sword",
+      "tier": 2
+    },
+    {
+      "id": "silver_sword",
+      "kind": "sword",
+      "tier": 3
+    },
+    {
+      "id": "blackmetal_sword",
+      "kind": "sword",
+      "tier": 4
+    },
+    {
+      "id": "mistwalker",
+      "kind": "sword",
+      "tier": 5
+    },
+    {
+      "id": "dyrnwyn",
+      "kind": "sword",
+      "tier": 6
+    },
+    {
+      "id": "nidhogg",
+      "kind": "sword",
+      "tier": 6
+    },
+    {
+      "id": "krom",
+      "kind": "greatsword",
+      "tier": 5
+    },
+    {
+      "id": "slayer",
+      "kind": "greatsword",
+      "tier": 6
+    },
+    {
+      "id": "flint_knife",
+      "kind": "knife",
+      "tier": 0
+    },
+    {
+      "id": "copper_knife",
+      "kind": "knife",
+      "tier": 1
+    },
+    {
+      "id": "abyssal_razor",
+      "kind": "knife",
+      "tier": 2
+    },
+    {
+      "id": "silver_knife",
+      "kind": "knife",
+      "tier": 3
+    },
+    {
+      "id": "blackmetal_knife",
+      "kind": "knife",
+      "tier": 4
+    },
+    {
+      "id": "skoll_and_hati",
+      "kind": "knife",
+      "tier": 5
+    },
+    {
+      "id": "butcher_knife",
+      "kind": "knife",
+      "tier": 0
+    },
+    {
+      "id": "stone_axe",
+      "kind": "axe",
+      "tier": 0
+    },
+    {
+      "id": "flint_axe",
+      "kind": "axe",
+      "tier": 0
+    },
+    {
+      "id": "iron_axe",
+      "kind": "axe",
+      "tier": 2
+    },
+    {
+      "id": "blackmetal_axe",
+      "kind": "axe",
+      "tier": 4
+    },
+    {
+      "id": "jotun_bane",
+      "kind": "axe",
+      "tier": 5
+    },
+    {
+      "id": "berserkir_axes",
+      "kind": "battleaxe",
+      "tier": 6
+    },
+    {
+      "id": "iron_battleaxe",
+      "kind": "battleaxe",
+      "tier": 2
+    },
+    {
+      "id": "crystal_battleaxe",
+      "kind": "battleaxe",
+      "tier": 3
+    },
+    {
+      "id": "flint_spear",
+      "kind": "spear",
+      "tier": 0
+    },
+    {
+      "id": "bronze_spear",
+      "kind": "spear",
+      "tier": 1
+    },
+    {
+      "id": "ancient_bark_spear",
+      "kind": "spear",
+      "tier": 2
+    },
+    {
+      "id": "fang_spear",
+      "kind": "spear",
+      "tier": 3
+    },
+    {
+      "id": "abyssal_harpoon",
+      "kind": "spear",
+      "tier": 2
+    },
+    {
+      "id": "carapace_spear",
+      "kind": "spear",
+      "tier": 5
+    },
+    {
+      "id": "splitnir",
+      "kind": "spear",
+      "tier": 6
+    },
+    {
+      "id": "bronze_atgeir",
+      "kind": "atgeir",
+      "tier": 1
+    },
+    {
+      "id": "iron_atgeir",
+      "kind": "atgeir",
+      "tier": 2
+    },
+    {
+      "id": "blackmetal_atgeir",
+      "kind": "atgeir",
+      "tier": 4
+    },
+    {
+      "id": "himminafl",
+      "kind": "atgeir",
+      "tier": 5
+    },
+    {
+      "id": "stagbreaker",
+      "kind": "sledge",
+      "tier": 0
+    },
+    {
+      "id": "iron_sledge",
+      "kind": "sledge",
+      "tier": 2
+    },
+    {
+      "id": "demolisher",
+      "kind": "sledge",
+      "tier": 5
+    },
+    {
+      "id": "flesh_rippers",
+      "kind": "fist",
+      "tier": 3
+    },
+    {
+      "id": "antler_pickaxe",
+      "kind": "pickaxe",
+      "tier": 0
+    },
+    {
+      "id": "stone_pickaxe",
+      "kind": "pickaxe",
+      "tier": 0
+    },
+    {
+      "id": "iron_pickaxe",
+      "kind": "pickaxe",
+      "tier": 2
+    },
+    {
+      "id": "blackmetal_pickaxe",
+      "kind": "pickaxe",
+      "tier": 4
+    },
+    {
+      "id": "valheim_hoe",
+      "kind": "hoe",
+      "tier": 0
+    },
+    {
+      "id": "cultivator",
+      "kind": "hoe",
+      "tier": 1
+    },
+    {
+      "id": "valheim_hammer",
+      "kind": "mace",
+      "tier": 0
+    },
+    {
+      "id": "crude_bow",
+      "kind": "bow",
+      "tier": 0
+    },
+    {
+      "id": "finewood_bow",
+      "kind": "bow",
+      "tier": 1
+    },
+    {
+      "id": "huntsman_bow",
+      "kind": "bow",
+      "tier": 2
+    },
+    {
+      "id": "draugr_fang",
+      "kind": "bow",
+      "tier": 3
+    },
+    {
+      "id": "spinesnap",
+      "kind": "bow",
+      "tier": 5
+    },
+    {
+      "id": "ashlands_bow",
+      "kind": "bow",
+      "tier": 6
+    },
+    {
+      "id": "arbalest",
+      "kind": "crossbow",
+      "tier": 5
+    },
+    {
+      "id": "ripper",
+      "kind": "crossbow",
+      "tier": 6
+    },
+    {
+      "id": "wood_arrow",
+      "kind": "arrow",
+      "tier": 0
+    },
+    {
+      "id": "fire_arrow",
+      "kind": "arrow",
+      "tier": 0
+    },
+    {
+      "id": "flint_arrow",
+      "kind": "arrow",
+      "tier": 0
+    },
+    {
+      "id": "bronze_arrow",
+      "kind": "arrow",
+      "tier": 1
+    },
+    {
+      "id": "iron_arrow",
+      "kind": "arrow",
+      "tier": 2
+    },
+    {
+      "id": "poison_arrow",
+      "kind": "arrow",
+      "tier": 2
+    },
+    {
+      "id": "silver_arrow",
+      "kind": "arrow",
+      "tier": 3
+    },
+    {
+      "id": "obsidian_arrow",
+      "kind": "arrow",
+      "tier": 3
+    },
+    {
+      "id": "frost_arrow",
+      "kind": "arrow",
+      "tier": 3
+    },
+    {
+      "id": "needle_arrow",
+      "kind": "arrow",
+      "tier": 4
+    },
+    {
+      "id": "carapace_arrow",
+      "kind": "arrow",
+      "tier": 5
+    },
+    {
+      "id": "charred_arrow",
+      "kind": "arrow",
+      "tier": 6
+    },
+    {
+      "id": "bone_bolt",
+      "kind": "arrow",
+      "tier": 5
+    },
+    {
+      "id": "iron_bolt",
+      "kind": "arrow",
+      "tier": 5
+    },
+    {
+      "id": "blackmetal_bolt",
+      "kind": "arrow",
+      "tier": 5
+    },
+    {
+      "id": "carapace_bolt",
+      "kind": "arrow",
+      "tier": 5
+    },
+    {
+      "id": "charred_bolt",
+      "kind": "arrow",
+      "tier": 6
+    },
+    {
+      "id": "staff_of_embers",
+      "kind": "staff",
+      "tier": 5
+    },
+    {
+      "id": "staff_of_frost",
+      "kind": "staff",
+      "tier": 5
+    },
+    {
+      "id": "staff_of_protection",
+      "kind": "staff",
+      "tier": 5
+    },
+    {
+      "id": "dead_raiser",
+      "kind": "staff",
+      "tier": 5
+    },
+    {
+      "id": "staff_of_the_wild",
+      "kind": "staff",
+      "tier": 6
+    },
+    {
+      "id": "staff_of_fracturing",
+      "kind": "staff",
+      "tier": 6
+    },
+    {
+      "id": "dundr",
+      "kind": "staff",
+      "tier": 6
+    },
+    {
+      "id": "trollstav",
+      "kind": "staff",
+      "tier": 6
+    },
+    {
+      "id": "wood_shield",
+      "kind": "shield",
+      "tier": 0
+    },
+    {
+      "id": "wood_tower_shield",
+      "kind": "shield",
+      "tier": 0
+    },
+    {
+      "id": "bone_tower_shield",
+      "kind": "shield",
+      "tier": 1
+    },
+    {
+      "id": "bronze_buckler",
+      "kind": "shield",
+      "tier": 1
+    },
+    {
+      "id": "banded_shield",
+      "kind": "shield",
+      "tier": 2
+    },
+    {
+      "id": "iron_buckler",
+      "kind": "shield",
+      "tier": 2
+    },
+    {
+      "id": "iron_square_shield",
+      "kind": "shield",
+      "tier": 2
+    },
+    {
+      "id": "iron_tower_shield",
+      "kind": "shield",
+      "tier": 2
+    },
+    {
+      "id": "serpentscale_shield",
+      "kind": "shield",
+      "tier": 2
+    },
+    {
+      "id": "silver_shield",
+      "kind": "shield",
+      "tier": 3
+    },
+    {
+      "id": "blackmetal_shield",
+      "kind": "shield",
+      "tier": 4
+    },
+    {
+      "id": "blackmetal_tower_shield",
+      "kind": "shield",
+      "tier": 4
+    },
+    {
+      "id": "carapace_shield",
+      "kind": "shield",
+      "tier": 5
+    },
+    {
+      "id": "carapace_buckler",
+      "kind": "shield",
+      "tier": 5
+    },
+    {
+      "id": "flametal_shield",
+      "kind": "shield",
+      "tier": 6
+    },
+    {
+      "id": "flametal_tower_shield",
+      "kind": "shield",
+      "tier": 6
+    },
+    {
+      "id": "fine_wood",
+      "kind": "log",
+      "tier": 1
+    },
+    {
+      "id": "core_wood",
+      "kind": "log",
+      "tier": 1
+    },
+    {
+      "id": "ancient_bark",
+      "kind": "log",
+      "tier": 2
+    },
+    {
+      "id": "yggdrasil_wood",
+      "kind": "log",
+      "tier": 5
+    },
+    {
+      "id": "ashwood",
+      "kind": "log",
+      "tier": 6
+    },
+    {
+      "id": "resin",
+      "kind": "blob",
+      "tier": 0
+    },
+    {
+      "id": "greydwarf_eye",
+      "kind": "orb",
+      "tier": 0
+    },
+    {
+      "id": "surtling_core",
+      "kind": "orb",
+      "tier": 1
+    },
+    {
+      "id": "ancient_seed",
+      "kind": "seed",
+      "tier": 1
+    },
+    {
+      "id": "troll_hide",
+      "kind": "hide",
+      "tier": 1
+    },
+    {
+      "id": "deer_hide",
+      "kind": "hide",
+      "tier": 0
+    },
+    {
+      "id": "leather_scraps",
+      "kind": "hide",
+      "tier": 0
+    },
+    {
+      "id": "wolf_pelt",
+      "kind": "hide",
+      "tier": 3
+    },
+    {
+      "id": "lox_pelt",
+      "kind": "hide",
+      "tier": 4
+    },
+    {
+      "id": "scale_hide",
+      "kind": "hide",
+      "tier": 5
+    },
+    {
+      "id": "asksvin_hide",
+      "kind": "hide",
+      "tier": 6
+    },
+    {
+      "id": "bone_fragments",
+      "kind": "bone",
+      "tier": 0
+    },
+    {
+      "id": "hard_antler",
+      "kind": "bone",
+      "tier": 0
+    },
+    {
+      "id": "chitin",
+      "kind": "shard",
+      "tier": 2
+    },
+    {
+      "id": "scrap_iron",
+      "kind": "raw",
+      "tier": 2
+    },
+    {
+      "id": "iron_ore",
+      "kind": "raw",
+      "tier": 2
+    },
+    {
+      "id": "silver_ore",
+      "kind": "raw",
+      "tier": 3
+    },
+    {
+      "id": "silver_ingot",
+      "kind": "ingot",
+      "tier": 3
+    },
+    {
+      "id": "black_metal_scrap",
+      "kind": "raw",
+      "tier": 4
+    },
+    {
+      "id": "black_metal",
+      "kind": "ingot",
+      "tier": 4
+    },
+    {
+      "id": "copper_scrap",
+      "kind": "raw",
+      "tier": 1
+    },
+    {
+      "id": "flametal_ore",
+      "kind": "raw",
+      "tier": 6
+    },
+    {
+      "id": "flametal",
+      "kind": "ingot",
+      "tier": 6
+    },
+    {
+      "id": "iron_nails",
+      "kind": "nail",
+      "tier": 2
+    },
+    {
+      "id": "bronze_nails",
+      "kind": "nail",
+      "tier": 1
+    },
+    {
+      "id": "chain",
+      "kind": "chain",
+      "tier": 2
+    },
+    {
+      "id": "guck",
+      "kind": "blob",
+      "tier": 2
+    },
+    {
+      "id": "ooze",
+      "kind": "blob",
+      "tier": 2
+    },
+    {
+      "id": "entrails",
+      "kind": "meat",
+      "tier": 2
+    },
+    {
+      "id": "withered_bone",
+      "kind": "bone",
+      "tier": 2
+    },
+    {
+      "id": "bloodbag",
+      "kind": "orb",
+      "tier": 2
+    },
+    {
+      "id": "freeze_gland",
+      "kind": "orb",
+      "tier": 3
+    },
+    {
+      "id": "dragon_tear",
+      "kind": "gem",
+      "tier": 3
+    },
+    {
+      "id": "crystal",
+      "kind": "gem",
+      "tier": 3
+    },
+    {
+      "id": "wolf_fang",
+      "kind": "bone",
+      "tier": 3
+    },
+    {
+      "id": "wolf_claw",
+      "kind": "bone",
+      "tier": 3
+    },
+    {
+      "id": "fenris_hair",
+      "kind": "thread",
+      "tier": 3
+    },
+    {
+      "id": "flax",
+      "kind": "plant",
+      "tier": 4
+    },
+    {
+      "id": "linen_thread",
+      "kind": "thread",
+      "tier": 4
+    },
+    {
+      "id": "needle",
+      "kind": "shard",
+      "tier": 4
+    },
+    {
+      "id": "tar",
+      "kind": "blob",
+      "tier": 4
+    },
+    {
+      "id": "barley",
+      "kind": "plant",
+      "tier": 4
+    },
+    {
+      "id": "barley_flour",
+      "kind": "powder",
+      "tier": 4
+    },
+    {
+      "id": "sap",
+      "kind": "blob",
+      "tier": 5
+    },
+    {
+      "id": "refined_eitr",
+      "kind": "gem",
+      "tier": 5
+    },
+    {
+      "id": "soft_tissue",
+      "kind": "blob",
+      "tier": 5
+    },
+    {
+      "id": "black_marble",
+      "kind": "block_item",
+      "tier": 5
+    },
+    {
+      "id": "black_core",
+      "kind": "orb",
+      "tier": 5
+    },
+    {
+      "id": "carapace",
+      "kind": "shard",
+      "tier": 5
+    },
+    {
+      "id": "mandible",
+      "kind": "bone",
+      "tier": 5
+    },
+    {
+      "id": "royal_jelly",
+      "kind": "blob",
+      "tier": 5
+    },
+    {
+      "id": "bilebag",
+      "kind": "orb",
+      "tier": 5
+    },
+    {
+      "id": "wisp",
+      "kind": "orb",
+      "tier": 5
+    },
+    {
+      "id": "dvergr_extractor",
+      "kind": "orb",
+      "tier": 5
+    },
+    {
+      "id": "jotun_puffs",
+      "kind": "mushroom",
+      "tier": 5
+    },
+    {
+      "id": "magecap",
+      "kind": "mushroom",
+      "tier": 5
+    },
+    {
+      "id": "grausten",
+      "kind": "block_item",
+      "tier": 6
+    },
+    {
+      "id": "charred_bone",
+      "kind": "bone",
+      "tier": 6
+    },
+    {
+      "id": "molten_core",
+      "kind": "orb",
+      "tier": 6
+    },
+    {
+      "id": "sulfur_stone",
+      "kind": "raw",
+      "tier": 6
+    },
+    {
+      "id": "celestial_feather",
+      "kind": "feather",
+      "tier": 6
+    },
+    {
+      "id": "proustite_powder",
+      "kind": "powder",
+      "tier": 6
+    },
+    {
+      "id": "bell_fragment",
+      "kind": "shard",
+      "tier": 6
+    },
+    {
+      "id": "morgen_heart",
+      "kind": "orb",
+      "tier": 6
+    },
+    {
+      "id": "morgen_sinew",
+      "kind": "thread",
+      "tier": 6
+    },
+    {
+      "id": "asksvin_tail",
+      "kind": "meat",
+      "tier": 6
+    },
+    {
+      "id": "fiddlehead",
+      "kind": "plant",
+      "tier": 6
+    },
+    {
+      "id": "smoke_puff",
+      "kind": "mushroom",
+      "tier": 6
+    },
+    {
+      "id": "vineberry",
+      "kind": "berry",
+      "tier": 6
+    },
+    {
+      "id": "thistle",
+      "kind": "plant",
+      "tier": 1
+    },
+    {
+      "id": "turnip_seeds",
+      "kind": "seed",
+      "tier": 2
+    },
+    {
+      "id": "carrot_seeds",
+      "kind": "seed",
+      "tier": 1
+    },
+    {
+      "id": "onion_seeds",
+      "kind": "seed",
+      "tier": 3
+    },
+    {
+      "id": "beech_seeds",
+      "kind": "seed",
+      "tier": 0
+    },
+    {
+      "id": "fir_cone",
+      "kind": "seed",
+      "tier": 0
+    },
+    {
+      "id": "pine_cone",
+      "kind": "seed",
+      "tier": 0
+    },
+    {
+      "id": "birch_seeds",
+      "kind": "seed",
+      "tier": 0
+    },
+    {
+      "id": "acorn",
+      "kind": "seed",
+      "tier": 0
+    },
+    {
+      "id": "trophy_eikthyr",
+      "kind": "trophy",
+      "tier": 0
+    },
+    {
+      "id": "trophy_elder",
+      "kind": "trophy",
+      "tier": 1
+    },
+    {
+      "id": "trophy_bonemass",
+      "kind": "trophy",
+      "tier": 2
+    },
+    {
+      "id": "trophy_moder",
+      "kind": "trophy",
+      "tier": 3
+    },
+    {
+      "id": "trophy_yagluth",
+      "kind": "trophy",
+      "tier": 4
+    },
+    {
+      "id": "trophy_queen",
+      "kind": "trophy",
+      "tier": 5
+    },
+    {
+      "id": "trophy_fader",
+      "kind": "trophy",
+      "tier": 6
+    },
+    {
+      "id": "coins",
+      "kind": "coin",
+      "tier": 0
+    },
+    {
+      "id": "amber",
+      "kind": "gem",
+      "tier": 0
+    },
+    {
+      "id": "amber_pearl",
+      "kind": "gem",
+      "tier": 0
+    },
+    {
+      "id": "ruby",
+      "kind": "gem",
+      "tier": 0
+    },
+    {
+      "id": "silver_necklace",
+      "kind": "coin",
+      "tier": 0
+    },
+    {
+      "id": "yagluth_thing",
+      "kind": "shard",
+      "tier": 4
+    },
+    {
+      "id": "queen_drop",
+      "kind": "orb",
+      "tier": 5
+    },
+    {
+      "id": "fader_drop",
+      "kind": "orb",
+      "tier": 6
+    },
+    {
+      "id": "boar_meat",
+      "kind": "meat",
+      "tier": 0,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "cooked_boar_meat",
+      "kind": "cooked",
+      "tier": 0,
+      "food": [
+        30,
+        10
+      ]
+    },
+    {
+      "id": "deer_meat",
+      "kind": "meat",
+      "tier": 0,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "cooked_deer_meat",
+      "kind": "cooked",
+      "tier": 0,
+      "food": [
+        35,
+        12
+      ]
+    },
+    {
+      "id": "neck_tail",
+      "kind": "meat",
+      "tier": 0,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "grilled_neck_tail",
+      "kind": "cooked",
+      "tier": 0,
+      "food": [
+        25,
+        8
+      ]
+    },
+    {
+      "id": "raw_fish",
+      "kind": "fish",
+      "tier": 1,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "cooked_fish",
+      "kind": "fish",
+      "tier": 1,
+      "food": [
+        45,
+        15
+      ]
+    },
+    {
+      "id": "valheim_raspberries",
+      "kind": "berry",
+      "tier": 0,
+      "food": [
+        7,
+        20
+      ]
+    },
+    {
+      "id": "valheim_blueberries",
+      "kind": "berry",
+      "tier": 1,
+      "food": [
+        8,
+        25
+      ]
+    },
+    {
+      "id": "cloudberries",
+      "kind": "berry",
+      "tier": 4,
+      "food": [
+        13,
+        40
+      ]
+    },
+    {
+      "id": "valheim_mushroom",
+      "kind": "mushroom",
+      "tier": 0,
+      "food": [
+        15,
+        15
+      ]
+    },
+    {
+      "id": "yellow_mushroom",
+      "kind": "mushroom",
+      "tier": 1,
+      "food": [
+        10,
+        30
+      ]
+    },
+    {
+      "id": "valheim_honey",
+      "kind": "blob",
+      "tier": 0,
+      "food": [
+        8,
+        35
+      ]
+    },
+    {
+      "id": "valheim_carrot",
+      "kind": "carrot",
+      "tier": 1,
+      "food": [
+        10,
+        32
+      ]
+    },
+    {
+      "id": "turnip",
+      "kind": "carrot",
+      "tier": 2,
+      "food": [
+        18,
+        55
+      ]
+    },
+    {
+      "id": "onion",
+      "kind": "berry",
+      "tier": 3,
+      "food": [
+        13,
+        40
+      ]
+    },
+    {
+      "id": "queens_jam",
+      "kind": "bowl",
+      "tier": 1,
+      "food": [
+        14,
+        40
+      ]
+    },
+    {
+      "id": "carrot_soup",
+      "kind": "bowl",
+      "tier": 1,
+      "food": [
+        15,
+        45
+      ]
+    },
+    {
+      "id": "boar_jerky",
+      "kind": "cooked",
+      "tier": 1,
+      "food": [
+        23,
+        23
+      ]
+    },
+    {
+      "id": "deer_stew",
+      "kind": "bowl",
+      "tier": 1,
+      "food": [
+        45,
+        15
+      ]
+    },
+    {
+      "id": "minced_meat_sauce",
+      "kind": "bowl",
+      "tier": 1,
+      "food": [
+        40,
+        13
+      ]
+    },
+    {
+      "id": "sausages",
+      "kind": "cooked",
+      "tier": 2,
+      "food": [
+        55,
+        18
+      ]
+    },
+    {
+      "id": "turnip_stew",
+      "kind": "bowl",
+      "tier": 2,
+      "food": [
+        18,
+        55
+      ]
+    },
+    {
+      "id": "black_soup",
+      "kind": "bowl",
+      "tier": 2,
+      "food": [
+        50,
+        17
+      ]
+    },
+    {
+      "id": "shocklate_smoothie",
+      "kind": "bowl",
+      "tier": 2,
+      "food": [
+        16,
+        50
+      ]
+    },
+    {
+      "id": "serpent_meat",
+      "kind": "meat",
+      "tier": 2,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "cooked_serpent_meat",
+      "kind": "cooked",
+      "tier": 2,
+      "food": [
+        70,
+        23
+      ]
+    },
+    {
+      "id": "serpent_stew",
+      "kind": "bowl",
+      "tier": 2,
+      "food": [
+        80,
+        26
+      ]
+    },
+    {
+      "id": "wolf_meat",
+      "kind": "meat",
+      "tier": 3,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "cooked_wolf_meat",
+      "kind": "cooked",
+      "tier": 3,
+      "food": [
+        45,
+        15
+      ]
+    },
+    {
+      "id": "wolf_jerky",
+      "kind": "cooked",
+      "tier": 3,
+      "food": [
+        33,
+        33
+      ]
+    },
+    {
+      "id": "wolf_skewer",
+      "kind": "cooked",
+      "tier": 3,
+      "food": [
+        65,
+        21
+      ]
+    },
+    {
+      "id": "onion_soup",
+      "kind": "bowl",
+      "tier": 3,
+      "food": [
+        20,
+        60
+      ]
+    },
+    {
+      "id": "eyescream",
+      "kind": "bowl",
+      "tier": 3,
+      "food": [
+        21,
+        65
+      ]
+    },
+    {
+      "id": "valheim_egg",
+      "kind": "egg",
+      "tier": 4,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "fried_egg",
+      "kind": "egg",
+      "tier": 4,
+      "food": [
+        35,
+        12
+      ]
+    },
+    {
+      "id": "lox_meat",
+      "kind": "meat",
+      "tier": 4,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "cooked_lox_meat",
+      "kind": "cooked",
+      "tier": 4,
+      "food": [
+        50,
+        16
+      ]
+    },
+    {
+      "id": "lox_meat_pie",
+      "kind": "bread",
+      "tier": 4,
+      "food": [
+        75,
+        24
+      ]
+    },
+    {
+      "id": "blood_pudding",
+      "kind": "bowl",
+      "tier": 4,
+      "food": [
+        25,
+        75
+      ]
+    },
+    {
+      "id": "bread",
+      "kind": "bread",
+      "tier": 4,
+      "food": [
+        23,
+        70
+      ]
+    },
+    {
+      "id": "fish_wraps",
+      "kind": "bread",
+      "tier": 4,
+      "food": [
+        70,
+        23
+      ]
+    },
+    {
+      "id": "hare_meat",
+      "kind": "meat",
+      "tier": 5,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "cooked_hare_meat",
+      "kind": "cooked",
+      "tier": 5,
+      "food": [
+        60,
+        20
+      ]
+    },
+    {
+      "id": "seeker_meat",
+      "kind": "meat",
+      "tier": 5,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "cooked_seeker_meat",
+      "kind": "cooked",
+      "tier": 5,
+      "food": [
+        60,
+        20
+      ]
+    },
+    {
+      "id": "misthare_supreme",
+      "kind": "bowl",
+      "tier": 5,
+      "food": [
+        85,
+        28
+      ]
+    },
+    {
+      "id": "seeker_aspic",
+      "kind": "bowl",
+      "tier": 5,
+      "food": [
+        28,
+        85
+      ]
+    },
+    {
+      "id": "yggdrasil_porridge",
+      "kind": "bowl",
+      "tier": 5,
+      "food": [
+        27,
+        13
+      ]
+    },
+    {
+      "id": "mushroom_omelette",
+      "kind": "egg",
+      "tier": 5,
+      "food": [
+        28,
+        85
+      ]
+    },
+    {
+      "id": "magically_stuffed_shroom",
+      "kind": "mushroom",
+      "tier": 5,
+      "food": [
+        25,
+        12
+      ]
+    },
+    {
+      "id": "honey_glazed_chicken",
+      "kind": "cooked",
+      "tier": 5,
+      "food": [
+        80,
+        26
+      ]
+    },
+    {
+      "id": "meat_platter",
+      "kind": "bowl",
+      "tier": 5,
+      "food": [
+        80,
+        26
+      ]
+    },
+    {
+      "id": "salad",
+      "kind": "bowl",
+      "tier": 5,
+      "food": [
+        26,
+        80
+      ]
+    },
+    {
+      "id": "stuffed_mushroom",
+      "kind": "mushroom",
+      "tier": 5,
+      "food": [
+        25,
+        12
+      ]
+    },
+    {
+      "id": "asksvin_meat",
+      "kind": "meat",
+      "tier": 6,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "cooked_asksvin_meat",
+      "kind": "cooked",
+      "tier": 6,
+      "food": [
+        70,
+        24
+      ]
+    },
+    {
+      "id": "volture_meat",
+      "kind": "meat",
+      "tier": 6,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "cooked_volture_meat",
+      "kind": "cooked",
+      "tier": 6,
+      "food": [
+        70,
+        24
+      ]
+    },
+    {
+      "id": "volture_egg",
+      "kind": "egg",
+      "tier": 6,
+      "food": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "fiery_svinstew",
+      "kind": "bowl",
+      "tier": 6,
+      "food": [
+        95,
+        32
+      ]
+    },
+    {
+      "id": "mashed_meat",
+      "kind": "bowl",
+      "tier": 6,
+      "food": [
+        90,
+        30
+      ]
+    },
+    {
+      "id": "piquant_pie",
+      "kind": "bread",
+      "tier": 6,
+      "food": [
+        105,
+        35
+      ]
+    },
+    {
+      "id": "roasted_crust_pie",
+      "kind": "bread",
+      "tier": 6,
+      "food": [
+        75,
+        75
+      ]
+    },
+    {
+      "id": "scorching_medley",
+      "kind": "bowl",
+      "tier": 6,
+      "food": [
+        32,
+        95
+      ]
+    },
+    {
+      "id": "sizzling_berry_broth",
+      "kind": "bowl",
+      "tier": 6,
+      "food": [
+        28,
+        85
+      ]
+    },
+    {
+      "id": "sparkling_shroomshake",
+      "kind": "bowl",
+      "tier": 6,
+      "food": [
+        28,
+        85
+      ]
+    },
+    {
+      "id": "spicy_marmalade",
+      "kind": "bowl",
+      "tier": 6,
+      "food": [
+        30,
+        90
+      ]
+    },
+    {
+      "id": "mead_minor_healing",
+      "kind": "mead",
+      "tier": 1,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_medium_healing",
+      "kind": "mead",
+      "tier": 2,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_major_healing",
+      "kind": "mead",
+      "tier": 4,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_minor_stamina",
+      "kind": "mead",
+      "tier": 1,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_medium_stamina",
+      "kind": "mead",
+      "tier": 3,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_lingering_stamina",
+      "kind": "mead",
+      "tier": 5,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_minor_eitr",
+      "kind": "mead",
+      "tier": 5,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_fire_resistance",
+      "kind": "mead",
+      "tier": 2,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_frost_resistance",
+      "kind": "mead",
+      "tier": 3,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_poison_resistance",
+      "kind": "mead",
+      "tier": 2,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_tasty",
+      "kind": "mead",
+      "tier": 1,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_lightfoot",
+      "kind": "mead",
+      "tier": 5,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_strength",
+      "kind": "mead",
+      "tier": 5,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_swimmer",
+      "kind": "mead",
+      "tier": 6,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_bug_repellent",
+      "kind": "mead",
+      "tier": 5,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_bzerker",
+      "kind": "mead",
+      "tier": 6,
+      "food": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "mead_hasty",
+      "kind": "mead",
+      "tier": 6,
+      "food": [
+        0,
+        0
+      ]
+    }
+  ]
+}

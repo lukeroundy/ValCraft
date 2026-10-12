@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:campfire_cooking",
+  "category": "food",
+  "ingredient": {
+    "item": "valcraft:wolf_meat"
+  },
+  "result": {
+    "id": "valcraft:cooked_wolf_meat"
+  },
+  "experience": 0.35,
+  "cookingtime": 600
+}

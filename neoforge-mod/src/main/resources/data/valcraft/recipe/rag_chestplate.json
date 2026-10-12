@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MLM",
+    "MMM",
+    "MMM"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:leather_scraps"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:rag_chestplate",
+    "count": 1
+  }
+}

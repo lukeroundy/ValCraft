@@ -66,6 +66,7 @@ public final class ModContent {
 	public static final List<DeferredItem<? extends Item>> TOOLS = new ArrayList<>(), ARMOR_ITEMS = new ArrayList<>();
 	static { for (String n : new String[] { "tin", "bronze" }) tools(n, n.equals("tin") ? TIN_TIER : BRONZE_TIER); }
 	static { armor("tin", TIN_ARMOR, 13); armor("bronze", BRONZE_ARMOR, 16); }
+	static { GenItems.init(); }
 
 	private static void tools(String n, Tier t) {
 		TOOLS.add(ITEMS.register(n + "_sword", () -> new SwordItem(t, new Item.Properties().attributes(SwordItem.createAttributes(t, 3, -2.4f)))));
@@ -88,6 +89,8 @@ public final class ModContent {
 
 	private static void tabs(BuildCreativeModeTabContentsEvent e) {
 		var k = e.getTabKey();
+		var gen = GenItems.BY_TAB.get(k == CreativeModeTabs.INGREDIENTS ? "ingredients" : k == CreativeModeTabs.COMBAT ? "combat" : k == CreativeModeTabs.TOOLS_AND_UTILITIES ? "tools" : k == CreativeModeTabs.FOOD_AND_DRINKS ? "food" : "");
+		if (gen != null) for (var g : gen) e.accept(g);
 		if (k == CreativeModeTabs.INGREDIENTS) { e.accept(RAW_TIN); e.accept(TIN_NUGGET); e.accept(TIN_INGOT); e.accept(BRONZE_INGOT); }
 		else if (k == CreativeModeTabs.NATURAL_BLOCKS) e.accept(TIN_ORE_ITEM);
 		else if (k == CreativeModeTabs.BUILDING_BLOCKS) e.accept(BRONZE_BLOCK_ITEM);

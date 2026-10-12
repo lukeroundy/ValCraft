@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:smelting",
+  "category": "misc",
+  "ingredient": {
+    "item": "valcraft:black_metal_scrap"
+  },
+  "result": {
+    "id": "valcraft:black_metal"
+  },
+  "experience": 0.7,
+  "cookingtime": 200
+}

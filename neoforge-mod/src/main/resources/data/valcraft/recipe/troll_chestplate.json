@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MLM",
+    "MMM",
+    "MMM"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:troll_hide"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:troll_chestplate",
+    "count": 1
+  }
+}

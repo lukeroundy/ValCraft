@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MLM",
+    "M M"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:leather_scraps"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:rag_boots",
+    "count": 1
+  }
+}

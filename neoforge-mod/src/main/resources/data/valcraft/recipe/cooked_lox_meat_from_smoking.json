@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:smoking",
+  "category": "food",
+  "ingredient": {
+    "item": "valcraft:lox_meat"
+  },
+  "result": {
+    "id": "valcraft:cooked_lox_meat"
+  },
+  "experience": 0.35,
+  "cookingtime": 100
+}

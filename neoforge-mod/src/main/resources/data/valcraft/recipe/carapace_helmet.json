@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "MMM",
+    "MLM"
+  ],
+  "key": {
+    "M": {
+      "item": "valcraft:carapace"
+    },
+    "L": {
+      "item": "minecraft:leather"
+    }
+  },
+  "result": {
+    "id": "valcraft:carapace_helmet",
+    "count": 1
+  }
+}

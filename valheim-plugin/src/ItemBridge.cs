@@ -300,6 +300,7 @@ namespace ValCraft
             _nextSweep = 0; // return whatever the station didn't take
         }
 
+        internal static void GiveMc(string id, int n) { _link?.TrySend(ValCraftLink.EvGiveItem, ItemMap.Give(_nextReq++, n, id)); }
         static void GiveBack(string id, int n) { _link?.TrySend(ValCraftLink.EvGiveItem, ItemMap.Give(_nextReq++, n, id)); ValCraftPlugin.Log.LogWarning($"[items] returned {n} x {id} to Minecraft (could not add the Valheim item)"); }
 
         static object AddValheim(string prefabName, int n)
