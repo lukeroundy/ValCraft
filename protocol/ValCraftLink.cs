@@ -49,7 +49,7 @@ namespace ValCraft.Protocol
     public sealed unsafe class ValCraftLink : IDisposable
     {
         public const uint Magic = 0x434C4156; // "VALC"
-        public const uint Version = 7;
+        public const uint Version = 8;
         // header
         public const int OffMagic = 0x0, OffVersion = 0x4, OffSize = 0x8, OffValheimPid = 0x10, OffMcPid = 0x14;
         public const int OffValheimHeartbeat = 0x18, OffMcHeartbeat = 0x20, OffValheimFlags = 0x28, OffMcFlags = 0x2C;

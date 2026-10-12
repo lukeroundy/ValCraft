@@ -154,3 +154,10 @@ Version = **7** (layout unchanged).
 - **39 EntMesh** MC→V: `u32 meshId, u16 firstIndex (0 = replace), u8 n (≤5), u8 last`, then n quads in the EV 37 44-byte layout, positions relative to the entity origin.
 - **40 EntUpdate** MC→V: `u8 first, u8 last, u16 n (≤11)`, n × (`u32 entityId, u32 meshId, f32 x, y, z` MC position, `u8 flags`: 1 = dropped item, Valheim spins/bobs). A first..last run is one complete snapshot (every 100 ms); entities missing from it are removed.
 - Explosions: per column, the lowest destroyed terrain-type block is sent as EV 24 BlockChanged (kind 0), so Valheim lowers its terrain.
+
+
+## v8 changes (ValCraft 0.7.4)
+Version = **8** (layout unchanged).
+- **30 BlockSyncConfig** gains a fourth u32: max mobs.
+- **40 EntUpdate** flags: 2 = mob/NPC/other player. Mesh ids with bit 30 (`0x40000000 | entityId`) are per-entity *dynamic* meshes: MC re-sends them (EV 39, firstIndex 0 = replace) ~10×/s nearby, ~3×/s farther; Valheim reuses the Mesh and frees it when the entity leaves the snapshot.
+- Entity ids with bit 31 set are live block entities (chests, ender chests, shulker boxes) at their block position; their mesh is the renderer capture for (state, lid openness in 1/8 steps). Their static palette entry is an invisible placeholder quad (collision boxes unchanged).

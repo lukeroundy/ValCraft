@@ -211,6 +211,7 @@ public final class BlockSync {
 		if (en && !enabled) reset();
 		radius = r; enabled = en;
 		if (p.length >= 12) EntitySync.maxEntities = b.getInt(8);
+		if (p.length >= 16) EntitySync.maxMobs = b.getInt(12);
 	}
 
 	/** On (re)link / disconnect: forget everything sent; Valheim is told to clear on next send. */
@@ -278,7 +279,10 @@ public final class BlockSync {
 			// 0.7.3: always the real model quads (fixes rotated UVs e.g. pistons/logs); boxes = collision (+ fallback)
 			if ((flags & BlockCodec.FLAG_CROSS) == 0) {
 				quads = s.getRenderShape() == net.minecraft.world.level.block.RenderShape.MODEL ? modelQuads(mc, s, model) : new java.util.ArrayList<>();
-				var ber = berQuads(mc, s);
+				var ber = isLidBlock(s) ? java.util.List.<BlockCodec.Quad>of() : berQuads(mc, s);
+				if (ber.isEmpty() && s.getBlock() instanceof net.minecraft.world.level.block.DecoratedPotBlock) { ber = potFallback(mc, s); ValCraft.LOG.info("[blocks] decorated pot: renderer capture gave nothing, using built-in pot mesh ({} quads)", ber.size()); }
+				// chests / ender chests / shulker boxes are drawn as live block entities by EntitySync (lid animation): static part = invisible placeholder
+				if (isLidBlock(s)) { quads = new java.util.ArrayList<>(); quads.add(new BlockCodec.Quad(0, 1, 6, new float[12], new float[8])); }
 				if (!ber.isEmpty()) { quads.addAll(ber); flags |= BlockCodec.FLAG_CUTOUT; flags &= ~BlockCodec.FLAG_FULL_OPAQUE; }
 				if (quads.size() > 255) quads = quads.subList(0, 255);
 			}
@@ -348,6 +352,36 @@ public final class BlockSync {
 		return out;
 	}
 
+	static boolean isLidBlock(BlockState s) {
+		var b = s.getBlock();
+		return b instanceof net.minecraft.world.level.block.ChestBlock || b instanceof net.minecraft.world.level.block.EnderChestBlock || b instanceof net.minecraft.world.level.block.ShulkerBoxBlock;
+	}
+
+	/** Hand-built decorated pot (body + neck) from the vanilla pot textures, used if the renderer capture yields nothing. */
+	private static java.util.List<BlockCodec.Quad> potFallback(Minecraft mc, BlockState s) {
+		var out = new java.util.ArrayList<BlockCodec.Quad>();
+		try {
+			NativeImage side = NativeImage.read(mc.getResourceManager().open(net.minecraft.resources.ResourceLocation.withDefaultNamespace("textures/entity/decorated_pot/decorated_pot_side.png")));
+			NativeImage base = NativeImage.read(mc.getResourceManager().open(net.minecraft.resources.ResourceLocation.withDefaultNamespace("textures/entity/decorated_pot/decorated_pot_base.png")));
+			int ts = tileForRegion(side, "pot_side", 0, 0, side.getWidth(), side.getHeight(), -1);
+			int tb = tileForRegion(base, "pot_base_top", 0, 0, Math.max(1, base.getWidth() / 2), Math.max(1, base.getHeight() / 2), -1);
+			addBox(out, 1 / 16f, 0, 1 / 16f, 15 / 16f, 13 / 16f, 15 / 16f, ts, tb);
+			addBox(out, 4 / 16f, 13 / 16f, 4 / 16f, 12 / 16f, 1f, 12 / 16f, tb, tb);
+			side.close(); base.close();
+		} catch (Exception ex) { ValCraft.LOG.warn("[blocks] decorated pot fallback failed: {}", ex.toString()); }
+		return out;
+	}
+
+	private static void addBox(java.util.List<BlockCodec.Quad> out, float x0, float y0, float z0, float x1, float y1, float z1, int sideTile, int capTile) {
+		float[] uv = { 0, 1, 1, 1, 1, 0, 0, 0 };
+		out.add(new BlockCodec.Quad(capTile, 0, 6, new float[] { x0, y0, z0, x1, y0, z0, x1, y0, z1, x0, y0, z1 }, uv));
+		out.add(new BlockCodec.Quad(capTile, 1, 6, new float[] { x0, y1, z0, x1, y1, z0, x1, y1, z1, x0, y1, z1 }, uv));
+		out.add(new BlockCodec.Quad(sideTile, 2, 6, new float[] { x0, y0, z0, x1, y0, z0, x1, y1, z0, x0, y1, z0 }, uv));
+		out.add(new BlockCodec.Quad(sideTile, 3, 6, new float[] { x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1 }, uv));
+		out.add(new BlockCodec.Quad(sideTile, 4, 6, new float[] { x0, y0, z0, x0, y0, z1, x0, y1, z1, x0, y1, z0 }, uv));
+		out.add(new BlockCodec.Quad(sideTile, 5, 6, new float[] { x1, y0, z0, x1, y0, z1, x1, y1, z1, x1, y1, z0 }, uv));
+	}
+
 	/** Geometry of a BlockEntityRenderer (chest, bed, sign, banner, skull, shulker box, decorated pot, bell, conduit, ...) for this state. */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private static java.util.List<BlockCodec.Quad> berQuads(Minecraft mc, BlockState s) {
@@ -362,6 +396,7 @@ public final class BlockSync {
 				Capture cap = new Capture();
 				r.render(be, 0f, new com.mojang.blaze3d.vertex.PoseStack(), cap, 0xF000F0, net.minecraft.client.renderer.texture.OverlayTexture.NO_OVERLAY);
 				var q = Capture.toTileQuads(cap.quads());
+				if (q.isEmpty()) ValCraft.LOG.info("[blocks] block-entity renderer for {} drew no capturable quads (attempt {}: {} raw quads, level {})", s, attempt + 1, cap.quads().size(), attempt == 0 ? "set" : "none");
 				if (!q.isEmpty() || attempt == 1) { if (!q.isEmpty()) ValCraft.LOG.info("[blocks] captured {} block-entity quads for {}", q.size(), s); return q; }
 			} catch (Throwable t) { if (attempt == 1) ValCraft.LOG.warn("[blocks] block-entity capture for {} failed: {}", s, t.toString()); }
 		}

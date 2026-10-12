@@ -312,3 +312,9 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
 - Animated textures (water, lava, fire, sea lantern, prismarine, magma, portal...) via GPU tile copies.
 - Entities: dropped items (spin/bob), armor stands, item frames, falling blocks, primed TNT, minecarts, boats; `[Blocks] MaxEntities`=64.
 - TNT/explosions lower Valheim terrain (one dig per column).
+
+## 0.7.4 (protocol v8)
+- Mobs, villagers and other players rendered (animated by re-capture, `[Blocks] MaxMobs`=24).
+- Chest / ender chest / shulker box lids animate (live block-entity capture per 1/8 openness).
+- Decorated pots: logs why capture fails and falls back to a built-in pot mesh.
+- Shader pick now honours priority across loaded shaders: solid blocks use `Standard` (override `[Blocks] OpaqueShader`).

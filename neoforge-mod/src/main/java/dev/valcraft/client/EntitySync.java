@@ -31,22 +31,27 @@ import net.minecraft.world.level.block.Block;
  */
 final class EntitySync {
 	private EntitySync() {}
-	static volatile int maxEntities = 64;
+	static volatile int maxEntities = 64, maxMobs = 24;
+	static final int MAX_LID_BLOCKS = 96, DYNAMIC_MESH = 0x40000000, BLOCK_ENTITY_ID = 0x80000000;
+	private static final java.util.HashMap<Integer, Long> lastMobCapture = new java.util.HashMap<>();
 	private static final Map<String, Integer> meshOf = new HashMap<>();
 	private static int nextMesh = 1;
 	private static long nextUpdate;
 
-	static void reset() { meshOf.clear(); nextMesh = 1; }
+	static void reset() { meshOf.clear(); nextMesh = 1; lastMobCapture.clear(); }
 
 	static void tick(Minecraft mc, java.util.ArrayDeque<dev.valcraft.link.ValCraftLink.Event> outbox) {
+		outboxRef = outbox;
 		long now = System.currentTimeMillis();
 		if (now < nextUpdate || mc.level == null || mc.player == null || maxEntities <= 0) return;
 		nextUpdate = now + 100;
 		double r = BlockSync.radius, r2 = r * r;
 		List<Entity> list = new ArrayList<>();
+		List<net.minecraft.world.entity.LivingEntity> mobs = new ArrayList<>();
 		for (Entity e : mc.level.entitiesForRendering()) {
-			if (e instanceof Player || !wanted(e) || e.isInvisible() && !(e instanceof ArmorStand)) continue;
-			if (e.distanceToSqr(mc.player) > r2) continue;
+			if (e == mc.player || e.distanceToSqr(mc.player) > r2) continue;
+			if (e instanceof net.minecraft.world.entity.LivingEntity le && !(e instanceof ArmorStand)) { if (!e.isInvisible()) mobs.add(le); continue; }
+			if (!wanted(e) || e.isInvisible() && !(e instanceof ArmorStand)) continue;
 			list.add(e);
 		}
 		list.sort((a, b) -> Double.compare(a.distanceToSqr(mc.player), b.distanceToSqr(mc.player)));
@@ -67,8 +72,71 @@ final class EntitySync {
 			var p = e.position();
 			ents.add(new BlockCodec.Ent(e.getId(), mesh, (float) p.x, (float) p.y, (float) p.z, e instanceof ItemEntity ? 1 : 0));
 		}
+		// mobs / NPCs / other players: re-captured every frame-ish (nearest 100 ms, farther 300 ms) into a per-entity dynamic mesh
+		mobs.sort((a, b) -> Double.compare(a.distanceToSqr(mc.player), b.distanceToSqr(mc.player)));
+		if (mobs.size() > maxMobs) mobs = mobs.subList(0, maxMobs);
+		java.util.HashSet<Integer> live = new java.util.HashSet<>();
+		int mobCaps = 0;
+		for (var e : mobs) {
+			int mesh = DYNAMIC_MESH | (e.getId() & 0x3FFFFFFF);
+			live.add(e.getId());
+			Long last = lastMobCapture.get(e.getId());
+			long interval = e.distanceToSqr(mc.player) < 256 ? 100 : 300;
+			if ((last == null || now - last >= interval) && mobCaps < 12) {
+				mobCaps++;
+				lastMobCapture.put(e.getId(), now);
+				var q = capture(mc, e);
+				if (!q.isEmpty()) outbox.addAll(BlockCodec.entityMesh(mesh, q));
+				if (last == null && lastMobCapture.size() <= 10) ValCraft.LOG.info("[entities] mob {} ({} quads)", e.getType().getDescriptionId(), q.size());
+			}
+			if (!lastMobCapture.containsKey(e.getId())) continue;
+			var p = e.position();
+			ents.add(new BlockCodec.Ent(e.getId(), mesh, (float) p.x, (float) p.y, (float) p.z, 2));
+		}
+		lastMobCapture.keySet().retainAll(live);
+		// chests / ender chests / shulker boxes: live block entities, mesh per (state, lid openness bucket)
+		lidBlocks(mc, ents);
 		outbox.addAll(BlockCodec.entityUpdate(ents));
 	}
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private static void lidBlocks(Minecraft mc, List<BlockCodec.Ent> ents) {
+		var pp = mc.player.blockPosition();
+		int rc = (BlockSync.radius >> 4) + 1, n = 0, caps = 0;
+		for (int cx = (pp.getX() >> 4) - rc; cx <= (pp.getX() >> 4) + rc; cx++)
+			for (int cz = (pp.getZ() >> 4) - rc; cz <= (pp.getZ() >> 4) + rc; cz++) {
+				var chunk = mc.level.getChunkSource().getChunk(cx, cz, false);
+				if (chunk == null) continue;
+				for (var be : chunk.getBlockEntities().values()) {
+					var st = be.getBlockState();
+					if (!BlockSync.isLidBlock(st) || n >= MAX_LID_BLOCKS) continue;
+					var pos = be.getBlockPos();
+					if (pos.distSqr(pp) > (double) BlockSync.radius * BlockSync.radius) continue;
+					float open = 0;
+					if (be instanceof net.minecraft.world.level.block.entity.LidBlockEntity lid) open = lid.getOpenNess(1f);
+					else if (be instanceof net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity sb) open = sb.getProgress(1f);
+					String key = "lid|" + Block.getId(st) + "|" + Math.round(open * 8);
+					Integer mesh = meshOf.get(key);
+					if (mesh == null) {
+						if (caps++ >= 6) continue;
+						mesh = nextMesh++;
+						meshOf.put(key, mesh);
+						Capture cap = new Capture();
+						try {
+							var r = (net.minecraft.client.renderer.blockentity.BlockEntityRenderer) mc.getBlockEntityRenderDispatcher().getRenderer(be);
+							if (r != null) r.render(be, 1f, new PoseStack(), cap, 0xF000F0, OverlayTexture.NO_OVERLAY);
+						} catch (Throwable t) { ValCraft.LOG.warn("[entities] lid block capture {} failed: {}", st, t.toString()); }
+						var q = Capture.toTileQuads(cap.quads());
+						outbox().addAll(BlockCodec.entityMesh(mesh, q));
+					}
+					n++;
+					ents.add(new BlockCodec.Ent(BLOCK_ENTITY_ID | (pos.hashCode() & 0x7FFFFFFF), mesh, pos.getX(), pos.getY(), pos.getZ(), 0));
+				}
+			}
+	}
+
+	private static java.util.ArrayDeque<dev.valcraft.link.ValCraftLink.Event> outboxRef;
+	private static java.util.ArrayDeque<dev.valcraft.link.ValCraftLink.Event> outbox() { return outboxRef; }
 
 	static boolean wanted(Entity e) {
 		return e instanceof ItemEntity || e instanceof ArmorStand || e instanceof ItemFrame || e instanceof FallingBlockEntity || e instanceof PrimedTnt

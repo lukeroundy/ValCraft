@@ -79,7 +79,10 @@ static unsafe class Program
         Console.WriteLine($"[cs] anim: {(an == null ? "missing" : $"{an.Frames.Length} frames, total {an.Total} ticks, frame@0={an.FrameAt(0)} @3={an.FrameAt(3)} @5={an.FrameAt(5)} @8={an.FrameAt(8)}")}");
         if (an == null || an.Total != 8 || an.FrameAt(0) != 0 || an.FrameAt(3) != 1 || an.FrameAt(5) != 2 || an.FrameAt(8) != 0) ok = false;
         Console.WriteLine($"[cs] entities: mesh quads {(es.Meshes.TryGetValue(5, out var mq) ? mq.Count : -1)}, complete {es.CompleteMeshes.Contains(5)}, snapshot {es.Current.Count} (snapshots {es.Snapshots})");
-        if (mq == null || mq.Count != 12 || !es.CompleteMeshes.Contains(5) || es.Current.Count != 15 || es.Snapshots != 1 || es.Current[100].Flags != 1 || es.Current[114].X != 14 || Math.Abs(mq[3].Pos[1] - 0.03f) > 2e-3f) ok = false;
+        if (mq == null || mq.Count != 12 || !es.CompleteMeshes.Contains(5) || Math.Abs(mq[3].Pos[1] - 0.03f) > 2e-3f) ok = false;
+        int dyn = es.Meshes.TryGetValue(0x40000007u, out var dq) ? dq.Count : -1;
+        Console.WriteLine($"[cs] mob mesh after resend: {dyn} quads; snapshot {es.Current.Count} ({es.Snapshots} snapshots), lid entity {(es.Current.ContainsKey(0x80000000u | 1234) ? "ok" : "missing")}");
+        if (dyn != 3 || es.Snapshots != 2 || es.Current.Count != 2 || es.Current[7].Flags != 2 || !es.Current.ContainsKey(0x80000000u | 1234)) ok = false;
         Console.WriteLine($"[cs] blocks test: {n} messages, {(ok ? "PASS" : "FAIL")}");
         return ok ? 0 : 1;
     }

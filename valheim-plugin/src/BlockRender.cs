@@ -31,10 +31,10 @@ namespace ValCraft
         static int _loadedRevision = -1, _layer = -1, _messages, _built;
         static float _nextAtlasTry, _nextStat;
         static bool _sentEnabled, _configSent;
-        static int _sentRadius, _sentMaxEnt;
+        static int _sentRadius, _sentMaxEnt, _sentMaxMobs;
 
         /// <summary>Called with every M2V event; true if it was a block message.</summary>
-        internal static int MaxEntities = 64;
+        internal static int MaxEntities = 64, MaxMobs = 24; internal static string OpaqueShader = "";
         static readonly EntityStore Ents = new EntityStore();
         static readonly Dictionary<uint, Mesh> EntMeshes = new Dictionary<uint, Mesh>();
         static readonly Dictionary<uint, GameObject> EntObjs = new Dictionary<uint, GameObject>();
@@ -65,11 +65,11 @@ namespace ValCraft
 
         internal static void Update(ValCraftLink link, bool connected)
         {
-            if (connected && (!_configSent || _sentEnabled != Enabled || _sentRadius != Radius || _sentMaxEnt != MaxEntities))
+            if (connected && (!_configSent || _sentEnabled != Enabled || _sentRadius != Radius || _sentMaxEnt != MaxEntities || _sentMaxMobs != MaxMobs))
             {
-                if (link.TrySend(ValCraftLink.EvBlockSyncConfig, Payload.U32(Enabled ? 1u : 0u, (uint)Radius, (uint)MaxEntities)))
+                if (link.TrySend(ValCraftLink.EvBlockSyncConfig, Payload.U32(Enabled ? 1u : 0u, (uint)Radius, (uint)MaxEntities, (uint)MaxMobs)))
                 {
-                    _configSent = true; _sentEnabled = Enabled; _sentRadius = Radius; _sentMaxEnt = MaxEntities;
+                    _configSent = true; _sentEnabled = Enabled; _sentRadius = Radius; _sentMaxEnt = MaxEntities; _sentMaxMobs = MaxMobs;
                     ValCraftPlugin.Log.LogInfo($"[blocks] sent config to Minecraft: render={(Enabled ? "on" : "off")}, radius {Radius}");
                 }
             }
@@ -171,16 +171,21 @@ namespace ValCraft
 
         static readonly string[] OpaqueNames = { "Standard", "Legacy Shaders/Diffuse", "Custom/Piece", "Unlit/Texture" };
         static readonly string[] CutoutNames = { "Legacy Shaders/Transparent/Cutout/Diffuse", "Standard", "Unlit/Transparent Cutout", "Legacy Shaders/Transparent/Cutout/VertexLit", "Nature/Tree Soft Occlusion Leaves" };
-        static readonly string[] TransNames = { "Legacy Shaders/Transparent/Diffuse", "Standard", "Unlit/Transparent", "Legacy Shaders/Transparent/VertexLit", "Sprites/Default", "Legacy Shaders/Particles/Alpha Blended", "UI/Default" };
+        static readonly string[] TransNames = { "Legacy Shaders/Transparent/Diffuse", "Sprites/Default", "Standard", "Unlit/Transparent", "Legacy Shaders/Transparent/VertexLit", "Sprites/Default", "Legacy Shaders/Particles/Alpha Blended", "UI/Default" };
         static readonly string[] EmitNames = { "Standard", "Legacy Shaders/Self-Illumin/Diffuse", "Legacy Shaders/Self-Illumin/VertexLit", "Unlit/Texture", "Particles/Standard Unlit" };
         static readonly string[] ShinyNames = { "Standard", "Legacy Shaders/Reflective/Specular", "Legacy Shaders/Reflective/Diffuse", "Legacy Shaders/Specular", "Legacy Shaders/Bumped Specular" };
         static Shader[] _loaded;
 
         static Shader FindShader(string[] names, out string picked)
         {
-            foreach (var n in names) { var sh = Shader.Find(n); if (sh != null) { picked = n; return sh; } }
+            // priority order across both Shader.Find and already-loaded shaders (0.7.3 log: "Standard" is only in the loaded list)
             if (_loaded == null) _loaded = Resources.FindObjectsOfTypeAll<Shader>();
-            foreach (var n in names) foreach (var sh in _loaded) if (sh != null && sh.name == n) { picked = n; return sh; }
+            foreach (var n in names)
+            {
+                var sh = Shader.Find(n);
+                if (sh == null) foreach (var l in _loaded) if (l != null && l.name == n) { sh = l; break; }
+                if (sh != null) { picked = n; return sh; }
+            }
             picked = null; return null;
         }
 
@@ -221,7 +226,7 @@ namespace ValCraft
         static void EnsureMaterial()
         {
             if (_mat != null) return;
-            var op = FindShader(OpaqueNames, out var opN);
+            var op = FindShader(string.IsNullOrEmpty(OpaqueShader) ? OpaqueNames : new[] { OpaqueShader }, out var opN); if (op == null) op = FindShader(OpaqueNames, out opN);
             if (op == null) { ValCraftPlugin.Log.LogWarning("[blocks] no opaque shader found; blocks will be invisible"); op = Shader.Find("Hidden/InternalErrorShader"); opN = "error"; }
             var cu = FindShader(CutoutNames, out var cuN);
             var tr = FindShader(TransNames, out var trN);
@@ -338,11 +343,12 @@ namespace ValCraft
                 Md.Clear();
                 float g = Store.AtlasPerRow, eps = 0.5f / Math.Max(1, Store.AtlasTileSize);
                 foreach (var q in quads) BlockStore.ModelQuad(Md, Md.Sub[1], q, 0, 0, 0, g, eps);
-                if (EntMeshes.TryGetValue(id, out var old) && old != null) UnityEngine.Object.Destroy(old);
                 int nv = Md.Pos.Count / 3;
                 var v = new Vector3[nv]; var n = new Vector3[nv]; var uv = new Vector2[nv]; var col = new Color32[nv];
                 for (int i = 0; i < nv; i++) { v[i] = new Vector3(Md.Pos[i * 3], Md.Pos[i * 3 + 1], Md.Pos[i * 3 + 2]); n[i] = new Vector3(Md.Nrm[i * 3], Md.Nrm[i * 3 + 1], Md.Nrm[i * 3 + 2]); uv[i] = new Vector2(Md.Uv[i * 2], Md.Uv[i * 2 + 1]); col[i] = new Color32(255, 255, 255, 255); }
-                var mesh = new Mesh { name = "mc_entity_" + id, indexFormat = IndexFormat.UInt32 };
+                // reuse the Mesh object (mobs re-send their mesh ~10x/s)
+                if (!EntMeshes.TryGetValue(id, out var mesh) || mesh == null) { mesh = new Mesh { name = "mc_entity_" + id, indexFormat = IndexFormat.UInt32 }; mesh.MarkDynamic(); }
+                mesh.Clear();
                 mesh.vertices = v; mesh.normals = n; mesh.uv = uv; mesh.colors32 = col; mesh.SetTriangles(Md.Sub[1], 0); mesh.RecalculateBounds();
                 EntMeshes[id] = mesh;
                 foreach (var go in EntObjs.Values) if (go != null && go.name.EndsWith("#" + id)) go.GetComponent<MeshFilter>().sharedMesh = mesh;
@@ -353,7 +359,7 @@ namespace ValCraft
             float t = Time.time;
             foreach (var e in Ents.Current.Values)
             {
-                if (count++ >= MaxEntities) break;
+                if (count++ >= MaxEntities + MaxMobs + 96) break;
                 seen.Add(e.Id);
                 if (!EntObjs.TryGetValue(e.Id, out var go) || go == null)
                 {
@@ -378,7 +384,18 @@ namespace ValCraft
             {
                 var gone = new List<uint>();
                 foreach (var id in EntObjs.Keys) if (!seen.Contains(id)) gone.Add(id);
-                foreach (var id in gone) { if (EntObjs[id] != null) UnityEngine.Object.Destroy(EntObjs[id]); EntObjs.Remove(id); }
+                foreach (var id in gone)
+                {
+                    var go = EntObjs[id];
+                    if (go != null)
+                    {
+                        // per-mob dynamic mesh (id bit 30): free it with the entity
+                        var mf = go.GetComponent<MeshFilter>(); var mm = mf != null ? mf.sharedMesh : null;
+                        foreach (var kv in EntMeshes) if (kv.Value == mm && (kv.Key & 0x40000000u) != 0) { UnityEngine.Object.Destroy(mm); EntMeshes.Remove(kv.Key); Ents.Meshes.Remove(kv.Key); break; }
+                        UnityEngine.Object.Destroy(go);
+                    }
+                    EntObjs.Remove(id);
+                }
             }
         }
 
