@@ -10,6 +10,13 @@ namespace ValCraft
     {
         static List<Func<bool>> _checks;
 
+        static MethodInfo _menuVisible; static bool _menuInit;
+        public static bool MenuOpen()
+        {
+            if (!_menuInit) { _menuInit = true; _menuVisible = AccessTools.Method("Menu:IsVisible", Type.EmptyTypes); }
+            try { return _menuVisible != null && (bool)_menuVisible.Invoke(null, null); } catch { return false; }
+        }
+
         public static bool AnyOpen()
         {
             if (_checks == null) Init();

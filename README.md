@@ -192,3 +192,16 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
   `valcraft`); config said `ValCraft`. The plugin now lists Prism's instances and resolves `PrismInstance` by folder name,
   case-insensitive folder name, display name (instance.cfg `name=`), or the only instance with a valcraft jar, and logs
   `[launch] instance "X" -> ID "Y" (why)`. Honours portable installs and `InstanceDir=` in prismlauncher.cfg.
+
+
+## 0.4.3
+- **Hitbox:** 0.4.2 auto width was 0.98 m (Valheim capsule radius 0.49) — almost a full door opening. Default
+  `HitboxWidth=0.5` (existing auto configs migrated once), height still from the capsule (1.85 m). `0` = old auto.
+- **Third person (F5):** MC draws only your player entity (model, armour, held items) into the overlay frame, lit full-bright;
+  the Valheim camera already follows MC's 3rd-person camera position. The 3rd-person camera distance is limited by the
+  Valheim collision boxes (not MC's hidden blocks). Limitation: no depth exchange, so Valheim walls don't hide your MC body.
+- **Interact with Valheim objects:** look at a door/chest/bed/station/item: Valheim's hover text appears under MC's
+  crosshair (`[E]` shown as `[Right-click]`). Right-click -> Valheim `Player.Interact` (same as E). Priority: an MC entity
+  under the crosshair wins, then Valheim's target (nearest along the camera ray within 3.5 m of your eye), then MC's normal
+  item use. Holding right-click interacts once per press.
+- **Overlay only during gameplay:** hidden in Valheim's main menu/character select/loading (no local player) and the Esc menu.

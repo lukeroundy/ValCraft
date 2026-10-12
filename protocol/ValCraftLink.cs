@@ -87,6 +87,10 @@ namespace ValCraft.Protocol
         public const ushort EvKey = 10, EvChar = 11, EvMouseMove = 12, EvMouseButton = 13, EvScroll = 14, EvReleaseAll = 15;
         /// <summary>V2M: f32 width, f32 height (m) for the MC player hitbox (0,0 = vanilla). Eye = 0.9 x height.</summary>
         public const ushort EvPlayerDims = 20;
+        /// <summary>V2M: UTF-8 Valheim hover text under the crosshair (empty = nothing interactable).</summary>
+        public const ushort EvHoverText = 21;
+        /// <summary>M2V: MC right-click with no MC entity targeted and Valheim hover present -> Valheim interact.</summary>
+        public const ushort EvInteract = 22;
 
         readonly MemoryMappedFile _mmf;
         readonly MemoryMappedViewAccessor _view;

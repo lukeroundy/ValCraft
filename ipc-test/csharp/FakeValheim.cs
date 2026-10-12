@@ -34,7 +34,8 @@ static unsafe class FakeValheim
                 if (age > maxHbAge) { maxHbAge = age; if (age > 1000) Console.WriteLine($"[host] MC heartbeat gap {age} ms at {sw.Elapsed.TotalSeconds:F1}s"); }
             }
             while (link.TryReceive(out var ev))
-                if (ev.Type == ValCraftLink.EvHello && Payload.GetU32(ev.Payload, 2) == link.Session)
+                if (ev.Type == ValCraftLink.EvInteract) Console.WriteLine($"[host] MC asked Valheim to INTERACT at {sw.Elapsed.TotalSeconds:F1}s");
+                else if (ev.Type == ValCraftLink.EvHello && Payload.GetU32(ev.Payload, 2) == link.Session)
                 {
                     mcPid = Payload.GetU32(ev.Payload, 0);
                     link.TrySend(ValCraftLink.EvHelloAck, Payload.U32(link.Session, mcPid));
@@ -87,6 +88,7 @@ static unsafe class FakeValheim
                             Console.WriteLine($"[host] published {vals.Count / 6} collision boxes");
                             break;
                         }
+                    case "hover": link.TrySend(ValCraftLink.EvHoverText, System.Text.Encoding.UTF8.GetBytes(c.Length > 1 ? c[1] : "")); break;
                     case "dims": link.TrySend(ValCraftLink.EvPlayerDims, Payload.F32(F(0), F(1))); break;
                     case "quit": goto done;
                 }

@@ -35,7 +35,7 @@ namespace ValCraft
         ConfigEntry<string> _cfgPrismExe, _cfgInstance, _cfgExtraArgs;
         ConfigEntry<KeyCode> _cfgToggleInput, _cfgToggleOverlay;
         ConfigEntry<bool> _cfgAutoInput;
-        bool _valheimOverride, _stallLogged;
+        bool _valheimOverride, _stallLogged, _lastInGame;
         float _nextLinkStatus;
         ConfigEntry<int> _cfgQuitGrace;
         internal ConfigEntry<float> CfgMouseScale;
@@ -93,7 +93,7 @@ namespace ValCraft
             ApplyColl();
             Config.SettingChanged += (_, __) => ApplyColl();
             var cfgNear = Config.Bind("Sync", "NearClip", 0.05f, "Valheim camera near clip plane while following (m). Must be smaller than half the hitbox width or walls get see-through when you touch them.");
-            var cfgHw = Config.Bind("Sync", "HitboxWidth", 0f, "Minecraft player width in m (0 = from the Valheim player's CapsuleCollider; vanilla MC is 0.6).");
+            var cfgHw = Config.Bind("Sync", "HitboxWidth", 0.5f, "Minecraft player width in m (0 = 2 x the Valheim player's CapsuleCollider radius, which is 0.98 m and too wide for doorways; vanilla MC is 0.6).");
             var cfgHh = Config.Bind("Sync", "HitboxHeight", 0f, "Minecraft player height in m (0 = from the Valheim capsule; vanilla MC is 1.8). Eye height = 0.9 x height.");
             var cfgHs = Config.Bind("Sync", "HitboxScale", 1f, "Multiplier on the hitbox width/height above.");
             var cfgVer = Config.Bind("Internal", "ConfigVersion", 0, "Used for one-time config migrations; don't edit.");
@@ -102,6 +102,12 @@ namespace ValCraft
                 // 0.4.0 log: an existing 0.3.0 config kept VerticalMode=GroundSnap (BepInEx keeps old values), which fights collision.
                 if (_cfgVertical.Value == VerticalMode.GroundSnap) { _cfgVertical.Value = VerticalMode.FollowMinecraft; Log.LogInfo("[config] migrated VerticalMode GroundSnap -> FollowMinecraft (collision needs it)"); }
                 cfgVer.Value = 2;
+            }
+            if (cfgVer.Value < 3)
+            {
+                // 0.4.2 log: auto width = 0.98 m (capsule radius 0.49) - nearly a whole door opening. Default 0.5 m now.
+                if (cfgHw.Value <= 0f) { cfgHw.Value = 0.5f; Log.LogInfo("[config] migrated HitboxWidth auto(0.98) -> 0.5"); }
+                cfgVer.Value = 3;
             }
             void ApplySync() {
                 PlayerSync.NearClip = Mathf.Clamp(cfgNear.Value, 0.01f, 1f); PlayerSync.HitboxWidth = cfgHw.Value; PlayerSync.HitboxHeight = cfgHh.Value; PlayerSync.HitboxScale = Mathf.Clamp(cfgHs.Value, 0.25f, 4f); PlayerSync.ResendDims(); PlayerSync.Enabled = _cfgFollow.Value; PlayerSync.HidePlayer = _cfgHidePlayer.Value; PlayerSync.HideHud = _cfgHideHud.Value; PlayerSync.ViewBob = _cfgViewBob.Value; PlayerSync.Vertical = _cfgVertical.Value; }
@@ -177,6 +183,9 @@ namespace ValCraft
                     case ValCraftLink.EvPing:
                         Link.TrySend(ValCraftLink.EvPong, ev.Payload);
                         break;
+                    case ValCraftLink.EvInteract:
+                        InteractBridge.Interact();
+                        break;
                 }
             }
 
@@ -220,6 +229,7 @@ namespace ValCraft
             if (kb.GetKeyDown(_cfgToggleOverlay.Value)) _overlayVisible = !_overlayVisible;
             if (kb.GetKeyDown(_cfgReAnchor.Value)) PlayerSync.ReAnchor();
             PlayerSync.Update(Link, _connected);
+            if (_connected) InteractBridge.Update(Link, PlayerSync.Following && _inputActive);
             if (_cfgAutoInput.Value)
             {
                 // Automatic: Minecraft gets input whenever we're in-game following MC and no Valheim UI is open.
@@ -234,7 +244,10 @@ namespace ValCraft
             Link.Flags = flags;
 
             if (_inputActive) _input.Forward((Link.PeerFlags & ValCraftLink.McFlagScreenOpen) != 0);
-            _overlay.Update(Link, _connected && _overlayVisible, _inputActive);
+            // Only show MC over gameplay: not in the main menu / character select / loading (no local player), nor the Esc menu.
+            bool inGame = PlayerSync.HasLocalPlayer && !ValheimUi.MenuOpen();
+            if (inGame != _lastInGame) { _lastInGame = inGame; Log.LogInfo(inGame ? "[overlay] Valheim gameplay: overlay on" : "[overlay] Valheim menu/loading: overlay hidden"); }
+            _overlay.Update(Link, _connected && _overlayVisible && inGame, _inputActive);
 
             if (_connected && t >= _nextStatus && Link.TryReadPlayerState(out var s))
             {

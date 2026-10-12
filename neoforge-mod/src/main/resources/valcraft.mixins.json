@@ -5,6 +5,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": ["EntityCollisionMixin", "EntityFluidAccessor", "McWorldIrrelevantMixin", "PlayerDimsMixin", "ServerMoveCheckMixin"],
   "client": [
+    "CameraMixin",
     "GameRendererAccessor",
     "GameRendererPickMixin",
     "ScreenEffectMixin",
@@ -13,6 +14,7 @@
     "KeyboardHandlerAccessor",
     "LevelRendererMixin",
     "MinecraftMixin",
+    "MinecraftUseMixin",
     "MouseHandlerAccessor",
     "WindowMixin"
   ],

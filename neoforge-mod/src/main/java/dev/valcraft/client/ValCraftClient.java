@@ -60,6 +60,8 @@ public final class ValCraftClient {
 	private static int loggedBoxes = -1;
 
 	/** True while Valheim forwards input to us (F7). */
+	public static boolean sendToValheim(short type, byte[] payload) { ValCraftLink l = link; return l != null && acked && l.trySend(type, payload); }
+
 	public static boolean inputActive() { return active() && (link.peerFlags() & ValCraftLink.VFLAG_INPUT_ACTIVE) != 0; }
 
 	@SubscribeEvent
@@ -94,6 +96,7 @@ public final class ValCraftClient {
 					var bb = java.nio.ByteBuffer.wrap(ev.payload()).order(java.nio.ByteOrder.LITTLE_ENDIAN);
 					PlayerDims.set(mc, bb.getFloat(0), bb.getFloat(4));
 				}
+				case ValCraftLink.EV_HOVER_TEXT -> ValheimInteract.hoverText = new String(ev.payload(), java.nio.charset.StandardCharsets.UTF_8);
 				case ValCraftLink.EV_QUIT -> { quit(mc, "Valheim sent Quit"); return; }
 				default -> { if (acked) VirtualInput.handle(mc, ev); }
 			}
@@ -142,6 +145,7 @@ public final class ValCraftClient {
 		if (active()) {
 			AutoWorld.tick(mc);
 			PlayerDims.tick(mc);
+			ValheimInteract.tick(mc);
 			CollisionWorld.poll(link);
 			if (CollisionWorld.boxCount() != loggedBoxes && (loggedBoxes <= 0 || Math.abs(CollisionWorld.boxCount() - loggedBoxes) > 500)) {
 				loggedBoxes = CollisionWorld.boxCount();
@@ -176,6 +180,7 @@ public final class ValCraftClient {
 		VirtualInput.releaseAll(mc);
 		FrameExporter.reset();
 		CollisionWorld.clear();
+		ValheimInteract.hoverText = "";
 		PlayerDims.set(mc, 0, 0);
 		AutoWorld.reset();
 		loggedBoxes = -1;
