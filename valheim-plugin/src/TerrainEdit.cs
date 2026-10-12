@@ -18,7 +18,7 @@ namespace ValCraft
     internal static class TerrainEdit
     {
         internal static bool Enabled = true;
-        internal static float Radius = 0.6f;
+        internal static float Radius = 0.75f; // half-size of the square of vertices edited (1 m vertex grid -> 1-4 vertices)
         static Type _opType, _settingsType;
         static FieldInfo _settingsField;
         static MethodInfo _checkAccess;
@@ -69,7 +69,7 @@ namespace ValCraft
             }
             else
             {
-                if (bottom > ground + 0.3f || top <= ground + 0.05f) { ValCraftPlugin.Log.LogInfo($"[terrain-edit] placed {id} not resting on Valheim ground: no terrain change"); return; }
+                if (bottom > ground + 0.3f || top <= ground + 0.05f) { ValCraftPlugin.Log.LogInfo($"[terrain-edit] placed {id} not resting on Valheim ground (block {bottom:F2}..{top:F2}, ground {ground:F2}): no terrain change"); return; }
                 target = top;
             }
             var pos = new Vector3(x + 0.5f + a.x, target, -(z + 0.5f) + a.z);
@@ -77,7 +77,6 @@ namespace ValCraft
             {
                 try { if (!(bool)_checkAccess.Invoke(null, new object[] { pos, 0f, true, false })) { ValCraftPlugin.Log.LogInfo("[terrain-edit] blocked by a ward (PrivateArea)"); return; } } catch { }
             }
-            if (!_ok) { ValCraftPlugin.Log.LogWarning("[terrain-edit] TerrainOp not found; terrain edits disabled"); return; }
             if (Apply(pos, kind == 0))
             {
                 ValCraftPlugin.Log.LogInfo($"[terrain-edit] {(kind == 0 ? "lowered" : "raised")} Valheim terrain at {pos} ({ground:F2} -> {target:F2}) for MC {(kind == 0 ? "break" : "place")} of {id} at ({x},{y},{z})");
@@ -86,64 +85,109 @@ namespace ValCraft
             }
         }
 
-        // History: 0.6.0/0.6.1 spawned a TerrainOp object. Its Awake -> TerrainComp.ApplyOperation sends only the op's
-        // prefab hash, and the RPC handler resolves the settings from a prefab table we can't reliably add to
-        // ("Failed to deserialize TerrainOp settings for prefab hash ..., cancelling TerrainOp" in both versions).
-        // 0.6.2: skip the RPC: for every heightmap the edit touches, get/create its TerrainComp and call the owner-side
-        // TerrainComp.DoOperation(pos, TerrainOp.Settings) (InternalDoOperation + Save into the TerrainComp ZDO + heightmap
-        // poke), the same method the RPC handler ends in. The ZDO replicates/persists like any terrain edit.
-        // We must own the TerrainComp's ZDO (always true in single player / as host); otherwise we claim ownership first.
-        static MethodInfo _findHms, _getComp, _doOp, _isOwner, _claim, _poke;
-        static FieldInfo _nviewF;
-        static Type _hmType;
+        // History: 0.6.0/0.6.1 spawned a TerrainOp (its RPC resolves settings by prefab hash -> "Failed to deserialize
+        // TerrainOp settings", cancelled); 0.6.2 called TerrainComp.DoOperation, which doesn't exist (by that signature)
+        // in Luke's Valheim build, so nothing ran.
+        // 0.6.3: the approach of JereKuusela's World Edit Commands (public domain / Unlicense,
+        // https://github.com/JereKuusela/valheim-world_edit_commands, Terrain/TerrainOperations.cs + TerrainSave.cs +
+        // TerrainSelect.cs), used by many players on current Valheim: write the TerrainComp's per-vertex arrays directly.
+        //   compilers: Heightmap.FindHeightmap(pos, r+1, list) -> hmap.GetAndCreateTerrainCompiler()
+        //   vertex (x,z) of a compiler: index = z*(m_width+1)+x, world = hmap.pos + ((x - hm.m_width/2)*m_scale, 0, (z - hm.m_width/2)*m_scale)
+        //   level:  m_levelDelta[i] += y - hmap.m_heights[i]; m_smoothDelta[i] = 0; m_modifiedHeight[i] = m_levelDelta[i] != 0
+        //   paint:  m_paintMask[i] = Color.red (dirt); m_modifiedPaint[i] = true
+        //   save:   ZNetView.ClaimOwnership(); m_operations++; m_lastOpPoint = 0; m_lastOpRadius = 0; Save(); hmap.Poke(false)
+        // Save() writes the arrays into the TerrainComp ZDO, so it persists with the world and replicates.
+        static MethodInfo _findHms, _getComp, _save, _poke, _claim, _resetGrass;
+        static FieldInfo _fWidth, _fOps, _fModH, _fLevel, _fSmooth, _fModP, _fPaint, _fHmap, _fLastPt, _fLastR, _fHmWidth, _fHmScale, _fHmHeights;
+        static Type _hmType, _tcType;
+        static bool _apiChecked, _apiOk;
 
+        static bool CheckApi()
+        {
+            if (_apiChecked) return _apiOk;
+            _apiChecked = true;
+            _hmType = AccessTools.TypeByName("Heightmap");
+            _tcType = AccessTools.TypeByName("TerrainComp");
+            if (_hmType == null || _tcType == null) { ValCraftPlugin.Log.LogWarning("[terrain-edit] Heightmap/TerrainComp types not found"); return false; }
+            var listT = typeof(List<>).MakeGenericType(_hmType);
+            _findHms = AccessTools.Method(_hmType, "FindHeightmap", new[] { typeof(Vector3), typeof(float), listT });
+            _getComp = AccessTools.Method(_hmType, "GetAndCreateTerrainCompiler");
+            _poke = AccessTools.Method(_hmType, "Poke", new[] { typeof(bool) });
+            _save = AccessTools.Method(_tcType, "Save", Type.EmptyTypes);
+            var znv = AccessTools.TypeByName("ZNetView");
+            _claim = znv == null ? null : AccessTools.Method(znv, "ClaimOwnership");
+            var cs = AccessTools.TypeByName("ClutterSystem");
+            _resetGrass = cs == null ? null : AccessTools.Method(cs, "ResetGrass", new[] { typeof(Vector3), typeof(float) });
+            _fWidth = AccessTools.Field(_tcType, "m_width"); _fOps = AccessTools.Field(_tcType, "m_operations");
+            _fModH = AccessTools.Field(_tcType, "m_modifiedHeight"); _fLevel = AccessTools.Field(_tcType, "m_levelDelta");
+            _fSmooth = AccessTools.Field(_tcType, "m_smoothDelta"); _fModP = AccessTools.Field(_tcType, "m_modifiedPaint");
+            _fPaint = AccessTools.Field(_tcType, "m_paintMask"); _fHmap = AccessTools.Field(_tcType, "m_hmap");
+            _fLastPt = AccessTools.Field(_tcType, "m_lastOpPoint"); _fLastR = AccessTools.Field(_tcType, "m_lastOpRadius");
+            _fHmWidth = AccessTools.Field(_hmType, "m_width"); _fHmScale = AccessTools.Field(_hmType, "m_scale"); _fHmHeights = AccessTools.Field(_hmType, "m_heights");
+            var need = new (string, object)[] { ("Heightmap.FindHeightmap(pos,r,list)", _findHms), ("GetAndCreateTerrainCompiler", _getComp), ("TerrainComp.Save", _save),
+                ("m_width", _fWidth), ("m_modifiedHeight", _fModH), ("m_levelDelta", _fLevel), ("m_smoothDelta", _fSmooth), ("m_hmap", _fHmap),
+                ("Heightmap.m_width", _fHmWidth), ("Heightmap.m_scale", _fHmScale), ("Heightmap.m_heights", _fHmHeights) };
+            var missing = new List<string>();
+            foreach (var (n, o) in need) if (o == null) missing.Add(n);
+            _apiOk = missing.Count == 0;
+            ValCraftPlugin.Log.Log(_apiOk ? BepInEx.Logging.LogLevel.Info : BepInEx.Logging.LogLevel.Warning,
+                _apiOk ? $"[terrain-edit] TerrainComp API OK (paint={_fPaint != null && _fModP != null}, ops={_fOps != null}, claim={_claim != null}, poke={_poke != null})"
+                       : $"[terrain-edit] TerrainComp API missing: {string.Join(", ", missing)} -> terrain edits disabled");
+            return _apiOk;
+        }
+
+        /// <summary>Level the vertices within a square of half-size Radius around pos (x,z) to pos.y.</summary>
         static bool Apply(Vector3 pos, bool dig)
         {
+            if (!CheckApi()) return false;
             try
             {
-                if (_doOp == null)
-                {
-                    _hmType = AccessTools.TypeByName("Heightmap");
-                    var tcT = AccessTools.TypeByName("TerrainComp");
-                    var listT = typeof(List<>).MakeGenericType(_hmType);
-                    _findHms = AccessTools.Method(_hmType, "FindHeightmap", new[] { typeof(Vector3), typeof(float), listT });
-                    _getComp = AccessTools.Method(_hmType, "GetAndCreateTerrainCompiler");
-                    _poke = AccessTools.Method(_hmType, "Poke", new[] { typeof(bool) });
-                    _doOp = AccessTools.Method(tcT, "DoOperation", new[] { typeof(Vector3), _settingsType });
-                    _isOwner = AccessTools.Method(tcT, "IsOwner");
-                    _nviewF = AccessTools.Field(tcT, "m_nview");
-                    var znv = AccessTools.TypeByName("ZNetView");
-                    _claim = znv == null ? null : AccessTools.Method(znv, "ClaimOwnership");
-                    ValCraftPlugin.Log.LogInfo($"[terrain-edit] Heightmap.FindHeightmap(pos,r,list)={_findHms != null}, GetAndCreateTerrainCompiler={_getComp != null}, TerrainComp.DoOperation={_doOp != null}, IsOwner={_isOwner != null}, ClaimOwnership={_claim != null}");
-                    if (_findHms == null || _getComp == null || _doOp == null) { _ok = false; return false; }
-                }
-                var st = Activator.CreateInstance(_settingsType);
-                void Set(string n, object v) { var f = AccessTools.Field(_settingsType, n); if (f != null) f.SetValue(st, Convert.ChangeType(v, f.FieldType)); else ValCraftPlugin.Log.LogWarning($"[terrain-edit] TerrainOp.Settings.{n} missing"); }
-                Set("m_level", true); Set("m_levelOffset", 0f); Set("m_levelRadius", Radius); Set("m_square", true);
-                Set("m_raise", false); Set("m_smooth", false);
-                Set("m_paintCleared", dig); Set("m_paintRadius", Radius); Set("m_paintHeightCheck", false);
                 var list = (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(_hmType));
                 _findHms.Invoke(null, new object[] { pos, Radius + 1f, list });
                 if (list.Count == 0) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] no heightmap at {pos}"); return false; }
-                int done = 0;
-                foreach (var hm in list)
+                int verts = 0, comps = 0;
+                foreach (var hmObj in list)
                 {
-                    var tc = _getComp.Invoke(hm, null);
+                    var tc = _getComp.Invoke(hmObj, null) as Component;
                     if (tc == null) { ValCraftPlugin.Log.LogWarning("[terrain-edit] GetAndCreateTerrainCompiler returned null"); continue; }
-                    bool owner = _isOwner == null || (bool)_isOwner.Invoke(tc, null);
-                    if (!owner)
-                    {
-                        var nv = _nviewF?.GetValue(tc);
-                        if (nv != null && _claim != null) { _claim.Invoke(nv, null); ValCraftPlugin.Log.LogInfo("[terrain-edit] claimed TerrainComp ownership (another peer owned it)"); }
-                    }
-                    _doOp.Invoke(tc, new object[] { pos, st });
+                    var hm = _fHmap.GetValue(tc) as Component ?? hmObj as Component;
+                    int w = (int)_fWidth.GetValue(tc), max = w + 1;
+                    int hw = (int)_fHmWidth.GetValue(hm); float sc = (float)_fHmScale.GetValue(hm);
+                    var heights = _fHmHeights.GetValue(hm) as List<float>;
+                    var level = (float[])_fLevel.GetValue(tc); var smooth = (float[])_fSmooth.GetValue(tc); var modH = (bool[])_fModH.GetValue(tc);
+                    var paint = _fPaint?.GetValue(tc) as Color[]; var modP = _fModP?.GetValue(tc) as bool[];
+                    var origin = hm.transform.position;
+                    int n = 0;
+                    for (int x = 0; x < max; x++)
+                        for (int z = 0; z < max; z++)
+                        {
+                            float vx = origin.x + (x - hw / 2) * sc, vz = origin.z + (z - hw / 2) * sc;
+                            if (Mathf.Abs(vx - pos.x) > Radius || Mathf.Abs(vz - pos.z) > Radius) continue;
+                            int i = z * max + x;
+                            if (heights == null || i >= heights.Count || i >= level.Length) continue;
+                            float cur = heights[i];
+                            if (dig ? cur <= pos.y : cur >= pos.y) continue;   // only lower when digging / raise when placing
+                            level[i] += pos.y - cur;
+                            smooth[i] = 0f;
+                            modH[i] = level[i] != 0f;
+                            if (dig && paint != null && modP != null && i < paint.Length) { paint[i] = Color.red; modP[i] = true; }
+                            n++;
+                        }
+                    if (n == 0) continue;
+                    var nv = tc.GetComponent(AccessTools.TypeByName("ZNetView"));
+                    if (nv != null && _claim != null) _claim.Invoke(nv, null);
+                    if (_fOps != null) _fOps.SetValue(tc, (int)_fOps.GetValue(tc) + 1);
+                    _fLastPt?.SetValue(tc, Vector3.zero); _fLastR?.SetValue(tc, 0f);
+                    _save.Invoke(tc, null);
                     try { _poke?.Invoke(hm, new object[] { false }); } catch { }
-                    done++;
+                    verts += n; comps++;
                 }
-                ValCraftPlugin.Log.LogInfo($"[terrain-edit] TerrainComp.DoOperation applied on {done}/{list.Count} heightmap(s)");
-                return done > 0;
+                try { var csT = AccessTools.TypeByName("ClutterSystem"); var inst = csT == null ? null : (AccessTools.Field(csT, "m_instance")?.GetValue(null) ?? AccessTools.Property(csT, "instance")?.GetValue(null, null)); if (inst != null) _resetGrass?.Invoke(inst, new object[] { pos, Radius + 0.5f }); } catch { }
+                ValCraftPlugin.Log.LogInfo($"[terrain-edit] wrote {verts} vertices on {comps}/{list.Count} TerrainComp(s) to y={pos.y:F2}");
+                if (verts == 0) ValCraftPlugin.Log.LogWarning($"[terrain-edit] no terrain vertex within {Radius} m of {pos} needed changing");
+                return verts > 0;
             }
-            catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] DoOperation failed: {e.GetBaseException()}"); return false; }
+            catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] direct TerrainComp edit failed: {e.GetBaseException()}"); return false; }
         }
 
         /// <summary>Called on tile re-sample after an edit: report whether Valheim's ground actually moved.</summary>

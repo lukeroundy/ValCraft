@@ -279,3 +279,12 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
   `Heightmap.GetAndCreateTerrainCompiler`), then poke the heightmap. Saved in the TerrainComp ZDO (persists, replicates).
   Signatures checked against publicized assembly_valheim (ValheimGameLibz 0.221.12). If another peer owns the TerrainComp,
   we claim ownership first (multiplayer caveat).
+
+## 0.6.3
+- Fix: digging/placing terrain. 0.6.2 failed because `TerrainComp.DoOperation(Vector3, TerrainOp.Settings)` doesn't exist in
+  the current Valheim build (log: `TerrainComp.DoOperation=False`), so every edit was skipped (with a misleading "TerrainOp
+  not found" line). Now the plugin writes TerrainComp's per-vertex arrays directly (`m_levelDelta`/`m_smoothDelta`/
+  `m_modifiedHeight`, dirt paint via `m_paintMask`/`m_modifiedPaint`), then ClaimOwnership, `m_operations++`, `Save()`,
+  `Heightmap.Poke(false)`. That's how JereKuusela's World Edit Commands edits terrain (public domain:
+  https://github.com/JereKuusela/valheim-world_edit_commands, TerrainOperations.cs / TerrainSave.cs / TerrainSelect.cs).
+- Startup diagnostic lists any missing TerrainComp member; each edit logs `wrote N vertices on K TerrainComp(s) to y=..`.

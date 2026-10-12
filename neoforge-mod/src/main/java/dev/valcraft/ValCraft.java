@@ -10,6 +10,6 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft() {
-		LOG.info("ValCraft loaded (0.6.2: Phase B terrain edits + Valheim hits)");
+		LOG.info("ValCraft loaded (0.6.3: Phase B terrain edits + Valheim hits)");
 	}
 }
