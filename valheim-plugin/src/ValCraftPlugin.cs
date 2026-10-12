@@ -129,6 +129,7 @@ namespace ValCraft
             ValheimHit.Combat = Config.Bind("Combat", "Enabled", true, "Minecraft left-click on Valheim creatures damages them (attacker = your Valheim player, so aggro, skills and drops work).").Value;
             Saplings.Chance = Config.Bind("Items", "SaplingChance", 0.05f, "Chance (0..1) that a chopped-down Valheim tree drops a Minecraft sapling (beech/birch -> birch, pine/fir -> spruce, swamp -> dark oak, others -> oak).").Value;
             Logo.Enabled = Config.Bind("General", "ValCraftLogo", true, "Replace the Valheim main menu title with 'ValCraft'.").Value;
+            Logo.ShowVersion = Config.Bind("General", "ValCraftLogoVersion", true, "Show the ValCraft version under the main menu title.").Value;
             ValheimHit.CombatScale = Config.Bind("Combat", "DamageScale", 6f, "Valheim damage per point of Minecraft attack damage at full swing (iron sword 6 -> 36, about a bronze/iron sword).").Value;
             ValheimHit.CombatPush = Config.Bind("Combat", "Knockback", 30f, "Valheim push force of a full-strength hit.").Value;
             var cfgYOff = Config.Bind("Terrain", "YOffset", 32f, "MC Y = Valheim Y + YOffset (sea level 30 -> MC 62; Valheim -96..288 fits MC -64..320).");
