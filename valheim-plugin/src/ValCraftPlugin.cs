@@ -91,6 +91,14 @@ namespace ValCraft
             _cfgCollRadius = Config.Bind("Collision", "Radius", 32f, "Export radius around the player (m).");
             var cfgTerrain = Config.Bind("Terrain", "TerrainBlocks", true, "Stream Valheim terrain (height + biome) to Minecraft as real blocks (collision, mining). Off = 0.4.x collision boxes.");
             var cfgTerrainR = Config.Bind("Terrain", "Radius", 48f, "Terrain streaming radius around the player (m = blocks).");
+            var cfgEdit = Config.Bind("Terrain", "EditTerrain", true, "MC breaking/placing terrain blocks lowers/raises Valheim terrain (Valheim TerrainOp; networked, saved; +-8 m limit).");
+            TerrainEdit.Enabled = cfgEdit.Value;
+            var cfgHit = Config.Bind("Hits", "Enabled", true, "MC left-click damages Valheim rocks/ore/trees/destructibles the Valheim camera aims at.");
+            var cfgTier = Config.Bind("Hits", "ToolTiers", "0,1,2,1,3,4", "Valheim tool tier for MC tool tiers wood,stone,iron,gold,diamond,netherite (Valheim: 0 stone/antler, 1 flint, 2 bronze, 3 iron, 4 black metal; ores/trees need >= their min tier).");
+            var cfgDmg = Config.Bind("Hits", "ToolDamage", "10,18,30,22,45,60", "Pickaxe/chop damage per hit for MC tool tiers wood,stone,iron,gold,diamond,netherite.");
+            ValheimHit.Enabled = cfgHit.Value;
+            try { var t = Array.ConvertAll(cfgTier.Value.Split(','), x => int.Parse(x.Trim())); if (t.Length == 6) ValheimHit.TierMap = t; } catch { Log.LogWarning("[hit] bad ToolTiers config"); }
+            try { var d = Array.ConvertAll(cfgDmg.Value.Split(','), x => float.Parse(x.Trim(), System.Globalization.CultureInfo.InvariantCulture)); if (d.Length == 6) ValheimHit.DamageMap = d; } catch { Log.LogWarning("[hit] bad ToolDamage config"); }
             var cfgYOff = Config.Bind("Terrain", "YOffset", 32f, "MC Y = Valheim Y + YOffset (sea level 30 -> MC 62; Valheim -96..288 fits MC -64..320).");
             void ApplyTerrain() { TerrainExport.Enabled = cfgTerrain.Value; TerrainExport.Radius = Mathf.Clamp(cfgTerrainR.Value, 16f, 128f); PlayerSync.FixedAnchorY = cfgTerrain.Value ? -cfgYOff.Value : (float?)null; }
             ApplyTerrain();
@@ -192,6 +200,9 @@ namespace ValCraft
                     case ValCraftLink.EvBlockChanged:
                         TerrainExport.OnBlockChanged(ev.Payload);
                         break;
+                    case ValCraftLink.EvAttack:
+                        ValheimHit.Attack(ev.Payload);
+                        break;
                     case ValCraftLink.EvInteract:
                         InteractBridge.Interact();
                         break;
@@ -214,7 +225,7 @@ namespace ValCraft
             if (_connected && !alive)
             {
                 Log.LogInfo("[link] Minecraft heartbeat lost for 20 s; waiting for it to reconnect");
-                _connected = false;
+                _connected = false; ValheimHit.Reset();
                 SetInputActive(false);
                 PlayerSync.Stop("Minecraft disconnected");
             }
@@ -240,6 +251,7 @@ namespace ValCraft
             PlayerSync.Update(Link, _connected);
             TerrainExport.Update(Link, _connected);
             if (_connected) InteractBridge.Update(Link, PlayerSync.Following && _inputActive);
+            if (_connected) ValheimHit.Update(Link, PlayerSync.Following && _inputActive);
             if (_cfgAutoInput.Value)
             {
                 // Automatic: Minecraft gets input whenever we're in-game following MC and no Valheim UI is open.

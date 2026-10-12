@@ -55,6 +55,7 @@ namespace ValCraft
             if (!_init) Init();
             var a = PlayerSync.Anchor;
             if (a != _anchorSeen) { _anchorSeen = a; _sentHash.Clear(); _rescan.Clear(); }
+            ProcessDirty();
             var s = PlayerSync.State;
             int ptx = Mathf.FloorToInt((float)s.FeetX / T), ptz = Mathf.FloorToInt((float)s.FeetZ / T);
             int r = Mathf.CeilToInt(Radius / T);
@@ -192,6 +193,29 @@ namespace ValCraft
         }
 
         // Phase B hook: MC block edits are logged here; applying them to Valheim terrain comes next.
+        /// <summary>True Valheim ground (world Y) at MC (x, z).</summary>
+        internal static float HeightAtMc(float mx, float mz, Vector3 a) { if (!_init) Init(); return HeightAt(mx, mz, a); }
+
+        static readonly List<KeyValuePair<float, long>> _dirty = new List<KeyValuePair<float, long>>();
+        /// <summary>Terrain edited at MC column (x, z): re-sample + re-send its tile (and neighbours at edges) soon, twice
+        /// (the heightmap collider rebuilds a frame or so later; a remote TerrainComp owner answers later still).</summary>
+        internal static void Invalidate(int x, int z)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    int tx = Mathf.FloorToInt((x + dx * 1.5f) / (float)T), tz = Mathf.FloorToInt((z + dz * 1.5f) / (float)T);
+                    long k = Key(tx, tz);
+                    foreach (var d in new[] { 0.3f, 1.2f, 3f }) _dirty.Add(new KeyValuePair<float, long>(Time.unscaledTime + d, k));
+                }
+        }
+
+        static void ProcessDirty()
+        {
+            for (int i = _dirty.Count - 1; i >= 0; i--)
+                if (Time.unscaledTime >= _dirty[i].Key) { _sentHash.Remove(_dirty[i].Value); _dirty.RemoveAt(i); } // unsent -> nearest-first resend
+        }
+
         public static void OnBlockChanged(byte[] p)
         {
             if (p.Length < 16) return;
@@ -199,7 +223,8 @@ namespace ValCraft
             string id = System.Text.Encoding.UTF8.GetString(p, 16, p.Length - 16).TrimEnd('\0');
             var a = PlayerSync.Anchor;
             var u = new Vector3(x + 0.5f + a.x, y + 0.5f + a.y, -(z + 0.5f) + a.z);
-            ValCraftPlugin.Log.LogInfo($"[terrain] MC {(kind == 0 ? "broke" : "placed")} {id} at MC ({x},{y},{z}) = Valheim {u} — not applied to Valheim yet (Phase B)");
+            ValCraftPlugin.Log.LogInfo($"[terrain] MC {(kind == 0 ? "broke" : "placed")} {id} at MC ({x},{y},{z}) = Valheim {u}");
+            TerrainEdit.OnBlockChanged(x, y, z, kind, id);
         }
     }
 }

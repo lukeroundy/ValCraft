@@ -246,3 +246,19 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
 - Integrated server no longer rubber-bands the player for overlapping terrain blocks; LocalPlayer push-out disabled on smooth terrain.
 - Valheim camera: small vertical steps (0.3–1.1 m, e.g. stair/box edges) are smoothed (decays in ~0.1 s).
 - Debug: `VC_DEBUGMOVE=true` (dev run) / `-Dvalcraft.debugMove=true` logs collide in/out vs ground height.
+
+## 0.6.0: Phase B (MC edits and hits change Valheim)
+- **Terrain edits:** breaking a terrain-type block (grass/dirt/stone/sand/gravel/snow/mud/...) that lies in Valheim's ground
+  levels that 1 m cell down to the block's bottom; placing a terrain-type block resting on the ground levels it up to the
+  block's top. Done with Valheim's own `TerrainOp` (level op, radius `TerrainEdit` 0.6 m square, paints dirt when digging)
+  -> `TerrainComp.ApplyOperation` RPC: networked and saved with the world like pickaxe/hoe edits. Valheim's +-8 m edit limit
+  applies; wards (PrivateArea) block it. The edited tile (and neighbours) is re-sampled 0.3/1.2/3 s later and re-sent,
+  so MC blocks and the smooth heightfield follow and you drop into holes. Config `[Terrain] EditTerrain`.
+- **Hits:** Valheim rays from its camera every 0.1 s; if the nearest thing within 3.5 m is an `IDestructible` (rocks,
+  ore deposits MineRock/MineRock5, trees, logs, stumps, other destructibles) MC is told, and MC left-click then sends a hit
+  instead of mining/attacking in MC (one per click, ~0.7 s while held, arm swings). Valheim applies a `HitData` with
+  pickaxe (MC pickaxe) or chop (MC axe) damage and tool tier from `[Hits] ToolTiers` / `ToolDamage` (per MC tier
+  wood,stone,iron,gold,diamond,netherite; defaults 0,1,2,1,3,4 and 10,18,30,22,45,60) through `IDestructible.Damage` (networked RPC).
+  Valheim drops spawn as Valheim items (MC items come with Phase C).
+- **Non-terrain MC blocks** (planks, etc.) stay MC-only: they collide in MC but are invisible in Valheim (MC world isn't
+  drawn). Next proposed step: render MC-placed blocks in Valheim (mesh per chunk from MC block models/atlas, sent over IPC).

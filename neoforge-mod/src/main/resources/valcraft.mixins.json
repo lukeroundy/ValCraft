@@ -24,7 +24,8 @@
     "MinecraftUseMixin",
     "MouseHandlerAccessor",
     "WindowMixin",
-    "LocalPlayerPushMixin"
+    "LocalPlayerPushMixin",
+    "MinecraftAttackMixin"
   ],
   "injectors": {
     "defaultRequire": 1

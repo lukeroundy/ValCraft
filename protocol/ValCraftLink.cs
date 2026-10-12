@@ -101,6 +101,10 @@ namespace ValCraft.Protocol
         /// <summary>V->M smooth terrain heights: i32 cellX, i32 cellZ (4 m cells), f32 baseY, 9x9 i16 cm above base (x-major), NaN cell = -32768.</summary>
         public const ushort EvTerrainHeights = 26;
         public const int HeightCell = 4, HeightRes = 9;
+        /// <summary>V->M: u8 1 = Valheim camera aims at something MC left-click should damage (rock/ore/tree/destructible), 0 = not.</summary>
+        public const ushort EvAttackTarget = 27;
+        /// <summary>M->V: i32 toolKind (0 hand/other, 1 pickaxe, 2 axe, 3 sword, 4 shovel, 5 hoe), i32 mcTier (-1 none, 0 wood, 1 stone, 2 iron, 3 gold, 4 diamond, 5 netherite).</summary>
+        public const ushort EvAttack = 28;
         public const int TerrainTile = 8;
         public const uint VFlagTerrainBlocks = 32;
 

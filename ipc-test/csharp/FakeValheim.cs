@@ -20,6 +20,41 @@ static unsafe class FakeValheim
         var sw = Stopwatch.StartNew();
         long maxHbAge = 0; bool terrainFlag = false; var heightQueue = new System.Collections.Generic.Queue<byte[]>();
             var tileQueue = new Queue<byte[]>(); bool connected = false, input = true; uint mcPid = 0; int cmdLine = 0;
+        var holes = new System.Collections.Generic.Dictionary<long, float>(); float[] nz = new float[6];
+        void QueueNoisy(float ox, float oz, int rr, float by, float amp, float sl, int onlyTx, int onlyTz)
+        {
+            int T = ValCraftLink.TerrainTile;
+            double Hs(double x, double z) => by + sl * Math.Max(0, x - ox) + amp * (Math.Sin(x * 1.7) * Math.Cos(z * 2.3) + 0.6 * Math.Sin(x * 3.1 + z * 0.7));
+            double H(double x, double z) { int bx = (int)Math.Floor(x), bz = (int)Math.Floor(z); return holes.TryGetValue(((long)bx << 32) ^ (uint)bz, out float d) ? Math.Floor(Hs(bx + 0.5, bz + 0.5)) - d : Hs(x, z); }
+            const int C = ValCraftLink.HeightCell, R = ValCraftLink.HeightRes;
+            int ctx = (int)Math.Floor(ox / T), ctz = (int)Math.Floor(oz / T);
+            for (int tx = ctx - rr; tx <= ctx + rr; tx++)
+                for (int tz = ctz - rr; tz <= ctz + rr; tz++)
+                {
+                    int TX = onlyTx == int.MinValue ? tx : onlyTx, TZ = onlyTx == int.MinValue ? tz : onlyTz;
+                    for (int cx = TX * T / C; cx < (TX + 1) * T / C; cx++)
+                        for (int cz = TZ * T / C; cz < (TZ + 1) * T / C; cz++)
+                        {
+                            var hp = new byte[12 + R * R * 2]; double mn = double.MaxValue;
+                            // sample just inside cell edges for hole columns so the hole shows in the bilinear field
+                            double S(int i, int j) => H(cx * C + i * 0.5 - (i == R - 1 ? 1e-3 : 0), cz * C + j * 0.5 - (j == R - 1 ? 1e-3 : 0));
+                            for (int i = 0; i < R; i++) for (int j = 0; j < R; j++) mn = Math.Min(mn, S(i, j));
+                            BitConverter.GetBytes(cx).CopyTo(hp, 0); BitConverter.GetBytes(cz).CopyTo(hp, 4); BitConverter.GetBytes((float)mn).CopyTo(hp, 8);
+                            for (int i = 0; i < R; i++) for (int j = 0; j < R; j++) BitConverter.GetBytes((short)Math.Round((S(i, j) - mn) * 100)).CopyTo(hp, 12 + (i * R + j) * 2);
+                            heightQueue.Enqueue(hp);
+                        }
+                    var pl = new byte[8 + T * T * 3];
+                    BitConverter.GetBytes(TX).CopyTo(pl, 0); BitConverter.GetBytes(TZ).CopyTo(pl, 4);
+                    for (int i = 0; i < T; i++) for (int j = 0; j < T; j++)
+                    {
+                        int o = 8 + (i * T + j) * 3;
+                        short top = (short)(Math.Floor(H(TX * T + i + 0.5, TZ * T + j + 0.5) + 1e-6) - 1);
+                        BitConverter.GetBytes(top).CopyTo(pl, o); pl[o + 2] = 1;
+                    }
+                    tileQueue.Enqueue(pl);
+                    if (onlyTx != int.MinValue) return;
+                }
+        }
         long lastSeq = 0, frames = 0, rejected = 0, waitUntil = 0;
         int reqW = 1280, reqH = 720;
         var pending = new Queue<string>();
@@ -37,6 +72,7 @@ static unsafe class FakeValheim
             while (link.TryReceive(out var ev))
                 if (ev.Type == ValCraftLink.EvBlockChanged)
                     Console.WriteLine($"[host] MC block {(BitConverter.ToInt32(ev.Payload, 12) == 0 ? "BROKEN" : "PLACED")} {System.Text.Encoding.UTF8.GetString(ev.Payload, 16, ev.Payload.Length - 16)} at ({BitConverter.ToInt32(ev.Payload, 0)},{BitConverter.ToInt32(ev.Payload, 4)},{BitConverter.ToInt32(ev.Payload, 8)})");
+                else if (ev.Type == ValCraftLink.EvAttack) Console.WriteLine($"[host] MC ATTACK kind {BitConverter.ToInt32(ev.Payload, 0)} tier {BitConverter.ToInt32(ev.Payload, 4)} at {sw.Elapsed.TotalSeconds:F1}s");
                 else if (ev.Type == ValCraftLink.EvInteract) Console.WriteLine($"[host] MC asked Valheim to INTERACT at {sw.Elapsed.TotalSeconds:F1}s");
                 else if (ev.Type == ValCraftLink.EvHello && Payload.GetU32(ev.Payload, 2) == link.Session)
                 {
@@ -97,37 +133,17 @@ static unsafe class FakeValheim
                     case "mbutton": link.TrySend(ValCraftLink.EvMouseButton, Payload.I32((int)F(0), (int)F(1), 0)); break;
                     case "terrainflag": terrainFlag = a[0] == "on"; break;
                     case "tp": link.TrySend(ValCraftLink.EvTeleport, Payload.F32(F(0), F(1), F(2))); break;
+                    case "attacktarget": link.TrySend(ValCraftLink.EvAttackTarget, new[] { (byte)(a[0] == "on" ? 1 : 0) }); break;
+                    case "hole": // hole <x> <z> <depth>: lower one column of the last noisy terrain (like a Valheim dig) and re-send its tile
+                        holes[((long)(int)F(0) << 32) ^ (uint)(int)F(1)] = F(2);
+                        QueueNoisy(nz[0], nz[1], 0, nz[3], nz[4], nz[5], (int)Math.Floor(F(0) / ValCraftLink.TerrainTile), (int)Math.Floor(F(1) / ValCraftLink.TerrainTile));
+                        Console.WriteLine($"[host] hole at {F(0)},{F(1)} depth {F(2)}: re-sent tile");
+                        break;
                     case "noisy": // noisy <cx> <cz> <radiusTiles> <baseY> <bumpAmp> <slope>: smooth heightfield + small bumps
-                        {
-                            int T = ValCraftLink.TerrainTile, ctx = (int)Math.Floor(F(0) / T), ctz = (int)Math.Floor(F(1) / T), rr = (int)F(2);
-                            float by = F(3), amp = F(4), sl = F(5), ox = F(0);
-                            Func<double, double, double> H = (x, z) => by + sl * Math.Max(0, x - ox) + amp * (Math.Sin(x * 1.7) * Math.Cos(z * 2.3) + 0.6 * Math.Sin(x * 3.1 + z * 0.7));
-                            const int C = ValCraftLink.HeightCell, R = ValCraftLink.HeightRes;
-                            for (int tx = ctx - rr; tx <= ctx + rr; tx++)
-                                for (int tz = ctz - rr; tz <= ctz + rr; tz++)
-                                {
-                                    for (int cx = tx * T / C; cx < (tx + 1) * T / C; cx++)
-                                        for (int cz = tz * T / C; cz < (tz + 1) * T / C; cz++)
-                                        {
-                                            var hp = new byte[12 + R * R * 2]; double mn = double.MaxValue;
-                                            for (int i = 0; i < R; i++) for (int j = 0; j < R; j++) mn = Math.Min(mn, H(cx * C + i * 0.5, cz * C + j * 0.5));
-                                            BitConverter.GetBytes(cx).CopyTo(hp, 0); BitConverter.GetBytes(cz).CopyTo(hp, 4); BitConverter.GetBytes((float)mn).CopyTo(hp, 8);
-                                            for (int i = 0; i < R; i++) for (int j = 0; j < R; j++) BitConverter.GetBytes((short)Math.Round((H(cx * C + i * 0.5, cz * C + j * 0.5) - mn) * 100)).CopyTo(hp, 12 + (i * R + j) * 2);
-                                            heightQueue.Enqueue(hp);
-                                        }
-                                    var pl = new byte[8 + T * T * 3];
-                                    BitConverter.GetBytes(tx).CopyTo(pl, 0); BitConverter.GetBytes(tz).CopyTo(pl, 4);
-                                    for (int i = 0; i < T; i++) for (int j = 0; j < T; j++)
-                                    {
-                                        int o = 8 + (i * T + j) * 3;
-                                        short top = (short)(Math.Floor(H(tx * T + i + 0.5, tz * T + j + 0.5)) - 1);
-                                        BitConverter.GetBytes(top).CopyTo(pl, o); pl[o + 2] = 1;
-                                    }
-                                    tileQueue.Enqueue(pl);
-                                }
-                            Console.WriteLine($"[host] queued {tileQueue.Count} noisy tiles, {heightQueue.Count} height cells");
-                            break;
-                        }
+                        nz = new[] { F(0), F(1), F(2), F(3), F(4), F(5) };
+                        QueueNoisy(F(0), F(1), (int)F(2), F(3), F(4), F(5), int.MinValue, 0);
+                        Console.WriteLine($"[host] queued {tileQueue.Count} noisy tiles, {heightQueue.Count} height cells");
+                        break;
                     case "terrain": // terrain <centerX> <centerZ> <radiusTiles> <baseY>: staircase rising +1 every 4 blocks in +X
                         {
                             int T = ValCraftLink.TerrainTile, ctx = (int)Math.Floor(F(0) / T), ctz = (int)Math.Floor(F(1) / T), rr = (int)F(2), by = (int)F(3);
