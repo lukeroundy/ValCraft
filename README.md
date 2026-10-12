@@ -52,7 +52,28 @@ Start Valheim and open `BepInEx\LogOutput.log`. Look for:
 ```
 **Please send me those lines** — they settle the unverified items in the plan.
 
-## 3. Build + run the NeoForge mod
+## 3. Prism Launcher setup (how Valheim starts Minecraft)
+1. In Prism: **Add Instance** → Minecraft **1.21.1** → Mod loader **NeoForge 21.1.259** (or newer 21.1.x). Name it `ValCraft`
+   (any name works; it must match `InstanceName` below).
+2. Put `valcraft-0.1.0.jar` into that instance's **mods** folder (Prism: right-click instance → *Folder* → `minecraft\mods`,
+   or *Edit* → *Mods* → *Add file*). Without the jar nothing connects.
+3. Launch the instance once by hand to sign in and let Prism download everything.
+4. Stop Prism's own window getting in the way: Prism **Settings → Minecraft → Launcher/“Miscellaneous”**: enable
+   **“Close the launcher after game window opens”** (or at least “Minimize”/hide on launch). Exact option labels vary by
+   Prism version ⚠️ — check what yours shows.
+5. Run Valheim once with the plugin; it writes `BepInEx\config\dev.valcraft.valheim.cfg`. Edit:
+   ```ini
+   [Minecraft]
+   StartWithValheim = true
+   PrismExe = C:\Users\<you>\AppData\Local\Programs\PrismLauncher\prismlauncher.exe
+   InstanceName = ValCraft
+   ExtraArgs =
+   ```
+   On the next start the plugin runs `prismlauncher.exe --launch "ValCraft"` (skipped if Minecraft is already connected).
+   You can test the same command by hand in PowerShell first. The Minecraft window is still visible in milestone 1;
+   hiding it is milestone 2.
+
+## 4. Build + run the NeoForge mod (dev)
 ```powershell
 cd valcraft\neoforge-mod
 .\gradlew build           # jar: build\libs\valcraft-0.1.0.jar

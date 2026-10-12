@@ -22,6 +22,8 @@ namespace ValCraft
         ValCraftLink _link;
         float _nextHeartbeat, _nextStatus;
         bool _peerWasAlive;
+        BepInEx.Configuration.ConfigEntry<bool> _cfgAutoLaunch;
+        BepInEx.Configuration.ConfigEntry<string> _cfgPrismExe, _cfgInstance, _cfgExtraArgs;
 
         void Awake()
         {
@@ -36,6 +38,11 @@ namespace ValCraft
             {
                 Log.LogError($"[link] could not create shared memory: {e}");
             }
+            _cfgAutoLaunch = Config.Bind("Minecraft", "StartWithValheim", true, "Start Minecraft through Prism Launcher when Valheim starts (skipped if Minecraft is already connected or PrismExe is empty).");
+            _cfgPrismExe = Config.Bind("Minecraft", "PrismExe", "", "Full path to PrismLauncher.exe, e.g. C:\\Users\\Luke\\AppData\\Local\\Programs\\PrismLauncher\\prismlauncher.exe");
+            _cfgInstance = Config.Bind("Minecraft", "InstanceName", "ValCraft", "Prism instance name (folder name under Prism's instances directory). It must contain valcraft-<version>.jar in its mods folder.");
+            _cfgExtraArgs = Config.Bind("Minecraft", "ExtraArgs", "", "Extra Prism arguments (optional; --profile/--offline are not needed).");
+            TryLaunchMinecraft();
             _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
             _harmony.PatchAll(); // no patches in milestone 1
         }
@@ -75,6 +82,23 @@ namespace ValCraft
             {
                 Log.LogError($"[check] MemoryMappedFile FAILED: {e.GetType().Name}: {e.Message}");
             }
+        }
+
+        void TryLaunchMinecraft()
+        {
+            if (!_cfgAutoLaunch.Value) return;
+            string exe = _cfgPrismExe.Value;
+            if (string.IsNullOrWhiteSpace(exe)) { Log.LogInfo("[launch] PrismExe not set in config; start Minecraft yourself"); return; }
+            if (!File.Exists(exe)) { Log.LogWarning($"[launch] PrismExe not found: {exe}"); return; }
+            if (_link != null && _link.PeerAlive()) { Log.LogInfo("[launch] Minecraft already connected; not launching"); return; }
+            string args = $"--launch \"{_cfgInstance.Value}\" {_cfgExtraArgs.Value}".Trim();
+            try
+            {
+                // UseShellExecute: start outside Valheim's process tree / r2modman environment.
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, args) { UseShellExecute = true });
+                Log.LogInfo($"[launch] started {exe} {args}");
+            }
+            catch (Exception e) { Log.LogError($"[launch] failed: {e.Message}"); }
         }
 
         static string GameVersionString()
