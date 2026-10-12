@@ -21,6 +21,7 @@ namespace ValCraft
     internal static class HealthLink
     {
         internal static bool Enabled = true;
+        internal static float LastBurnForward = -100f;
         static float _hp = -1, _max = 20; static int _food; static bool _mcDead, _killedForMc;
         static bool _init;
         static Type _charT, _hitT;
@@ -59,10 +60,19 @@ namespace ValCraft
         {
             try
             {
-                if (!Linked(__instance) || hit == null) return true;
+                if (hit == null) return true;
                 if (!_init) Init();
+                if (MobBridge.IsProxy(__instance))
+                {
+                    float vd = _total == null ? 0 : (float)_total.Invoke(hit, null);
+                    var pd = _dir == null ? Vector3.zero : (Vector3)_dir.GetValue(hit);
+                    MobBridge.ForwardProxyHit(__instance, vd, pd, hit);
+                    return false; // proxies never take Valheim damage themselves
+                }
+                if (!Linked(__instance)) return true;
                 int ht = _hitType == null ? 0 : Convert.ToInt32(_hitType.GetValue(hit));
                 if (ht == 3) return false; // Fall: MC handles falls
+                if (ht == 5) LastBurnForward = Time.unscaledTime;
                 float dmg = _total == null ? 0 : (float)_total.Invoke(hit, null);
                 float vmax = _getMax == null ? 25f : Mathf.Max(1f, (float)_getMax.Invoke(__instance, null));
                 float mc = dmg / vmax * _max;

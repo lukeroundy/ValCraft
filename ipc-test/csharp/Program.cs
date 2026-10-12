@@ -91,6 +91,7 @@ static unsafe class Program
     {
         if (args.Length == 2 && args[0] == "blocks") return BlocksTest(args[1]);
         if (args.Length == 2 && args[0] == "items") return ItemsTest(args[1]);
+        if (args.Length == 3 && args[0] == "mobs") return MobsTest(args[1], args[2]);
         if (args.Length > 0 && args[0] == "host") return FakeValheim.Run(args.Length > 1 ? args[1] : ValCraftLink.DefaultPath(), args.Length > 2 ? int.Parse(args[2]) : 300, args.Length > 3 ? args[3] : "cmd.txt");
         path = args.Length > 0 ? args[0] : ValCraftLink.DefaultPath();
         int pings = args.Length > 1 ? int.Parse(args[1]) : 20000;
@@ -277,6 +278,40 @@ static unsafe class Program
         { w.Write(System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(bm.Count)); foreach (var m in bm) { w.Write(System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(m.Length)); w.Write(m); } }
         Console.WriteLine($"[cs] build list: {bm.Count} messages");
         Console.WriteLine(fail == 0 ? "items OK" : $"items {fail} failures");
+        return fail == 0 ? 0 : 1;
+    }
+
+    static int MobsTest(string javaFile, string outFile)
+    {
+        int fail = 0; void Check(bool c, string m) { if (!c) { fail++; Console.WriteLine("FAIL " + m); } }
+        int Rd(System.IO.BinaryReader r) => System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(r.ReadInt32());
+        using (var r = new System.IO.BinaryReader(System.IO.File.OpenRead(javaFile)))
+        {
+            int n = Rd(r); var all = new System.Collections.Generic.List<ValCraft.Protocol.MobCodec.Mob>(); bool first = false, last = false;
+            for (int i = 0; i < n; i++) { var m = r.ReadBytes(Rd(r)); if (i == 0) first = m[0] == 1; if (i == n - 1) last = m[1] == 1; all.AddRange(ValCraft.Protocol.MobCodec.DecodeList(m)); }
+            Check(first && last && all.Count == 30 && all[4].Id == 1004 && all[4].Kind == 1 && all[5].Kind == 2 && Math.Abs(all[4].X - 6f) < 1e-4 && Math.Abs(all[3].Z + 3f) < 1e-4 && Math.Abs(all[0].H - 1.95f) < 0.06 && Math.Abs(all[0].HpFrac - 0.5f) < 0.01, "mc mob list");
+            var (vid, dmg, att) = ValCraft.Protocol.MobCodec.VMobHurt(r.ReadBytes(Rd(r)));
+            Check(vid == 77 && dmg == 3.5f && att == 1004, "vmob hurt");
+        }
+        var hurt = ValCraft.Protocol.MobCodec.MobHurt(5, 2f, 0.5f, -0.5f, 9);
+        Check(hurt.Length == 20 && BitConverter.ToUInt32(hurt, 16) == 9, "mob hurt");
+        var vl = new System.Collections.Generic.List<ValCraft.Protocol.MobCodec.Mob>();
+        for (uint i = 1; i <= 3; i++) vl.Add(new ValCraft.Protocol.MobCodec.Mob { Id = i, Kind = 1, X = i, Y = 69.5f + i, Z = -i, W = 1.2f, H = 2f, HpFrac = 0.25f });
+        var surf = new float[9]; var tar = new bool[9];
+        for (int k = 0; k < 9; k++) surf[k] = float.NaN;
+        surf[0] = 62.5f; surf[8] = 61f; tar[8] = true; // cells: x0=10,z0=20 step 2 -> (10,20) water, (12,20) none, (14,24) tar
+        using (var w = new System.IO.BinaryWriter(System.IO.File.Create(outFile)))
+        {
+            var msgs = ValCraft.Protocol.MobCodec.EncodeList(vl);
+            w.Write(System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(msgs.Count));
+            foreach (var m in msgs) { w.Write(System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(m.Length)); w.Write(m); }
+            var wb = ValCraft.Protocol.MobCodec.Water(10, 20, 2, 3, 3, surf, tar);
+            Check(wb.Length <= 248, "water size");
+            Check(ValCraft.Protocol.MobCodec.Water(0, 0, 2, 9, 9, new float[81], new bool[81]).Length <= 248, "9x9 water fits");
+            w.Write(System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(wb.Length)); w.Write(wb);
+        }
+        Check(ValCraft.Protocol.MobCodec.EncodeList(new System.Collections.Generic.List<ValCraft.Protocol.MobCodec.Mob>()).Count == 1, "empty list = 1 msg");
+        Console.WriteLine(fail == 0 ? "mobs OK" : $"mobs {fail} failures");
         return fail == 0 ? 0 : 1;
     }
 }

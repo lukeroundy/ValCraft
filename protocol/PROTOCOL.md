@@ -216,3 +216,16 @@ Valheim's own piece window is no longer used (Minecraft has OS focus; in 0.8.4 V
 | 49 EvBuildMenu | MC→V | empty. Enters build mode if needed (equip hammer, deposit MC materials), then Valheim answers with EvBuildPieces once the deposit acks are in (≤ 1.5 s). |
 | 52 EvBuildPieces | V→MC | u8 first, u8 last, u8 n, n × (u16 index, u8 Piece.PieceCategory, u8 flags (1 = can build now), u8 nameLen, utf8 localized name (≤ 60 B), u8 costLen, utf8 cost text (≤ 120 B)). MC opens its picker screen after `last`. |
 | 53 EvBuildSelect | MC→V | u16 index → Player.SetSelectedPiece. |
+
+## v14 (0.9.0) — fire, water, cross-game mobs
+
+| Type | Dir | Payload |
+|---|---|---|
+| 48 EvDamage (use) | V→MC | Valheim fire around the MC player's mapped position (Aoe with fire damage, EffectArea Burning, Character.InLava) is sent as HitType 5 (Burning): 1 hp (4 in lava) per 0.5 s unless Valheim's own burn hit was forwarded in the last second. MC also sets ≥ 4 s of fire ticks. |
+| 54 EvMobList | MC→V | u8 first, u8 last, u8 n, n × 20 B (u32 MC entity id, u8 kind 1 hostile/2 passive, f32 x, y, z MC feet, u8 width×10, u8 height×10, u8 hp%). Every 4 ticks, ≤ 24 nearest within 32 m. |
+| 55 EvMobHurt | V→MC | u32 MC entity id, f32 damage (MC hp = Valheim ÷ [Combat] DamageScale), f32 dirX, f32 dirZ, u32 attacker vid (0 = none). |
+| 56 EvVMobList | V→MC | same layout as 54: Valheim hostile monsters (not tamed, not Players/AnimalsVeg/PlayerSpawned/Dverger) within 32 m, id = Unity instance id (vid). Every 0.2 s, empty list included. |
+| 57 EvVMobHurt | MC→V | u32 vid, f32 damage (MC hp; × DamageScale blunt in Valheim), u32 MC attacker entity id (its Valheim proxy becomes the HitData attacker). |
+| 58 EvWater | V→MC | f32 x0, f32 z0, u8 step, u8 nx, u8 nz, nx·nz × i16 surface MC Y ×16 (−32768 none), ⌈n/8⌉ tar bits. 9×9 grid, 2 m, every 0.2 s, from Floating.GetLiquidLevel (Water / Tar). |
+
+Proxies: Valheim instantiates [Mobs] ProxyPrefab (Greyling) per MC mob with AI/animator/drops/renderers/sound off, kinematic, non-persistent ZDO, faction [Mobs] HostileMcFaction (Players) for hostiles or AnimalsVeg; Character.ApplyDamage on a proxy is cancelled and sent as EvMobHurt. MC spawns `valcraft:valheim_proxy` (no AI, unsaved, not crosshair-pickable, NoopRenderer) per Valheim monster; every MC `Monster` gets a NearestAttackableTargetGoal for proxies; hits on a proxy are sent as EvVMobHurt.

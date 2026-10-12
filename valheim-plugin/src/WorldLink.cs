@@ -1,0 +1,314 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using HarmonyLib;
+using UnityEngine;
+using ValCraft.Protocol;
+
+namespace ValCraft
+{
+    /// <summary>
+    /// 0.9.0 world hazards: Valheim fire (Aoe fire damage, EffectArea Burning, lava) around the MC player's mapped
+    /// position -> MC fire damage + ignite; Valheim water/tar surface grid -> MC (vanilla swimming, air and drowning).
+    /// </summary>
+    internal static class Hazards
+    {
+        internal static bool Fire = true, Water = true;
+        static float _nextFire, _nextWater;
+        static bool _init;
+        static Type _aoeT, _effT, _charT;
+        static FieldInfo _aoeDmg, _effType; static MethodInfo _inLava, _liquid;
+        static readonly Collider[] _hits = new Collider[64];
+        static bool _wasFire;
+
+        static void Init()
+        {
+            _init = true;
+            _aoeT = AccessTools.TypeByName("Aoe"); _effT = AccessTools.TypeByName("EffectArea"); _charT = AccessTools.TypeByName("Character");
+            _aoeDmg = AccessTools.Field(_aoeT, "m_damage"); _effType = AccessTools.Field(_effT, "m_type");
+            _inLava = AccessTools.Method(_charT, "InLava", Type.EmptyTypes);
+            var fl = AccessTools.TypeByName("Floating"); var lt = AccessTools.TypeByName("LiquidType");
+            _liquid = fl == null || lt == null ? null : AccessTools.Method(fl, "GetLiquidLevel", new[] { typeof(Vector3), typeof(float), lt });
+            _liquidType = lt;
+            ValCraftPlugin.Log.LogInfo($"[hazard] Aoe={_aoeT != null} EffectArea={_effT != null} InLava={_inLava != null} Floating.GetLiquidLevel={_liquid != null} (fire={Fire}, water={Water})");
+        }
+        static Type _liquidType;
+
+        internal static void Update(ValCraftLink link)
+        {
+            if (!PlayerSync.Following || PlayerSync.Player == null || link == null) return;
+            if (!_init) Init();
+            float t = Time.unscaledTime;
+            try { if (Fire && t >= _nextFire) { _nextFire = t + 0.5f; FireCheck(link); } } catch (Exception e) { Diag.Warn("fire", "[hazard] fire check: " + e.GetBaseException().Message); }
+            try { if (Water && t >= _nextWater) { _nextWater = t + 0.2f; WaterGrid(link); } } catch (Exception e) { Diag.Warn("water", "[hazard] water grid: " + e.GetBaseException().Message); }
+        }
+
+        static float FireDamage(Component c)
+        {
+            if (_aoeT != null && _aoeT.IsInstanceOfType(c) && ((Behaviour)c).isActiveAndEnabled)
+            {
+                var d = _aoeDmg.GetValue(c); var f = AccessTools.Field(d.GetType(), "m_fire");
+                if (f != null && (float)f.GetValue(d) > 0) return (float)f.GetValue(d);
+            }
+            if (_effT != null && _effT.IsInstanceOfType(c) && ((Behaviour)c).isActiveAndEnabled && (Convert.ToInt32(_effType.GetValue(c)) & 8) != 0) return 5f; // Burning
+            return 0f;
+        }
+
+        static void FireCheck(ValCraftLink link)
+        {
+            var pl = PlayerSync.Player; var p = pl.transform.position;
+            float best = 0; string src = null;
+            int n = Physics.OverlapCapsuleNonAlloc(p + Vector3.up * 0.3f, p + Vector3.up * 1.5f, 0.35f, _hits, ~0, QueryTriggerInteraction.Collide);
+            for (int i = 0; i < n; i++)
+            {
+                var col = _hits[i]; if (col == null || col.transform.IsChildOf(pl.transform)) continue;
+                foreach (var c in col.GetComponentsInParent<Component>())
+                {
+                    if (c == null || !(c is Behaviour)) continue;
+                    float d = FireDamage(c);
+                    if (d > best) { best = d; src = c.gameObject.name; }
+                }
+            }
+            bool lava = false; try { lava = _inLava != null && (bool)_inLava.Invoke(pl, null); } catch { }
+            if (lava) { best = Math.Max(best, 20f); src = "lava"; }
+            bool fire = best > 0;
+            if (fire != _wasFire) { _wasFire = fire; ValCraftPlugin.Log.LogInfo(fire ? $"[hazard] MC player in Valheim fire ({src})" : "[hazard] out of fire"); }
+            if (!fire || Time.unscaledTime - HealthLink.LastBurnForward < 1f) return; // Valheim's own burn hit already reached MC
+            float mc = lava ? 4f : 1f; // MC lava / fire-block damage per hit
+            link.TrySend(ValCraftLink.EvDamage, HealthCodec.Damage(mc, 5, 0, 0, 0));
+        }
+
+        const int Step = 2, N = 9;
+        static readonly float[] _surf = new float[N * N]; static readonly bool[] _tar = new bool[N * N];
+        static bool _wasWet;
+        static void WaterGrid(ValCraftLink link)
+        {
+            if (_liquid == null || !PlayerSync.Anchored) return;
+            var a = PlayerSync.Anchor; var p = PlayerSync.Player.transform.position;
+            float mx = p.x - a.x, mz = -(p.z - a.z);
+            float x0 = Mathf.Round(mx / Step) * Step - (N / 2) * Step, z0 = Mathf.Round(mz / Step) * Step - (N / 2) * Step;
+            object water = Enum.ToObject(_liquidType, 0), tar = Enum.ToObject(_liquidType, 1);
+            bool any = false;
+            for (int j = 0; j < N; j++) for (int i = 0; i < N; i++)
+            {
+                float cx = x0 + i * Step, cz = z0 + j * Step;
+                var u = new Vector3(a.x + cx, p.y, a.z - cz);
+                float w = (float)_liquid.Invoke(null, new object[] { u, 1f, water });
+                float tr = (float)_liquid.Invoke(null, new object[] { u, 1f, tar });
+                int k = j * N + i;
+                bool isTar = tr > -1000f && tr >= w;
+                float s = isTar ? tr : w;
+                _surf[k] = s > -1000f ? s - a.y : float.NaN; _tar[k] = isTar;
+                if (s > -1000f) any = true;
+            }
+            int c = (N / 2) * N + N / 2; bool wet = !float.IsNaN(_surf[c]) && _surf[c] > p.y - a.y;
+            if (wet != _wasWet) { _wasWet = wet; ValCraftPlugin.Log.LogInfo(wet ? $"[hazard] MC player below Valheim {(_tar[c] ? "tar" : "water")} surface (MC Y {_surf[c]:F1})" : "[hazard] out of Valheim water"); }
+            if (any || _sentAny) link.TrySend(ValCraftLink.EvWater, MobCodec.Water(x0, z0, Step, N, N, _surf, _tar));
+            _sentAny = any;
+        }
+        static bool _sentAny;
+    }
+
+    /// <summary>
+    /// 0.9.0 cross-game mobs. MC mobs near the player get invisible Valheim proxies (a disabled-AI creature prefab,
+    /// non-persistent ZDO) so Valheim monsters see and attack them; hits on a proxy go to the MC mob. Valheim hostiles
+    /// near the player are streamed to MC, where invisible proxy entities let MC hostiles target them; MC hits come back
+    /// as Character.Damage with the attacker's Valheim proxy as attacker (so the Valheim monster fights back).
+    /// </summary>
+    internal static class MobBridge
+    {
+        internal static bool Enabled = true; internal static int MaxProxies = 24; internal static string ProxyPrefab = "Greyling";
+        internal static string HostileFaction = "Players";
+        class Proxy { public GameObject Go; public Component Ch; public Vector3 Target; public float Seen; public byte Kind; public float W, H; }
+        static readonly Dictionary<uint, Proxy> _proxies = new Dictionary<uint, Proxy>();
+        static readonly Dictionary<object, uint> _proxyToMc = new Dictionary<object, uint>();
+        static readonly Dictionary<uint, Component> _vmobs = new Dictionary<uint, Component>();
+        static readonly List<MobCodec.Mob> _incoming = new List<MobCodec.Mob>();
+        static bool _init, _ok; static float _nextList;
+        static Type _charT, _znvT, _zdoT, _hitT, _baseAIT, _factionT, _playerT;
+        static MethodInfo _getAll, _getHealth, _getMax, _setHealth, _isDead, _isTamed, _damage, _getZdo, _setAttacker, _findInst, _sceneDestroy, _getPrefab;
+        static FieldInfo _faction, _name, _attackerF; static PropertyInfo _persistent, _znsInst;
+        static ValCraftLink _link;
+
+        static void Init()
+        {
+            _init = true;
+            _charT = AccessTools.TypeByName("Character"); _znvT = AccessTools.TypeByName("ZNetView"); _zdoT = AccessTools.TypeByName("ZDO"); _hitT = AccessTools.TypeByName("HitData");
+            _baseAIT = AccessTools.TypeByName("BaseAI"); _playerT = AccessTools.TypeByName("Player");
+            _factionT = AccessTools.Inner(_charT, "Faction");
+            _getAll = AccessTools.Method(_charT, "GetAllCharacters"); _getHealth = AccessTools.Method(_charT, "GetHealth"); _getMax = AccessTools.Method(_charT, "GetMaxHealth", Type.EmptyTypes);
+            _setHealth = AccessTools.Method(_charT, "SetHealth"); _isDead = AccessTools.Method(_charT, "IsDead"); _isTamed = AccessTools.Method(_charT, "IsTamed", Type.EmptyTypes);
+            _damage = AccessTools.Method(_charT, "Damage", new[] { _hitT }); _getZdo = AccessTools.Method(_znvT, "GetZDO");
+            _setAttacker = AccessTools.Method(_hitT, "SetAttacker"); _attackerF = AccessTools.Field(_hitT, "m_attacker");
+            var zs = AccessTools.TypeByName("ZNetScene"); _znsInst = AccessTools.Property(zs, "instance");
+            _findInst = AccessTools.Method(zs, "FindInstance", new[] { AccessTools.TypeByName("ZDOID") }); _sceneDestroy = AccessTools.Method(zs, "Destroy", new[] { typeof(GameObject) });
+            _getPrefab = AccessTools.Method(zs, "GetPrefab", new[] { typeof(string) });
+            _faction = AccessTools.Field(_charT, "m_faction"); _name = AccessTools.Field(_charT, "m_name");
+            _persistent = AccessTools.Property(_zdoT, "Persistent");
+            _ok = _getAll != null && _damage != null && _getPrefab != null && _sceneDestroy != null && _faction != null;
+            ValCraftPlugin.Log.LogInfo($"[mobs] cross-game combat API {(_ok ? "OK" : "incomplete -> off")} (proxy prefab {ProxyPrefab}, hostile MC mobs = faction {HostileFaction}, max {MaxProxies})");
+        }
+
+        internal static bool IsProxy(object c) => c != null && _proxyToMc.ContainsKey(c);
+        static object Zns() => _znsInst?.GetValue(null);
+        static Vector3 ToUnity(float x, float y, float z) { var a = PlayerSync.Anchor; return new Vector3(a.x + x, a.y + y, a.z - z); }
+        static Vector3 ToMc(Vector3 u) { var a = PlayerSync.Anchor; return new Vector3(u.x - a.x, u.y - a.y, -(u.z - a.z)); }
+
+        /// <summary>EvMobList from MC (snapshot runs first..last).</summary>
+        internal static void Receive(byte[] p)
+        {
+            if (!Enabled) return;
+            if (p[0] != 0) _incoming.Clear();
+            _incoming.AddRange(MobCodec.DecodeList(p));
+            if (p[1] == 0) return;
+            if (!_init) Init();
+            if (!_ok || !PlayerSync.Anchored || PlayerSync.Player == null) return;
+            float t = Time.unscaledTime;
+            var keep = new HashSet<uint>();
+            foreach (var m in _incoming)
+            {
+                keep.Add(m.Id);
+                if (!_proxies.TryGetValue(m.Id, out var px))
+                {
+                    if (_proxies.Count >= MaxProxies) continue;
+                    px = Create(m); if (px == null) continue;
+                    _proxies[m.Id] = px; _proxyToMc[px.Ch] = m.Id;
+                }
+                px.Target = ToUnity(m.X, m.Y, m.Z); px.Seen = t;
+                try { if (_setHealth != null && _getMax != null) _setHealth.Invoke(px.Ch, new object[] { Math.Max(1f, (float)_getMax.Invoke(px.Ch, null) * Math.Max(0.02f, m.HpFrac)) }); } catch { }
+            }
+            foreach (var id in new List<uint>(_proxies.Keys)) if (!keep.Contains(id)) Remove(id, "left range / died");
+        }
+
+        static Proxy Create(MobCodec.Mob m)
+        {
+            try
+            {
+                var prefab = _getPrefab.Invoke(Zns(), new object[] { ProxyPrefab }) as GameObject;
+                if (prefab == null) { Diag.Warn("noprefab", $"[mobs] proxy prefab '{ProxyPrefab}' not found"); return null; }
+                var pos = ToUnity(m.X, m.Y, m.Z);
+                var go = UnityEngine.Object.Instantiate(prefab, pos, Quaternion.identity);
+                var nv = go.GetComponent(_znvT); var zdo = nv == null ? null : _getZdo.Invoke(nv, null);
+                if (zdo != null && _persistent?.GetSetMethod(true) != null) _persistent.SetValue(zdo, false); // never saved with the world
+                foreach (var b in go.GetComponentsInChildren<Behaviour>(true))
+                {
+                    var tn = b.GetType().Name;
+                    if ((_baseAIT != null && _baseAIT.IsInstanceOfType(b)) || b is Animator || tn == "CharacterDrop" || tn == "Tameable" || tn == "FootStep" || tn == "LevelEffects" || tn == "Procreation" || tn == "Growup" || tn == "MonsterAI" || tn == "AnimalAI")
+                        b.enabled = false;
+                }
+                foreach (var cd in go.GetComponentsInChildren<Component>(true)) if (cd != null && cd.GetType().Name == "CharacterDrop") UnityEngine.Object.Destroy(cd);
+                foreach (var r in go.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
+                foreach (var a in go.GetComponentsInChildren<AudioSource>(true)) a.mute = true;
+                var rb = go.GetComponent<Rigidbody>(); if (rb != null) { rb.isKinematic = true; rb.useGravity = false; }
+                var cap = go.GetComponent<CapsuleCollider>();
+                if (cap != null && m.W > 0 && m.H > 0) { cap.radius = Math.Max(0.2f, m.W / 2); cap.height = Math.Max(cap.radius * 2, m.H); cap.center = new Vector3(0, cap.height / 2, 0); }
+                var ch = go.GetComponent(_charT);
+                if (ch == null) { _sceneDestroy.Invoke(Zns(), new object[] { go }); return null; }
+                string fac = m.Kind == MobCodec.Hostile ? HostileFaction : "AnimalsVeg";
+                try { _faction.SetValue(ch, Enum.Parse(_factionT, fac)); } catch { _faction.SetValue(ch, Enum.ToObject(_factionT, 0)); }
+                _name?.SetValue(ch, m.Kind == MobCodec.Hostile ? "Minecraft monster" : "Minecraft animal");
+                Diag.Info("proxy+", $"[mobs] proxy for MC mob {m.Id} ({(m.Kind == MobCodec.Hostile ? "hostile" : "passive")}, {m.W:F1}x{m.H:F1} m, faction {fac})");
+                return new Proxy { Go = go, Ch = ch, Kind = m.Kind, W = m.W, H = m.H, Target = pos };
+            }
+            catch (Exception e) { Diag.Warn("proxyerr", "[mobs] proxy create failed: " + e.GetBaseException().Message); return null; }
+        }
+
+        static void Remove(uint id, string why)
+        {
+            if (!_proxies.TryGetValue(id, out var px)) return;
+            _proxies.Remove(id); if (px.Ch != null) _proxyToMc.Remove(px.Ch);
+            try { if (px.Go != null) _sceneDestroy.Invoke(Zns(), new object[] { px.Go }); } catch { }
+        }
+
+        internal static void Clear(string why)
+        {
+            if (_proxies.Count > 0) ValCraftPlugin.Log.LogInfo($"[mobs] removing {_proxies.Count} proxies ({why})");
+            foreach (var id in new List<uint>(_proxies.Keys)) Remove(id, why);
+            _proxyToMc.Clear(); _vmobs.Clear(); _incoming.Clear();
+        }
+
+        internal static void Update(ValCraftLink link)
+        {
+            _link = link;
+            if (!Enabled) return;
+            if (!PlayerSync.Following || PlayerSync.Player == null) { if (_proxies.Count > 0) Clear("not following"); return; }
+            if (!_init) Init();
+            if (!_ok) return;
+            // keep proxies on their MC mobs
+            foreach (var px in _proxies.Values)
+            {
+                if (px.Go == null) continue;
+                var rb = px.Go.GetComponent<Rigidbody>();
+                if (rb != null) rb.position = px.Target;
+                px.Go.transform.position = px.Target;
+            }
+            float t = Time.unscaledTime;
+            if (t < _nextList) return;
+            _nextList = t + 0.2f;
+            var list = new List<MobCodec.Mob>(); _vmobs.Clear();
+            var me = PlayerSync.Player.transform.position;
+            if (_getAll.Invoke(null, null) is IList all)
+                foreach (Component c in all)
+                {
+                    if (c == null || IsProxy(c) || (_playerT != null && _playerT.IsInstanceOfType(c))) continue;
+                    if (list.Count >= MaxProxies) break;
+                    if ((c.transform.position - me).sqrMagnitude > 32f * 32f) continue;
+                    try
+                    {
+                        if ((bool)_isDead.Invoke(c, null) || (_isTamed != null && (bool)_isTamed.Invoke(c, null))) continue;
+                        string f = _faction.GetValue(c).ToString();
+                        if (f == "Players" || f == "AnimalsVeg" || f == "PlayerSpawned" || f == "TrainingDummy" || f == "Dverger") continue;
+                        uint vid = (uint)c.GetInstanceID();
+                        _vmobs[vid] = c;
+                        var cap = c.GetComponent<CapsuleCollider>();
+                        float hp = (float)_getHealth.Invoke(c, null), max = Math.Max(1f, (float)_getMax.Invoke(c, null));
+                        var mc = ToMc(c.transform.position);
+                        list.Add(new MobCodec.Mob { Id = vid, Kind = MobCodec.Hostile, X = mc.x, Y = mc.y, Z = mc.z, W = cap != null ? cap.radius * 2 : 0.8f, H = cap != null ? cap.height : 1.8f, HpFrac = hp / max });
+                    }
+                    catch { }
+                }
+            foreach (var m in MobCodec.EncodeList(list)) link.TrySend(ValCraftLink.EvVMobList, m);
+        }
+
+        /// <summary>HealthLink's ApplyDamage prefix: a Valheim hit on a proxy goes to the MC mob.</summary>
+        internal static void ForwardProxyHit(object proxy, float valheimDamage, Vector3 dir, object hit)
+        {
+            if (_link == null || !_proxyToMc.TryGetValue(proxy, out var mcId)) return;
+            uint attacker = 0;
+            try
+            {
+                var zid = _attackerF?.GetValue(hit);
+                var go = zid == null || _findInst == null ? null : _findInst.Invoke(Zns(), new[] { zid }) as GameObject;
+                var ch = go == null ? null : go.GetComponent(_charT);
+                if (ch != null && !IsProxy(ch) && !(_playerT != null && _playerT.IsInstanceOfType(ch))) attacker = (uint)ch.GetInstanceID();
+            }
+            catch { }
+            float mc = valheimDamage / Math.Max(0.1f, ValheimHit.CombatScale);
+            _link.TrySend(ValCraftLink.EvMobHurt, MobCodec.MobHurt(mcId, mc, dir.x, -dir.z, attacker));
+            Diag.Info("proxyhit", $"[mobs] Valheim hit on MC mob {mcId}: {valheimDamage:F1} -> MC {mc:F1} (attacker {(attacker == 0 ? "player/none" : attacker.ToString())})");
+        }
+
+        /// <summary>EvVMobHurt: an MC mob (or proxy-attacking MC entity) hit a Valheim monster.</summary>
+        internal static void VMobHurt(byte[] p)
+        {
+            if (!Enabled || !_ok || p.Length < 12) return;
+            var (vid, dmg, attacker) = MobCodec.VMobHurt(p);
+            if (!_vmobs.TryGetValue(vid, out var c) || c == null) return;
+            try
+            {
+                var hit = Activator.CreateInstance(_hitT);
+                var dtF = AccessTools.Field(_hitT, "m_damage"); object dt = dtF.GetValue(hit);
+                AccessTools.Field(dt.GetType(), "m_blunt")?.SetValue(dt, dmg * ValheimHit.CombatScale); dtF.SetValue(hit, dt);
+                AccessTools.Field(_hitT, "m_point")?.SetValue(hit, c.transform.position + Vector3.up);
+                Proxy src = null; if (attacker != 0) _proxies.TryGetValue(attacker, out src);
+                if (src != null) AccessTools.Field(_hitT, "m_dir")?.SetValue(hit, (c.transform.position - src.Go.transform.position).normalized);
+                if (src != null && _setAttacker != null) _setAttacker.Invoke(hit, new object[] { src.Ch });
+                AccessTools.Field(_hitT, "m_pushForce")?.SetValue(hit, 10f);
+                _damage.Invoke(c, new[] { hit });
+                Diag.Info("vmobhit", $"[mobs] MC mob {attacker} hit Valheim {c.gameObject.name}: MC {dmg:F1} -> {dmg * ValheimHit.CombatScale:F1}");
+            }
+            catch (Exception e) { Diag.Warn("vmobhurt", "[mobs] damage failed: " + e.GetBaseException().Message); }
+        }
+    }
+}

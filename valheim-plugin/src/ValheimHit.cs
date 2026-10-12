@@ -66,6 +66,7 @@ namespace ValCraft
                     if (h.collider.transform.IsChildOf(player.transform)) continue;
                     if (Vector3.Distance(h.point, player.transform.position + Vector3.up * 1.6f) > Range) break;
                     _target = h.collider.GetComponentInParent(_destructibleI);
+                    if (_target != null && MobBridge.IsProxy(_target)) { _target = null; continue; }
                     if (_target != null && !Combat && _characterT != null && _characterT.IsInstanceOfType(_target)) _target = null;
                     _hitPoint = h.point;
                     break; // nearest solid thing decides (terrain/buildings block)

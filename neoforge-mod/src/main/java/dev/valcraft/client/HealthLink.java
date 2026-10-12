@@ -51,6 +51,7 @@ public final class HealthLink {
 				default -> src.generic();             // creature hits, impacts, etc.
 			};
 			sp.invulnerableTime = 0; // Valheim decides hit frequency
+			if (type == 5 || type == 20) sp.setRemainingFireTicks(Math.max(sp.getRemainingFireTicks(), 80)); // 0.9.0: Valheim fire ignites
 			boolean ok = sp.hurt(ds, amount);
 			if (ok && push > 0 && (dx != 0 || dz != 0)) { sp.knockback(Math.min(1.5, push / 40.0), -dx, -dz); sp.hurtMarked = true; }
 			ValCraft.LOG.debug("[health] Valheim damage {} (type {}) -> {}", amount, type, ok);
