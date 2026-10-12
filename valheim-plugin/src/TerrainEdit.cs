@@ -178,7 +178,10 @@ namespace ValCraft
         }
 
         /// <summary>Level the vertices within a square of half-size Radius around pos (x,z) to pos.y.</summary>
-        static bool Apply(Vector3 pos, bool dig)
+        static bool Apply(Vector3 pos, bool dig) => Apply(pos, dig, false, Radius);
+
+        /// <summary>level = 0.9.1 hoe: flatten to pos.y within a circle of radius r (full inside r/2, smooth falloff to r).</summary>
+        static bool Apply(Vector3 pos, bool dig, bool levelMode, float Radius)
         {
             if (!CheckApi()) return false;
             try
@@ -207,8 +210,21 @@ namespace ValCraft
                             int i = z * max + x;
                             if (heights == null || i >= heights.Count || i >= level.Length) continue;
                             float cur = heights[i];
-                            if (dig ? cur <= pos.y : cur >= pos.y) continue;   // only lower when digging / raise when placing
-                            level[i] += pos.y - cur;
+                            float delta;
+                            if (levelMode)
+                            {
+                                float d = new Vector2(vx - pos.x, vz - pos.z).magnitude;
+                                if (d > Radius) continue;
+                                float wgt = d <= Radius * 0.5f ? 1f : 1f - (d - Radius * 0.5f) / (Radius * 0.5f);
+                                delta = (pos.y - cur) * wgt;
+                                if (Mathf.Abs(delta) < 0.01f) continue;
+                            }
+                            else
+                            {
+                                if (dig ? cur <= pos.y : cur >= pos.y) continue;   // only lower when digging / raise when placing
+                                delta = pos.y - cur;
+                            }
+                            level[i] += delta;
                             smooth[i] = 0f;
                             modH[i] = level[i] != 0f;
                             if (dig && paint != null && modP != null && i < paint.Length) { paint[i] = Color.red; modP[i] = true; }
@@ -230,6 +246,27 @@ namespace ValCraft
                 return verts > 0;
             }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] direct TerrainComp edit failed: {e.GetBaseException()}"); return false; }
+        }
+
+        /// <summary>0.9.1 EvLevelGround (MC shift+right-click with a hoe): level Valheim ground at the aimed point to the player's feet height.</summary>
+        internal static void LevelGround()
+        {
+            if (!Enabled || !TerrainExport.Active || PlayerSync.Player == null) return;
+            if (!_init) Init();
+            var cam = Camera.main; if (cam == null) return;
+            int mask = LayerMask.GetMask("terrain");
+            if (!Physics.Raycast(cam.transform.position, cam.transform.forward, out var hit, 8f, mask, QueryTriggerInteraction.Ignore)) { ValCraftPlugin.Log.LogInfo("[terrain-edit] level: no Valheim ground within 8 m of the aim"); return; }
+            var feet = PlayerSync.Player.transform.position.y;
+            var pos = new Vector3(hit.point.x, feet, hit.point.z);
+            if (_checkAccess != null) { try { if (!(bool)_checkAccess.Invoke(null, new object[] { pos, 0f, true, false })) { ValCraftPlugin.Log.LogInfo("[terrain-edit] level blocked by a ward (PrivateArea)"); return; } } catch { } }
+            const float r = 2f;
+            if (Apply(pos, false, true, r))
+            {
+                var a = PlayerSync.Anchor;
+                int cx = Mathf.FloorToInt(pos.x - a.x), cz = Mathf.FloorToInt(-(pos.z - a.z));
+                for (int dx = -3; dx <= 3; dx += 3) for (int dz = -3; dz <= 3; dz += 3) TerrainExport.Invalidate(cx + dx, cz + dz);
+                ValCraftPlugin.Log.LogInfo($"[terrain-edit] levelled ground at {hit.point} (r {r} m) to the player's feet y={feet:F2}");
+            }
         }
 
         /// <summary>Called on tile re-sample after an edit: report whether Valheim's ground actually moved.</summary>

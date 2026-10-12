@@ -14,7 +14,7 @@ public abstract class MinecraftUseMixin {
 
 	@Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
 	private void valcraft$valheimInteract(CallbackInfo ci) {
-		if (ValheimInteract.tryInteract((Minecraft) (Object) this) || dev.valcraft.client.BuildLink.tryUse((Minecraft) (Object) this)) {
+		if (ValheimInteract.tryInteract((Minecraft) (Object) this) || dev.valcraft.client.HoeLink.tryUse((Minecraft) (Object) this) || dev.valcraft.client.BuildLink.tryUse((Minecraft) (Object) this)) {
 			rightClickDelay = 4;
 			ci.cancel();
 		}

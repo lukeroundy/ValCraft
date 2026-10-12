@@ -32,6 +32,19 @@ public final class MobSync {
 		ENTITIES.register(modBus);
 		modBus.addListener((EntityAttributeCreationEvent e) -> e.put(PROXY.get(), ValheimProxy.attributes().build()));
 		net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(MobSync::onJoin);
+		net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(MobSync::onSpawnCheck);
+	}
+
+	/** 0.9.1: no natural MC spawns under Valheim roofs (any Valheim collider 2-12 m above the spawn spot). */
+	private static void onSpawnCheck(net.neoforged.neoforge.event.entity.living.MobSpawnEvent.PositionCheck e) {
+		if (!dev.valcraft.client.ValCraftClient.active() || !dev.valcraft.client.CollisionWorld.ready()) return;
+		var t = e.getSpawnType();
+		if (t != net.minecraft.world.entity.MobSpawnType.NATURAL && t != net.minecraft.world.entity.MobSpawnType.CHUNK_GENERATION) return;
+		double x = e.getX(), y = e.getY(), z = e.getZ();
+		try {
+			if (!dev.valcraft.client.CollisionWorld.query(new net.minecraft.world.phys.AABB(x - 0.3, y + 2, z - 0.3, x + 0.3, y + 12, z + 0.3)).isEmpty())
+				e.setResult(net.neoforged.neoforge.event.entity.living.MobSpawnEvent.PositionCheck.Result.FAIL);
+		} catch (RuntimeException ignored) {}
 	}
 
 	/** MC hostiles also hunt Valheim monster proxies. */
@@ -50,7 +63,7 @@ public final class MobSync {
 		List<MobCodec.Mob> out = new ArrayList<>();
 		for (Mob m : near) {
 			if (out.size() >= 24) break;
-			out.add(new MobCodec.Mob(m.getId(), m instanceof Enemy ? MobCodec.HOSTILE : MobCodec.PASSIVE, (float) m.getX(), (float) m.getY(), (float) m.getZ(), m.getBbWidth(), m.getBbHeight(), m.getHealth() / Math.max(1f, m.getMaxHealth())));
+			out.add(new MobCodec.Mob(m.getId(), m instanceof Enemy ? MobCodec.HOSTILE : MobCodec.PASSIVE, (float) m.getX(), (float) m.getY(), (float) m.getZ(), m.getBbWidth(), m.getBbHeight(), m.getHealth() / Math.max(1f, m.getMaxHealth()), m.getMaxHealth(), m.getName().getString()));
 		}
 		for (byte[] b : MobCodec.encodeList(out)) ValCraftClient.sendToValheim(ValCraftLink.EV_MOB_LIST, b);
 	}

@@ -38,10 +38,12 @@ public abstract class McWorldIrrelevantMixin {
 
 	@Inject(method = "updateFluidOnEyes", at = @At("TAIL"))
 	private void valcraft$noEyeFluid(CallbackInfo ci) {
-		if (!valcraft$ignore()) return;
-		wasEyeInWater = false;
-		fluidOnEyes.clear();
-		((EntityFluidAccessor) this).valcraft$setForgeFluidTypeOnEyes(net.neoforged.neoforge.common.NeoForgeMod.EMPTY_TYPE.value());
+		if (valcraft$ignore()) {
+			wasEyeInWater = false;
+			fluidOnEyes.clear();
+			((EntityFluidAccessor) this).valcraft$setForgeFluidTypeOnEyes(net.neoforged.neoforge.common.NeoForgeMod.EMPTY_TYPE.value());
+		}
+		// 0.9.1: applies to every entity (mobs drown/swim, items float)
 		// 0.9.0: Valheim water counts as water (air supply, drowning, underwater view)
 		double s = dev.valcraft.client.ValheimWater.waterSurface((Entity) (Object) this);
 		if (!Double.isNaN(s) && getEyeY() - 0.11111 < s) {
@@ -54,10 +56,10 @@ public abstract class McWorldIrrelevantMixin {
 	/** 0.9.0: below the Valheim water surface the player is in water (vanilla swimming, no fall damage, fire out). */
 	@Inject(method = "updateInWaterStateAndDoFluidPushing", at = @At("RETURN"), cancellable = true)
 	private void valcraft$valheimWater(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
-		if (!valcraft$ignore()) return;
 		double s = dev.valcraft.client.ValheimWater.waterSurface((Entity) (Object) this);
 		if (Double.isNaN(s) || s <= getY()) return;
 		double depth = s - getY();
+		if (depth <= fluidHeight.getDouble(net.minecraft.tags.FluidTags.WATER)) return; // real MC water already deeper
 		fluidHeight.put(net.minecraft.tags.FluidTags.WATER, depth);
 		forgeFluidTypeHeight.put(net.neoforged.neoforge.common.NeoForgeMod.WATER_TYPE.value(), depth);
 		wasTouchingWater = true;

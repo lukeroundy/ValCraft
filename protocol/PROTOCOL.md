@@ -229,3 +229,11 @@ Valheim's own piece window is no longer used (Minecraft has OS focus; in 0.8.4 V
 | 58 EvWater | V→MC | f32 x0, f32 z0, u8 step, u8 nx, u8 nz, nx·nz × i16 surface MC Y ×16 (−32768 none), ⌈n/8⌉ tar bits. 9×9 grid, 2 m, every 0.2 s, from Floating.GetLiquidLevel (Water / Tar). |
 
 Proxies: Valheim instantiates [Mobs] ProxyPrefab (Greyling) per MC mob with AI/animator/drops/renderers/sound off, kinematic, non-persistent ZDO, faction [Mobs] HostileMcFaction (Players) for hostiles or AnimalsVeg; Character.ApplyDamage on a proxy is cancelled and sent as EvMobHurt. MC spawns `valcraft:valheim_proxy` (no AI, unsaved, not crosshair-pickable, NoopRenderer) per Valheim monster; every MC `Monster` gets a NearestAttackableTargetGoal for proxies; hits on a proxy are sent as EvVMobHurt.
+
+## v15 (0.9.1) — mob names/health, tiled water, hoe levelling, day/night
+| Event | Dir | Payload |
+|---|---|---|
+| 54 EvMobList / 56 EvVMobList | both | **variable length**: u8 first, u8 last, u8 n, n × (u32 id, u8 kind, f32 x, y, z, u8 w×10, u8 h×10, u8 hp%, u16 maxHp, u8 nameLen, utf8 name ≤32 bytes, cut on a char boundary). Fixed part 23 B per mob. MC sends the custom name or the entity type name; Valheim sends GetHoverName(). |
+| 58 EvWater | V→MC | layout unchanged; now 18 m tiles (9×9 cells, 2 m): tile (tx,tz) has x0 = tx·18+1, z0 = tz·18+1. Player's tile every 0.2 s + 5 round-robin tiles of the surrounding 5×5 (≈ ±36 m). Dry tiles sent once. MC keys tiles by floor(x/18), floor(z/18); wet tiles expire after 3 s, dry after 15 s. Applies to all MC entities and boats. |
+| 59 EvLevelGround | MC→V | empty. Shift + right-click with a hoe. Valheim raycasts the camera to terrain (≤ 8 m), checks wards, levels to the player's feet Y, r 2 m (full inside 1 m, linear falloff), then re-sends the terrain tiles. MC damages the hoe by 1. |
+| 60 EvDayTime | V→MC | f32 EnvMan.GetDayFraction(), every second. MC time = (f·24000 + 18000) % 24000 on the current MC day (monotonic). doDaylightCycle off while linked, restored on unlink. |

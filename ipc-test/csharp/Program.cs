@@ -290,13 +290,14 @@ static unsafe class Program
             int n = Rd(r); var all = new System.Collections.Generic.List<ValCraft.Protocol.MobCodec.Mob>(); bool first = false, last = false;
             for (int i = 0; i < n; i++) { var m = r.ReadBytes(Rd(r)); if (i == 0) first = m[0] == 1; if (i == n - 1) last = m[1] == 1; all.AddRange(ValCraft.Protocol.MobCodec.DecodeList(m)); }
             Check(first && last && all.Count == 30 && all[4].Id == 1004 && all[4].Kind == 1 && all[5].Kind == 2 && Math.Abs(all[4].X - 6f) < 1e-4 && Math.Abs(all[3].Z + 3f) < 1e-4 && Math.Abs(all[0].H - 1.95f) < 0.06 && Math.Abs(all[0].HpFrac - 0.5f) < 0.01, "mc mob list");
+            Check(all[7].Name == "Zombie Bob \u00e9" && all[0].Name == "Zombie" && Math.Abs(all[7].MaxHp - 27f) < 0.5f && System.Text.Encoding.UTF8.GetByteCount(all[9].Name) <= 32 && all[9].Name.StartsWith("A very long"), "mc mob names/maxHp");
             var (vid, dmg, att) = ValCraft.Protocol.MobCodec.VMobHurt(r.ReadBytes(Rd(r)));
             Check(vid == 77 && dmg == 3.5f && att == 1004, "vmob hurt");
         }
         var hurt = ValCraft.Protocol.MobCodec.MobHurt(5, 2f, 0.5f, -0.5f, 9);
         Check(hurt.Length == 20 && BitConverter.ToUInt32(hurt, 16) == 9, "mob hurt");
         var vl = new System.Collections.Generic.List<ValCraft.Protocol.MobCodec.Mob>();
-        for (uint i = 1; i <= 3; i++) vl.Add(new ValCraft.Protocol.MobCodec.Mob { Id = i, Kind = 1, X = i, Y = 69.5f + i, Z = -i, W = 1.2f, H = 2f, HpFrac = 0.25f });
+        for (uint i = 1; i <= 3; i++) vl.Add(new ValCraft.Protocol.MobCodec.Mob { Id = i, Kind = 1, X = i, Y = 69.5f + i, Z = -i, W = 1.2f, H = 2f, HpFrac = 0.25f, MaxHp = i == 2 ? 200 : 50, Name = i == 2 ? "Greyling" : i == 1 ? "" : "Neck" });
         var surf = new float[9]; var tar = new bool[9];
         for (int k = 0; k < 9; k++) surf[k] = float.NaN;
         surf[0] = 62.5f; surf[8] = 61f; tar[8] = true; // cells: x0=10,z0=20 step 2 -> (10,20) water, (12,20) none, (14,24) tar

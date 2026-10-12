@@ -79,15 +79,28 @@ namespace ValCraft
             link.TrySend(ValCraftLink.EvDamage, HealthCodec.Damage(mc, 5, 0, 0, 0));
         }
 
-        const int Step = 2, N = 9;
+        // 0.9.1: 18 m tiles (9×9 cells, 2 m) covering ±36 m (boats, mobs, items). The player's tile every 0.2 s, the rest
+        // round-robin (~1 s for all 25 tiles). Tiles without any liquid are sent once (as "none") then skipped.
+        const int Step = MobCodec.TileStep, N = MobCodec.TileCells, TS = MobCodec.TileSize, R = 2;
         static readonly float[] _surf = new float[N * N]; static readonly bool[] _tar = new bool[N * N];
-        static bool _wasWet;
+        static bool _wasWet; static int _rr;
+        static readonly Dictionary<long, bool> _dryTiles = new Dictionary<long, bool>();
         static void WaterGrid(ValCraftLink link)
         {
             if (_liquid == null || !PlayerSync.Anchored) return;
             var a = PlayerSync.Anchor; var p = PlayerSync.Player.transform.position;
             float mx = p.x - a.x, mz = -(p.z - a.z);
-            float x0 = Mathf.Round(mx / Step) * Step - (N / 2) * Step, z0 = Mathf.Round(mz / Step) * Step - (N / 2) * Step;
+            int ptx = Mathf.FloorToInt(mx / TS), ptz = Mathf.FloorToInt(mz / TS);
+            WaterTile(link, ptx, ptz, true);
+            int side = 2 * R + 1;
+            for (int k = 0; k < 5; k++) { int idx = _rr++ % (side * side); int tx = ptx - R + idx % side, tz = ptz - R + idx / side; if (tx != ptx || tz != ptz) WaterTile(link, tx, tz, false); }
+            if (_dryTiles.Count > 4000) _dryTiles.Clear();
+        }
+
+        static void WaterTile(ValCraftLink link, int tx, int tz, bool playerTile)
+        {
+            var a = PlayerSync.Anchor; var p = PlayerSync.Player.transform.position;
+            float x0 = tx * TS + 1, z0 = tz * TS + 1;
             object water = Enum.ToObject(_liquidType, 0), tar = Enum.ToObject(_liquidType, 1);
             bool any = false;
             for (int j = 0; j < N; j++) for (int i = 0; i < N; i++)
@@ -102,12 +115,18 @@ namespace ValCraft
                 _surf[k] = s > -1000f ? s - a.y : float.NaN; _tar[k] = isTar;
                 if (s > -1000f) any = true;
             }
-            int c = (N / 2) * N + N / 2; bool wet = !float.IsNaN(_surf[c]) && _surf[c] > p.y - a.y;
-            if (wet != _wasWet) { _wasWet = wet; ValCraftPlugin.Log.LogInfo(wet ? $"[hazard] MC player below Valheim {(_tar[c] ? "tar" : "water")} surface (MC Y {_surf[c]:F1})" : "[hazard] out of Valheim water"); }
-            if (any || _sentAny) link.TrySend(ValCraftLink.EvWater, MobCodec.Water(x0, z0, Step, N, N, _surf, _tar));
-            _sentAny = any;
+            if (playerTile)
+            {
+                float mx = p.x - a.x, mz = -(p.z - a.z);
+                int ci = Mathf.Clamp(Mathf.RoundToInt((mx - x0) / Step), 0, N - 1), cj = Mathf.Clamp(Mathf.RoundToInt((mz - z0) / Step), 0, N - 1), c = cj * N + ci;
+                bool wet = !float.IsNaN(_surf[c]) && _surf[c] > p.y - a.y;
+                if (wet != _wasWet) { _wasWet = wet; ValCraftPlugin.Log.LogInfo(wet ? $"[hazard] MC player below Valheim {(_tar[c] ? "tar" : "water")} surface (MC Y {_surf[c]:F1})" : "[hazard] out of Valheim water"); }
+            }
+            long key = ((long)tx << 32) ^ (uint)tz;
+            if (!any) { if (_dryTiles.ContainsKey(key)) return; _dryTiles[key] = true; }
+            else _dryTiles.Remove(key);
+            link.TrySend(ValCraftLink.EvWater, MobCodec.Water(x0, z0, Step, N, N, _surf, _tar));
         }
-        static bool _sentAny;
     }
 
     /// <summary>
@@ -116,18 +135,38 @@ namespace ValCraft
     /// near the player are streamed to MC, where invisible proxy entities let MC hostiles target them; MC hits come back
     /// as Character.Damage with the attacker's Valheim proxy as attacker (so the Valheim monster fights back).
     /// </summary>
+    /// <summary>0.9.1: Valheim time of day drives MC (EvDayTime every second).</summary>
+    internal static class DayLink
+    {
+        internal static bool Enabled = true;
+        static float _next; static PropertyInfo _inst; static MethodInfo _frac; static bool _init;
+        internal static void Update(ValCraftLink link)
+        {
+            if (!Enabled || link == null || Time.unscaledTime < _next) return;
+            _next = Time.unscaledTime + 1f;
+            if (!_init) { _init = true; var t = AccessTools.TypeByName("EnvMan"); _inst = AccessTools.Property(t, "instance"); _frac = AccessTools.Method(t, "GetDayFraction", Type.EmptyTypes); ValCraftPlugin.Log.LogInfo($"[time] EnvMan.GetDayFraction={_frac != null}"); }
+            try
+            {
+                var env = _inst?.GetValue(null); if (env == null || _frac == null) return;
+                float f = (float)_frac.Invoke(env, null);
+                link.TrySend(ValCraftLink.EvDayTime, BitConverter.GetBytes(f));
+            }
+            catch (Exception e) { Diag.Warn("time", "[time] " + e.GetBaseException().Message); }
+        }
+    }
+
     internal static class MobBridge
     {
         internal static bool Enabled = true; internal static int MaxProxies = 24; internal static string ProxyPrefab = "Greyling";
         internal static string HostileFaction = "Players";
-        class Proxy { public GameObject Go; public Component Ch; public Vector3 Target; public float Seen; public byte Kind; public float W, H; }
+        class Proxy { public GameObject Go; public Component Ch; public Vector3 Target; public float Seen; public byte Kind; public float W, H, Max; public string Name; }
         static readonly Dictionary<uint, Proxy> _proxies = new Dictionary<uint, Proxy>();
         static readonly Dictionary<object, uint> _proxyToMc = new Dictionary<object, uint>();
         static readonly Dictionary<uint, Component> _vmobs = new Dictionary<uint, Component>();
         static readonly List<MobCodec.Mob> _incoming = new List<MobCodec.Mob>();
         static bool _init, _ok; static float _nextList;
         static Type _charT, _znvT, _zdoT, _hitT, _baseAIT, _factionT, _playerT;
-        static MethodInfo _getAll, _getHealth, _getMax, _setHealth, _isDead, _isTamed, _damage, _getZdo, _setAttacker, _findInst, _sceneDestroy, _getPrefab;
+        static MethodInfo _setMax, _hoverName, _getAll, _getHealth, _getMax, _setHealth, _isDead, _isTamed, _damage, _getZdo, _setAttacker, _findInst, _sceneDestroy, _getPrefab;
         static FieldInfo _faction, _name, _attackerF; static PropertyInfo _persistent, _znsInst;
         static ValCraftLink _link;
 
@@ -144,6 +183,7 @@ namespace ValCraft
             var zs = AccessTools.TypeByName("ZNetScene"); _znsInst = AccessTools.Property(zs, "instance");
             _findInst = AccessTools.Method(zs, "FindInstance", new[] { AccessTools.TypeByName("ZDOID") }); _sceneDestroy = AccessTools.Method(zs, "Destroy", new[] { typeof(GameObject) });
             _getPrefab = AccessTools.Method(zs, "GetPrefab", new[] { typeof(string) });
+            _setMax = AccessTools.Method(_charT, "SetMaxHealth", new[] { typeof(float) }); _hoverName = AccessTools.Method(_charT, "GetHoverName", Type.EmptyTypes);
             _faction = AccessTools.Field(_charT, "m_faction"); _name = AccessTools.Field(_charT, "m_name");
             _persistent = AccessTools.Property(_zdoT, "Persistent");
             _ok = _getAll != null && _damage != null && _getPrefab != null && _sceneDestroy != null && _faction != null;
@@ -176,7 +216,16 @@ namespace ValCraft
                     _proxies[m.Id] = px; _proxyToMc[px.Ch] = m.Id;
                 }
                 px.Target = ToUnity(m.X, m.Y, m.Z); px.Seen = t;
-                try { if (_setHealth != null && _getMax != null) _setHealth.Invoke(px.Ch, new object[] { Math.Max(1f, (float)_getMax.Invoke(px.Ch, null) * Math.Max(0.02f, m.HpFrac)) }); } catch { }
+                try
+                {
+                    // 0.9.1: name + health bar of the MC mob (custom name tag or type name; MC hp / max hp)
+                    string nm = string.IsNullOrEmpty(m.Name) ? (m.Kind == MobCodec.Hostile ? "Minecraft monster" : "Minecraft animal") : m.Name;
+                    if (nm != px.Name) { px.Name = nm; _name?.SetValue(px.Ch, nm); }
+                    float max = Math.Max(1f, m.MaxHp > 0 ? m.MaxHp : 20f);
+                    if (Math.Abs(max - px.Max) > 0.01f) { px.Max = max; _setMax?.Invoke(px.Ch, new object[] { max }); }
+                    _setHealth?.Invoke(px.Ch, new object[] { Math.Max(0.5f, max * Math.Max(0.01f, m.HpFrac)) });
+                }
+                catch { }
             }
             foreach (var id in new List<uint>(_proxies.Keys)) if (!keep.Contains(id)) Remove(id, "left range / died");
         }
@@ -207,7 +256,7 @@ namespace ValCraft
                 if (ch == null) { _sceneDestroy.Invoke(Zns(), new object[] { go }); return null; }
                 string fac = m.Kind == MobCodec.Hostile ? HostileFaction : "AnimalsVeg";
                 try { _faction.SetValue(ch, Enum.Parse(_factionT, fac)); } catch { _faction.SetValue(ch, Enum.ToObject(_factionT, 0)); }
-                _name?.SetValue(ch, m.Kind == MobCodec.Hostile ? "Minecraft monster" : "Minecraft animal");
+
                 Diag.Info("proxy+", $"[mobs] proxy for MC mob {m.Id} ({(m.Kind == MobCodec.Hostile ? "hostile" : "passive")}, {m.W:F1}x{m.H:F1} m, faction {fac})");
                 return new Proxy { Go = go, Ch = ch, Kind = m.Kind, W = m.W, H = m.H, Target = pos };
             }
@@ -264,7 +313,8 @@ namespace ValCraft
                         var cap = c.GetComponent<CapsuleCollider>();
                         float hp = (float)_getHealth.Invoke(c, null), max = Math.Max(1f, (float)_getMax.Invoke(c, null));
                         var mc = ToMc(c.transform.position);
-                        list.Add(new MobCodec.Mob { Id = vid, Kind = MobCodec.Hostile, X = mc.x, Y = mc.y, Z = mc.z, W = cap != null ? cap.radius * 2 : 0.8f, H = cap != null ? cap.height : 1.8f, HpFrac = hp / max });
+                        string hn = null; try { hn = _hoverName?.Invoke(c, null) as string; } catch { }
+                        list.Add(new MobCodec.Mob { Id = vid, Kind = MobCodec.Hostile, X = mc.x, Y = mc.y, Z = mc.z, W = cap != null ? cap.radius * 2 : 0.8f, H = cap != null ? cap.height : 1.8f, HpFrac = hp / max, MaxHp = max, Name = hn ?? c.gameObject.name.Replace("(Clone)", "") });
                     }
                     catch { }
                 }

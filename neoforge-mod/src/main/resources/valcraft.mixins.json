@@ -4,6 +4,7 @@
   "package": "dev.valcraft.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "BoatWaterMixin",
     "EntityCollisionMixin",
     "EntityFluidAccessor",
     "McWorldIrrelevantMixin",

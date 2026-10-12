@@ -117,6 +117,7 @@ namespace ValCraft
             var cfgItems = Config.Bind("Items", "Enabled", true, "Phase C item bridge: Valheim resources you gather go to your Minecraft inventory (mapping: valcraft-items.json in the config folder); Minecraft items work in Valheim fires, smelters, cooking stations and crafting.");
             ItemBridge.Enabled = cfgItems.Value;
             HealthLink.Enabled = Config.Bind("Health", "LinkHealth", true, "Minecraft health drives the Valheim player: Valheim damage (mobs, fire, drowning...) goes to Minecraft instead, Valheim fall damage is off, and a Minecraft death kills the Valheim player (tombstone + respawn).").Value;
+            DayLink.Enabled = Config.Bind("Time", "SyncDayNight", true, "Valheim's time of day drives Minecraft (MC daylight cycle paused while linked).").Value;
             Hazards.Fire = Config.Bind("Hazards", "Fire", true, "Valheim fire (campfires, burning areas, fire AoE, lava) damages and ignites the Minecraft player.").Value;
             Hazards.Water = Config.Bind("Hazards", "Water", true, "Valheim water and tar act as water for the Minecraft player (swimming, air, drowning; tar slows).").Value;
             MobBridge.Enabled = Config.Bind("Mobs", "CrossGameCombat", true, "Minecraft hostiles and Valheim monsters see and fight each other (invisible proxies on both sides).").Value;
@@ -240,6 +241,7 @@ namespace ValCraft
                         else if (ev.Type == ValCraftLink.EvBuildSelect) ItemBridge.BuildSelect(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvMobList) MobBridge.Receive(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvVMobHurt) MobBridge.VMobHurt(ev.Payload);
+                        else if (ev.Type == ValCraftLink.EvLevelGround) TerrainEdit.LevelGround();
                         else if (ev.Type == ValCraftLink.EvBuildAction) { if (ev.Payload != null && ev.Payload.Length > 0) ItemBridge.BuildAction(ev.Payload[0]); }
                         else if (!ItemBridge.Handle(ev)) BlockRender.Handle(ev);
                         break;
@@ -289,6 +291,7 @@ namespace ValCraft
             try { TerrainExport.Update(Link, _connected); } catch (Exception e) { Diag.Warn("terrain", "[terrain] update error: " + e.GetBaseException().Message); }
             try { BlockRender.Update(Link, _connected); } catch (Exception e) { Diag.Warn("blocks", "[blocks] update error: " + e.GetBaseException().Message); }
             try { ItemBridge.Update(Link, _connected); } catch (Exception e) { Diag.Warn("items", "[items] update error: " + e.GetBaseException().Message); }
+            try { if (_connected && PlayerSync.Following) DayLink.Update(Link); } catch (Exception e) { Diag.Warn("day", "[time] update error: " + e.GetBaseException().Message); }
             try { if (_connected) Hazards.Update(Link); } catch (Exception e) { Diag.Warn("hazard", "[hazard] update error: " + e.GetBaseException().Message); }
             try { if (_connected) MobBridge.Update(Link); else MobBridge.Clear("disconnected"); } catch (Exception e) { Diag.Warn("mobs", "[mobs] update error: " + e.GetBaseException().Message); }
             try { HealthLink.Update(Link); } catch (Exception e) { Diag.Warn("health", "[health] update error: " + e.GetBaseException().Message); }

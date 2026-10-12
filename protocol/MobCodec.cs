@@ -3,41 +3,46 @@ using System.Collections.Generic;
 
 namespace ValCraft.Protocol
 {
-    /// <summary>0.9.0 (v14) cross-game mobs + water payloads. All little-endian; positions are MC coordinates.</summary>
+    /// <summary>0.9.0 (v14) / 0.9.1 (v15) cross-game mobs + water payloads. All little-endian; positions are MC coordinates.</summary>
     public static class MobCodec
     {
-        public struct Mob { public uint Id; public byte Kind; public float X, Y, Z, W, H, HpFrac; } // Kind 1 hostile, 2 passive
+        public struct Mob { public uint Id; public byte Kind; public float X, Y, Z, W, H, HpFrac, MaxHp; public string Name; } // Kind 1 hostile, 2 passive
         public const byte Hostile = 1, Passive = 2;
-        const int McEntry = 20, VEntry = 20;
+        const int Fixed = 23;
 
         static byte U8(float v) => (byte)Math.Max(0, Math.Min(255, (int)Math.Round(v)));
 
-        /// <summary>EvMobList (MC→V) and EvVMobList (V→MC) share a layout: u8 first, u8 last, u8 n, n × (u32 id, u8 kind, f32 x, y, z, u8 width×10, u8 height×10, u8 hp%).</summary>
+        /// <summary>
+        /// EvMobList (MC→V) and EvVMobList (V→MC), v15: u8 first, u8 last, u8 n, n × (u32 id, u8 kind, f32 x, y, z,
+        /// u8 width×10, u8 height×10, u8 hp%, u16 maxHp, u8 nameLen, utf8 name ≤ 32 B).
+        /// </summary>
         public static List<byte[]> EncodeList(IList<Mob> mobs, int max = 248)
         {
-            var msgs = new List<byte[]>(); int per = (max - 3) / McEntry;
-            for (int s = 0; s == 0 || s < mobs.Count; s += per)
+            var msgs = new List<byte[]>(); var cur = new List<byte>(); int n = 0;
+            void Flush() { var a = new byte[3 + cur.Count]; a[2] = (byte)n; cur.CopyTo(a, 3); msgs.Add(a); cur.Clear(); n = 0; }
+            foreach (var m in mobs)
             {
-                int n = Math.Min(per, mobs.Count - s); var b = new byte[3 + n * McEntry]; b[2] = (byte)n;
-                for (int i = 0; i < n; i++)
-                {
-                    var m = mobs[s + i]; int o = 3 + i * McEntry;
-                    BitConverter.GetBytes(m.Id).CopyTo(b, o); b[o + 4] = m.Kind;
-                    BitConverter.GetBytes(m.X).CopyTo(b, o + 5); BitConverter.GetBytes(m.Y).CopyTo(b, o + 9); BitConverter.GetBytes(m.Z).CopyTo(b, o + 13);
-                    b[o + 17] = U8(m.W * 10); b[o + 18] = U8(m.H * 10); b[o + 19] = U8(m.HpFrac * 100);
-                }
-                msgs.Add(b);
+                var name = System.Text.Encoding.UTF8.GetBytes(m.Name ?? "");
+                if (name.Length > 32) { int k = 32; while (k > 0 && (name[k] & 0xC0) == 0x80) k--; Array.Resize(ref name, k); }
+                if (3 + cur.Count + Fixed + name.Length > max) Flush();
+                cur.AddRange(BitConverter.GetBytes(m.Id)); cur.Add(m.Kind);
+                cur.AddRange(BitConverter.GetBytes(m.X)); cur.AddRange(BitConverter.GetBytes(m.Y)); cur.AddRange(BitConverter.GetBytes(m.Z));
+                cur.Add(U8(m.W * 10)); cur.Add(U8(m.H * 10)); cur.Add(U8(m.HpFrac * 100));
+                cur.AddRange(BitConverter.GetBytes((ushort)Math.Max(0, Math.Min(65535, Math.Round(m.MaxHp)))));
+                cur.Add((byte)name.Length); cur.AddRange(name); n++;
             }
+            if (n > 0 || msgs.Count == 0) Flush();
             msgs[0][0] = 1; msgs[msgs.Count - 1][1] = 1;
             return msgs;
         }
         public static List<Mob> DecodeList(byte[] p)
         {
-            var r = new List<Mob>(); int n = p[2];
-            for (int i = 0; i < n && 3 + (i + 1) * McEntry <= p.Length; i++)
+            var r = new List<Mob>(); int n = p[2], o = 3;
+            for (int i = 0; i < n && o + Fixed <= p.Length; i++)
             {
-                int o = 3 + i * McEntry;
-                r.Add(new Mob { Id = BitConverter.ToUInt32(p, o), Kind = p[o + 4], X = BitConverter.ToSingle(p, o + 5), Y = BitConverter.ToSingle(p, o + 9), Z = BitConverter.ToSingle(p, o + 13), W = p[o + 17] / 10f, H = p[o + 18] / 10f, HpFrac = p[o + 19] / 100f });
+                var m = new Mob { Id = BitConverter.ToUInt32(p, o), Kind = p[o + 4], X = BitConverter.ToSingle(p, o + 5), Y = BitConverter.ToSingle(p, o + 9), Z = BitConverter.ToSingle(p, o + 13), W = p[o + 17] / 10f, H = p[o + 18] / 10f, HpFrac = p[o + 19] / 100f, MaxHp = BitConverter.ToUInt16(p, o + 20) };
+                int nl = p[o + 22]; m.Name = System.Text.Encoding.UTF8.GetString(p, o + 23, Math.Min(nl, p.Length - o - 23)); o += Fixed + nl;
+                r.Add(m);
             }
             return r;
         }
@@ -51,6 +56,8 @@ namespace ValCraft.Protocol
         public static (uint vid, float dmg, uint attacker) VMobHurt(byte[] p) => (BitConverter.ToUInt32(p, 0), BitConverter.ToSingle(p, 4), BitConverter.ToUInt32(p, 8));
 
         public const short NoWater = short.MinValue;
+        /// <summary>v15: water tiles are 9×9 cells of 2 m aligned to 18 m: tile (tx, tz) has x0 = tx·18 + 1, z0 = tz·18 + 1.</summary>
+        public const int TileCells = 9, TileStep = 2, TileSize = 18;
         /// <summary>EvWater V→MC: f32 x0, f32 z0 (MC coords of cell [0,0] centre), u8 step (m), u8 nx, u8 nz, nx·nz × i16 (surface MC Y × 16, NoWater = none; x fastest), then ⌈nx·nz/8⌉ bytes of tar bits.</summary>
         public static byte[] Water(float x0, float z0, int step, int nx, int nz, float[] surfaceMcY, bool[] tar)
         {
