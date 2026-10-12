@@ -288,3 +288,7 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
   `Heightmap.Poke(false)`. That's how JereKuusela's World Edit Commands edits terrain (public domain:
   https://github.com/JereKuusela/valheim-world_edit_commands, TerrainOperations.cs / TerrainSave.cs / TerrainSelect.cs).
 - Startup diagnostic lists any missing TerrainComp member; each edit logs `wrote N vertices on K TerrainComp(s) to y=..`.
+
+## 0.6.4
+- TerrainComp/Heightmap methods are now resolved by scanning the live types (exact name, then name-contains, any bool/int/float params); full method lists of both types are logged at first edit. A missing Save/Poke no longer disables edits (edits apply in-session; a warning says they won't persist).
+- Placement "resting" check relaxed: a terrain block counts as resting when Valheim ground is inside the block or up to ~1 m below its bottom (block tops are floored); terrain is raised to the block top.

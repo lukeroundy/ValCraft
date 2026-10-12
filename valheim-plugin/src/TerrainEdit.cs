@@ -69,7 +69,7 @@ namespace ValCraft
             }
             else
             {
-                if (bottom > ground + 0.3f || top <= ground + 0.05f) { ValCraftPlugin.Log.LogInfo($"[terrain-edit] placed {id} not resting on Valheim ground (block {bottom:F2}..{top:F2}, ground {ground:F2}): no terrain change"); return; }
+                if (top <= ground + 0.05f || bottom > ground + 1.05f) { ValCraftPlugin.Log.LogInfo($"[terrain-edit] placed {id} not resting on Valheim ground (block {bottom:F2}..{top:F2}, ground {ground:F2}): no terrain change"); return; }
                 target = top;
             }
             var pos = new Vector3(x + 0.5f + a.x, target, -(z + 0.5f) + a.z);
@@ -102,6 +102,45 @@ namespace ValCraft
         static Type _hmType, _tcType;
         static bool _apiChecked, _apiOk;
 
+        static bool _warnedNoSave;
+        const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        static void DumpMembers(Type t)
+        {
+            try
+            {
+                var ms = new List<string>();
+                foreach (var m in t.GetMethods(All)) ms.Add(Sig(m));
+                ValCraftPlugin.Log.LogInfo($"[terrain-edit] {t.FullName} ({t.Assembly.GetName().Name} {t.Assembly.GetName().Version}) methods: {string.Join("; ", ms)}");
+            }
+            catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] member dump of {t} failed: {e.Message}"); }
+        }
+        internal static string Sig(MethodInfo m)
+        {
+            if (m == null) return "none";
+            var ps = new List<string>(); foreach (var p in m.GetParameters()) ps.Add(p.ParameterType.Name);
+            return $"{(m.IsStatic ? "static " : "")}{m.Name}({string.Join(",", ps)})";
+        }
+        // Only parameter types we can fill with defaults (bool -> false, numbers -> 0); exact names first, then name contains.
+        static bool Fillable(MethodInfo m)
+        {
+            foreach (var p in m.GetParameters()) { var pt = p.ParameterType; if (pt != typeof(bool) && pt != typeof(int) && pt != typeof(float)) return false; }
+            return !m.ContainsGenericParameters;
+        }
+        static MethodInfo FindMethod(Type t, string[] names, bool instanceOnly)
+        {
+            MethodInfo[] ms; try { ms = t.GetMethods(All); } catch { return null; }
+            foreach (var n in names) { MethodInfo best = null; foreach (var m in ms) if (m.Name == n && Fillable(m) && !(instanceOnly && m.IsStatic) && (best == null || m.GetParameters().Length < best.GetParameters().Length)) best = m; if (best != null) return best; }
+            foreach (var n in names) foreach (var m in ms) if (m.Name.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0 && !m.Name.StartsWith("RPC_") && Fillable(m) && !(instanceOnly && m.IsStatic)) return m;
+            return null;
+        }
+        static object[] Args(MethodInfo m)
+        {
+            var ps = m.GetParameters(); if (ps.Length == 0) return null;
+            var a = new object[ps.Length];
+            for (int i = 0; i < ps.Length; i++) a[i] = ps[i].HasDefaultValue ? ps[i].DefaultValue : (ps[i].ParameterType == typeof(bool) ? (object)false : ps[i].ParameterType == typeof(int) ? (object)0 : 0f);
+            return a;
+        }
+
         static bool CheckApi()
         {
             if (_apiChecked) return _apiOk;
@@ -112,8 +151,9 @@ namespace ValCraft
             var listT = typeof(List<>).MakeGenericType(_hmType);
             _findHms = AccessTools.Method(_hmType, "FindHeightmap", new[] { typeof(Vector3), typeof(float), listT });
             _getComp = AccessTools.Method(_hmType, "GetAndCreateTerrainCompiler");
-            _poke = AccessTools.Method(_hmType, "Poke", new[] { typeof(bool) });
-            _save = AccessTools.Method(_tcType, "Save", Type.EmptyTypes);
+            DumpMembers(_tcType); DumpMembers(_hmType);
+            _poke = FindMethod(_hmType, new[] { "Poke", "Regenerate", "RequestRebuild", "Rebuild" }, false);
+            _save = FindMethod(_tcType, new[] { "Save", "SaveData", "SaveTerrain", "Store", "Serialize" }, true);
             var znv = AccessTools.TypeByName("ZNetView");
             _claim = znv == null ? null : AccessTools.Method(znv, "ClaimOwnership");
             var cs = AccessTools.TypeByName("ClutterSystem");
@@ -124,14 +164,14 @@ namespace ValCraft
             _fPaint = AccessTools.Field(_tcType, "m_paintMask"); _fHmap = AccessTools.Field(_tcType, "m_hmap");
             _fLastPt = AccessTools.Field(_tcType, "m_lastOpPoint"); _fLastR = AccessTools.Field(_tcType, "m_lastOpRadius");
             _fHmWidth = AccessTools.Field(_hmType, "m_width"); _fHmScale = AccessTools.Field(_hmType, "m_scale"); _fHmHeights = AccessTools.Field(_hmType, "m_heights");
-            var need = new (string, object)[] { ("Heightmap.FindHeightmap(pos,r,list)", _findHms), ("GetAndCreateTerrainCompiler", _getComp), ("TerrainComp.Save", _save),
+            var need = new (string, object)[] { ("Heightmap.FindHeightmap(pos,r,list)", _findHms), ("GetAndCreateTerrainCompiler", _getComp),
                 ("m_width", _fWidth), ("m_modifiedHeight", _fModH), ("m_levelDelta", _fLevel), ("m_smoothDelta", _fSmooth), ("m_hmap", _fHmap),
                 ("Heightmap.m_width", _fHmWidth), ("Heightmap.m_scale", _fHmScale), ("Heightmap.m_heights", _fHmHeights) };
             var missing = new List<string>();
             foreach (var (n, o) in need) if (o == null) missing.Add(n);
             _apiOk = missing.Count == 0;
             ValCraftPlugin.Log.Log(_apiOk ? BepInEx.Logging.LogLevel.Info : BepInEx.Logging.LogLevel.Warning,
-                _apiOk ? $"[terrain-edit] TerrainComp API OK (paint={_fPaint != null && _fModP != null}, ops={_fOps != null}, claim={_claim != null}, poke={_poke != null})"
+                _apiOk ? $"[terrain-edit] TerrainComp API OK (save={Sig(_save)}, poke={Sig(_poke)}, paint={_fPaint != null && _fModP != null}, ops={_fOps != null}, claim={_claim != null}, poke={_poke != null})"
                        : $"[terrain-edit] TerrainComp API missing: {string.Join(", ", missing)} -> terrain edits disabled");
             return _apiOk;
         }
@@ -178,8 +218,9 @@ namespace ValCraft
                     if (nv != null && _claim != null) _claim.Invoke(nv, null);
                     if (_fOps != null) _fOps.SetValue(tc, (int)_fOps.GetValue(tc) + 1);
                     _fLastPt?.SetValue(tc, Vector3.zero); _fLastR?.SetValue(tc, 0f);
-                    _save.Invoke(tc, null);
-                    try { _poke?.Invoke(hm, new object[] { false }); } catch { }
+                    if (_save != null) { try { _save.Invoke(tc, Args(_save)); } catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] {Sig(_save)} failed: {e.GetBaseException().Message}"); } }
+                    else if (!_warnedNoSave) { _warnedNoSave = true; ValCraftPlugin.Log.LogWarning("[terrain-edit] no TerrainComp save method found: edits are visible this session but won't persist"); }
+                    try { _poke?.Invoke(_poke.IsStatic ? null : hm, Args(_poke)); } catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] {Sig(_poke)} failed: {e.GetBaseException().Message}"); }
                     verts += n; comps++;
                 }
                 try { var csT = AccessTools.TypeByName("ClutterSystem"); var inst = csT == null ? null : (AccessTools.Field(csT, "m_instance")?.GetValue(null) ?? AccessTools.Property(csT, "instance")?.GetValue(null, null)); if (inst != null) _resetGrass?.Invoke(inst, new object[] { pos, Radius + 0.5f }); } catch { }

@@ -37,6 +37,6 @@
   <PropertyGroup>
     <BepInExPluginGuid>dev.valcraft.valheim</BepInExPluginGuid>
     <BepInExPluginName>ValCraft</BepInExPluginName>
-    <Version>0.6.3</Version>
+    <Version>0.6.4</Version>
   </PropertyGroup>
 </Project>
