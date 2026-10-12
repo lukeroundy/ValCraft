@@ -50,7 +50,12 @@ public final class ValheimAttack {
 			Tier t = ti.getTier();
 			tier = t == Tiers.WOOD ? 0 : t == Tiers.STONE ? 1 : t == Tiers.IRON ? 2 : t == Tiers.GOLD ? 3 : t == Tiers.DIAMOND ? 4 : t == Tiers.NETHERITE ? 5 : 2;
 		}
-		float dmg = (float) mc.player.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
+		// 0.8.2: ATTACK_DAMAGE isn't synced to the client (read 1.0 with a sword), so add the held item's modifiers ourselves
+		float[] dmgA = { (float) mc.player.getAttributeBaseValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE) };
+		st.getAttributeModifiers().forEach(net.minecraft.world.entity.EquipmentSlot.MAINHAND, (attr, mod) -> {
+			if (attr.is(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE) && mod.operation() == net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE) dmgA[0] += (float) mod.amount();
+		});
+		float dmg = dmgA[0];
 		float str = mc.player.getAttackStrengthScale(0.5f);
 		mc.player.resetAttackStrengthTicker();
 		// v11: + f32 MC attack damage (incl. held item), f32 attack strength 0..1 (for Valheim creatures)

@@ -41,6 +41,8 @@ namespace ValCraft
 
         static Type _humanoid, _itemDrop, _itemData, _inventory, _objectDb, _invGui, _znetScene, _znv;
         static MethodInfo _getInventory, _getAllItems, _removeItem, _addPrefab, _tryUse, _getItemPrefab, _invVisible, _getStation, _sceneDestroy, _isOwner, _getItem;
+        static MethodInfo _znsGet;
+        static object Zns() => _znsGet != null ? _znsGet.Invoke(null, null) : _znsInst?.GetValue(null);
         static FieldInfo _dropPrefab, _stack, _equipped, _itemDataF, _objDbInst, _znsInst;
         static bool _init, _ok;
 
@@ -64,12 +66,18 @@ namespace ValCraft
             _isOwner = AccessTools.Method(_znv, "IsOwner");
             _dropPrefab = AccessTools.Field(_itemData, "m_dropPrefab"); _stack = AccessTools.Field(_itemData, "m_stack"); _equipped = AccessTools.Field(_itemData, "m_equipped");
             _itemDataF = AccessTools.Field(_itemDrop, "m_itemData");
-            _objDbInst = AccessTools.Field(_objectDb, "m_instance"); _znsInst = AccessTools.Field(_znetScene, "m_instance");
+            _objDbInst = AccessTools.Field(_objectDb, "m_instance");
+            // 0.8.2: ZNetScene's singleton is s_instance (exposed as ZNetScene.instance), not m_instance. In 0.8.0 the lookup
+            // failed, so converted drops fell back to Object.Destroy, leaving dead entries in ZNetScene.m_instances (the
+            // RemoveObjects NRE spam after respawn); in 0.8.1 drop conversion was skipped entirely.
+            var znsProp = AccessTools.Property(_znetScene, "instance");
+            _znsGet = znsProp?.GetGetMethod(true);
+            if (_znsGet == null) { var f = AccessTools.Field(_znetScene, "s_instance") ?? AccessTools.Field(_znetScene, "m_instance"); _znsInst = f; }
             var need = new (string, object)[] { ("Humanoid.GetInventory", _getInventory), ("Inventory.GetAllItems", _getAllItems), ("Inventory.RemoveItem(ItemData)", _removeItem),
                 ("Inventory.AddItem(GameObject,int)", _addPrefab), ("Humanoid.TryUseItemOnInteractable", _tryUse), ("ObjectDB.GetItemPrefab", _getItemPrefab), ("ItemData.m_dropPrefab", _dropPrefab), ("ItemData.m_stack", _stack) };
             var missing = new List<string>(); foreach (var (n, o) in need) if (o == null) missing.Add(n);
             _ok = missing.Count == 0;
-            ValCraftPlugin.Log.Log(_ok ? BepInEx.Logging.LogLevel.Info : BepInEx.Logging.LogLevel.Warning, _ok ? $"[items] Valheim API OK (craft UI={_invVisible != null && _getStation != null}, drop destroy={_sceneDestroy != null})" : $"[items] Valheim API missing: {string.Join(", ", missing)} -> item bridge off");
+            ValCraftPlugin.Log.Log(_ok ? BepInEx.Logging.LogLevel.Info : BepInEx.Logging.LogLevel.Warning, _ok ? $"[items] Valheim API OK (craft UI={_invVisible != null && _getStation != null}, drop destroy={_sceneDestroy != null && (_znsGet != null || _znsInst != null)})" : $"[items] Valheim API missing: {string.Join(", ", missing)} -> item bridge off");
         }
 
         internal static void Apply(Harmony h)
@@ -141,7 +149,7 @@ namespace ValCraft
                     if (go == null) { _spawned.Remove(go); continue; }
                     var drop = go.GetComponent(_itemDrop);
                     var nv = go.GetComponent(_znv);
-                    if (nv == null || _isOwner == null || _sceneDestroy == null || _znsInst?.GetValue(null) == null || !(bool)_isOwner.Invoke(nv, null)) { _spawned.Remove(go); continue; }
+                    if (nv == null || _isOwner == null || _sceneDestroy == null || Zns() == null || !(bool)_isOwner.Invoke(nv, null)) { _spawned.Remove(go); continue; }
                     var data = _itemDataF.GetValue(drop);
                     string prefab = data == null ? null : PrefabOf(data) ?? go.name.Replace("(Clone)", "");
                     string mc = Map.McFor(prefab);
@@ -151,7 +159,7 @@ namespace ValCraft
                     if (Give(mc, n, prefab, "drop"))
                     {
                         // always through ZNetScene.Destroy (a plain Object.Destroy leaves a dead entry in ZNetScene.m_instances)
-                        try { _sceneDestroy.Invoke(_znsInst.GetValue(null), new object[] { go }); } catch (Exception e) { Diag.Warn("dropdestroy", "[items] could not remove converted drop: " + e.GetBaseException().Message); }
+                        try { _sceneDestroy.Invoke(Zns(), new object[] { go }); } catch (Exception e) { Diag.Warn("dropdestroy", "[items] could not remove converted drop: " + e.GetBaseException().Message); }
                     }
                 }
             }
