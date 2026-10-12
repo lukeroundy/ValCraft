@@ -23,6 +23,12 @@ namespace ValCraft
         static FieldInfo _settingsField;
         static MethodInfo _checkAccess;
         static bool _init, _ok;
+        static readonly List<KeyValuePair<float, Action>> _verify = new List<KeyValuePair<float, Action>>();
+        internal static void Update()
+        {
+            for (int i = _verify.Count - 1; i >= 0; i--)
+                if (Time.unscaledTime >= _verify[i].Key) { var f = _verify[i].Value; _verify.RemoveAt(i); try { f(); } catch { } }
+        }
 
         static readonly HashSet<string> TerrainIds = new HashSet<string>
         {
@@ -76,27 +82,93 @@ namespace ValCraft
             {
                 ValCraftPlugin.Log.LogInfo($"[terrain-edit] {(kind == 0 ? "lowered" : "raised")} Valheim terrain at {pos} ({ground:F2} -> {target:F2}) for MC {(kind == 0 ? "break" : "place")} of {id} at ({x},{y},{z})");
                 TerrainExport.Invalidate(x, z);
+                _verify.Add(new KeyValuePair<float, Action>(Time.unscaledTime + 1.0f, () => Verify(x, z, target)));
             }
+        }
+
+        // 0.6.0 bug: a TerrainOp made from code works locally only up to TerrainComp.ApplyOperation, which sends the op's
+        // *prefab hash* + position; the receiver (also us, via RPC) looks the prefab up in ZNetScene to read its settings.
+        // "ValCraft_TerrainOp" wasn't a registered prefab -> "Failed to deserialize TerrainOp settings ... cancelling".
+        // Fix: one inactive template prefab "ValCraft_TerrainLevel" (square level op, radius 0.6, paint cleared) is
+        // registered in ZNetScene's prefab tables (re-registered whenever ZNetScene is recreated); clones of it are
+        // spawned at the target point. The level target is the op position, so one prefab serves dig and raise.
+        // (Other players in multiplayer need the mod too, so their ZNetScene knows the prefab.)
+        const string PrefabName = "ValCraft_TerrainLevel";
+        static GameObject _template;
+        static object _registeredIn;
+
+        static int StableHash(string str)
+        {
+            unchecked
+            {
+                int num = 5381, num2 = num;
+                for (int i = 0; i < str.Length && str[i] != '\0'; i += 2)
+                {
+                    num = ((num << 5) + num) ^ str[i];
+                    if (i == str.Length - 1 || str[i + 1] == '\0') break;
+                    num2 = ((num2 << 5) + num2) ^ str[i + 1];
+                }
+                return num + num2 * 1566083941;
+            }
+        }
+
+        static bool EnsurePrefab()
+        {
+            if (_template == null)
+            {
+                var root = new GameObject("ValCraft_Prefabs");
+                root.SetActive(false);
+                UnityEngine.Object.DontDestroyOnLoad(root);
+                _template = new GameObject(PrefabName);
+                _template.transform.SetParent(root.transform, false);
+                var op = _template.AddComponent(_opType);
+                var st = _settingsField.GetValue(op) ?? Activator.CreateInstance(_settingsType);
+                void Set(string n, object v) { var f = AccessTools.Field(_settingsType, n); if (f != null) f.SetValue(st, Convert.ChangeType(v, f.FieldType)); else ValCraftPlugin.Log.LogWarning($"[terrain-edit] TerrainOp.Settings.{n} missing"); }
+                Set("m_level", true); Set("m_levelOffset", 0f); Set("m_levelRadius", Radius); Set("m_square", true);
+                Set("m_raise", false); Set("m_smooth", false);
+                Set("m_paintCleared", true); Set("m_paintRadius", Radius); Set("m_paintHeightCheck", false);
+                _settingsField.SetValue(op, st);
+                _template.SetActive(false); // clones start inactive; Awake runs on our SetActive(true)
+            }
+            var znsT = AccessTools.TypeByName("ZNetScene");
+            var zns = znsT == null ? null : (AccessTools.Field(znsT, "m_instance")?.GetValue(null) ?? AccessTools.Property(znsT, "instance")?.GetValue(null, null));
+            if (zns == null) { ValCraftPlugin.Log.LogWarning("[terrain-edit] ZNetScene instance not found"); return false; }
+            if (ReferenceEquals(zns, _registeredIn)) return true;
+            int hash = StableHash(PrefabName);
+            var named = AccessTools.Field(znsT, "m_namedPrefabs")?.GetValue(zns) as System.Collections.IDictionary;
+            if (named == null) { ValCraftPlugin.Log.LogWarning("[terrain-edit] ZNetScene.m_namedPrefabs not found"); return false; }
+            named[hash] = _template;
+            var list = AccessTools.Field(znsT, "m_prefabs")?.GetValue(zns) as System.Collections.IList;
+            if (list != null && !list.Contains(_template)) list.Add(_template);
+            // cross-check with Valheim's own hash function when available
+            try { var su = AccessTools.TypeByName("StringExtensionMethods"); var m = su == null ? null : AccessTools.Method(su, "GetStableHashCode", new[] { typeof(string) }); if (m != null) { int vh = (int)m.Invoke(null, new object[] { PrefabName }); if (vh != hash) { named.Remove(hash); named[vh] = _template; hash = vh; } } } catch { }
+            _registeredIn = zns;
+            ValCraftPlugin.Log.LogInfo($"[terrain-edit] registered TerrainOp prefab {PrefabName} (hash {hash}) in ZNetScene");
+            return true;
         }
 
         static bool Apply(Vector3 pos, bool dig)
         {
-            var go = new GameObject("ValCraft_TerrainOp");
+            GameObject go = null;
             try
             {
-                go.SetActive(false);
-                go.transform.position = pos;
-                var op = go.AddComponent(_opType);
-                var st = _settingsField.GetValue(op) ?? Activator.CreateInstance(_settingsType);
-                void Set(string n, object v) { var f = AccessTools.Field(_settingsType, n); if (f != null) f.SetValue(st, Convert.ChangeType(v, f.FieldType)); }
-                Set("m_level", true); Set("m_levelOffset", 0f); Set("m_levelRadius", Radius); Set("m_square", true);
-                Set("m_raise", false); Set("m_smooth", false);
-                Set("m_paintCleared", dig); Set("m_paintRadius", Radius); Set("m_paintHeightCheck", false);
-                _settingsField.SetValue(op, st);
-                go.SetActive(true);   // TerrainOp.Awake: find heightmaps, TerrainComp.ApplyOperation (RPC), destroy self
+                if (!EnsurePrefab()) return false;
+                go = UnityEngine.Object.Instantiate(_template, pos, Quaternion.identity); // inactive (template's root is)
+                                go.name = PrefabName + "(Clone)";
+                go.SetActive(true);   // TerrainOp.Awake: heightmaps -> TerrainComp.ApplyOperation (RPC to owner), destroys self
                 return true;
             }
-            catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] TerrainOp failed: {e.GetBaseException().Message}"); UnityEngine.Object.Destroy(go); return false; }
+            catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[terrain-edit] TerrainOp failed: {e.GetBaseException().Message}"); if (go != null) UnityEngine.Object.Destroy(go); return false; }
+        }
+
+        /// <summary>Called on tile re-sample after an edit: report whether Valheim's ground actually moved.</summary>
+        internal static void Verify(int x, int z, float target)
+        {
+            var a = PlayerSync.Anchor;
+            float h = TerrainExport.HeightAtMc(x + 0.5f, z + 0.5f, a);
+            bool ok = !float.IsNaN(h) && Mathf.Abs(h - target) < 0.35f;
+            ValCraftPlugin.Log.Log(ok ? BepInEx.Logging.LogLevel.Info : BepInEx.Logging.LogLevel.Warning,
+                $"[terrain-edit] check MC ({x},{z}): Valheim ground now {h:F2}, target {target:F2} -> {(ok ? "OK" : "NOT APPLIED (see Unity errors above / ward / 8 m limit)")}");
         }
     }
 }

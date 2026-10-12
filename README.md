@@ -262,3 +262,12 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
   Valheim drops spawn as Valheim items (MC items come with Phase C).
 - **Non-terrain MC blocks** (planks, etc.) stay MC-only: they collide in MC but are invisible in Valheim (MC world isn't
   drawn). Next proposed step: render MC-placed blocks in Valheim (mesh per chunk from MC block models/atlas, sent over IPC).
+
+## 0.6.1
+- Fix: terrain digging did nothing. Valheim's TerrainComp.ApplyOperation sends the TerrainOp's *prefab hash*; the receiver
+  looks the prefab up in ZNetScene for its settings, and our code-made "ValCraft_TerrainOp" wasn't registered ("Failed to
+  deserialize TerrainOp settings for prefab hash -1716889444, cancelling TerrainOp"). Now a template prefab
+  `ValCraft_TerrainLevel` is registered in ZNetScene (each time it's recreated) and cloned at the edit point.
+  Multiplayer: every player needs the plugin so their ZNetScene knows the prefab.
+- Diagnostics: `[terrain-edit] check MC (x,z): Valheim ground now .. target .. -> OK / NOT APPLIED` 1 s after each edit;
+  `[hit] aiming at <object>` when a hittable Valheim object is targeted; `[hit] MC attack but no Valheim target`.

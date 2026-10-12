@@ -56,6 +56,7 @@ namespace ValCraft
             var a = PlayerSync.Anchor;
             if (a != _anchorSeen) { _anchorSeen = a; _sentHash.Clear(); _rescan.Clear(); }
             ProcessDirty();
+            TerrainEdit.Update();
             var s = PlayerSync.State;
             int ptx = Mathf.FloorToInt((float)s.FeetX / T), ptz = Mathf.FloorToInt((float)s.FeetZ / T);
             int r = Mathf.CeilToInt(Radius / T);

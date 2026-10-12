@@ -66,9 +66,14 @@ namespace ValCraft
                 }
             }
             int v = _target != null ? 1 : 0;
-            if (v != _sent && link.TrySend(ValCraftLink.EvAttackTarget, new[] { (byte)v })) _sent = v;
+            if (v != _sent && link.TrySend(ValCraftLink.EvAttackTarget, new[] { (byte)v }))
+            {
+                _sent = v;
+                if (_target != null && _target.gameObject.name != _lastLogged) { _lastLogged = _target.gameObject.name; ValCraftPlugin.Log.LogInfo($"[hit] aiming at {_lastLogged} ({_target.GetType().Name}): MC left-click hits it"); }
+            }
         }
         static Vector3 _hitPoint;
+        static string _lastLogged;
 
         internal static void Reset() { _sent = -1; _target = null; }
 
@@ -79,7 +84,7 @@ namespace ValCraft
             if (!_init) Init();
             int kind = BitConverter.ToInt32(p, 0), tier = BitConverter.ToInt32(p, 4);
             var t = _target;
-            if (t == null || _damage == null || _hitDataT == null) return;
+            if (t == null || _damage == null || _hitDataT == null) { ValCraftPlugin.Log.LogInfo("[hit] MC attack but no Valheim target in reach"); return; }
             try
             {
                 var hit = Activator.CreateInstance(_hitDataT);
