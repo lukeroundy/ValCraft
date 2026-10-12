@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>ValCraft.Valheim</AssemblyName>
+    <RootNamespace>ValCraft</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <!-- Set on the command line or in Directory.Build.props: -p:ValheimDir="C:\Program Files (x86)\Steam\steamapps\common\Valheim" -->
+    <ValheimDir Condition="'$(ValheimDir)' == ''"></ValheimDir>
+    <HasGameDlls Condition="'$(ValheimDir)' != '' And Exists('$(ValheimDir)\valheim_Data\Managed\assembly_valheim.dll')">true</HasGameDlls>
+    <DefineConstants Condition="'$(HasGameDlls)' == 'true'">$(DefineConstants);HAS_VALHEIM</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Core" Version="5.4.21" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" PrivateAssets="all" />
+    <!-- Valheim reports Unity 6000.0.61f1 (unverified for 1.0.17). Only used for compile-time API surface. -->
+    <PackageReference Include="UnityEngine.Modules" Version="6000.0.61" IncludeAssets="compile" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Real game assemblies (publicized), only when ValheimDir is given. Publicize with BepInEx.AssemblyPublicizer
+       (see README) into $(ValheimDir)\valheim_Data\Managed\publicized_assemblies. -->
+  <ItemGroup Condition="'$(HasGameDlls)' == 'true'">
+    <Reference Include="assembly_valheim">
+      <HintPath Condition="Exists('$(ValheimDir)\valheim_Data\Managed\publicized_assemblies\assembly_valheim_publicized.dll')">$(ValheimDir)\valheim_Data\Managed\publicized_assemblies\assembly_valheim_publicized.dll</HintPath>
+      <HintPath Condition="!Exists('$(ValheimDir)\valheim_Data\Managed\publicized_assemblies\assembly_valheim_publicized.dll')">$(ValheimDir)\valheim_Data\Managed\assembly_valheim.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="assembly_utils"><HintPath>$(ValheimDir)\valheim_Data\Managed\assembly_utils.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../protocol/ValCraftLink.cs" Link="Protocol/ValCraftLink.cs" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <BepInExPluginGuid>dev.valcraft.valheim</BepInExPluginGuid>
+    <BepInExPluginName>ValCraft</BepInExPluginName>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>

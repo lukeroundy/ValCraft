@@ -1,0 +1,7 @@
+bin/
+obj/
+build/
+.gradle/
+run/
+*.shm
+.idea/
