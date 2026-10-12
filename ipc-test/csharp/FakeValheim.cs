@@ -18,7 +18,7 @@ static unsafe class FakeValheim
         Console.WriteLine($"[host] created {path}, session {link.Session:x8}; commands from {cmdFile}");
         File.WriteAllText(cmdFile, "");
         var sw = Stopwatch.StartNew();
-        long maxHbAge = 0; bool connected = false, input = true; uint mcPid = 0; int cmdLine = 0;
+        long maxHbAge = 0; bool terrainFlag = false; var tileQueue = new Queue<byte[]>(); bool connected = false, input = true; uint mcPid = 0; int cmdLine = 0;
         long lastSeq = 0, frames = 0, rejected = 0, waitUntil = 0;
         int reqW = 1280, reqH = 720;
         var pending = new Queue<string>();
@@ -27,14 +27,16 @@ static unsafe class FakeValheim
         {
             link.Heartbeat();
             link.RequestFrameSize(reqW, reqH);
-            link.Flags = ValCraftLink.VFlagInGame | (input ? ValCraftLink.VFlagInputActive : 0);
+            link.Flags = ValCraftLink.VFlagInGame | (input ? ValCraftLink.VFlagInputActive : 0) | (terrainFlag ? ValCraftLink.VFlagTerrainBlocks : 0);
             if (connected && link.PeerHeartbeatMs != 0)
             {
                 long age = ValCraftLink.NowMs() - link.PeerHeartbeatMs;
                 if (age > maxHbAge) { maxHbAge = age; if (age > 1000) Console.WriteLine($"[host] MC heartbeat gap {age} ms at {sw.Elapsed.TotalSeconds:F1}s"); }
             }
             while (link.TryReceive(out var ev))
-                if (ev.Type == ValCraftLink.EvInteract) Console.WriteLine($"[host] MC asked Valheim to INTERACT at {sw.Elapsed.TotalSeconds:F1}s");
+                if (ev.Type == ValCraftLink.EvBlockChanged)
+                    Console.WriteLine($"[host] MC block {(BitConverter.ToInt32(ev.Payload, 12) == 0 ? "BROKEN" : "PLACED")} {System.Text.Encoding.UTF8.GetString(ev.Payload, 16, ev.Payload.Length - 16)} at ({BitConverter.ToInt32(ev.Payload, 0)},{BitConverter.ToInt32(ev.Payload, 4)},{BitConverter.ToInt32(ev.Payload, 8)})");
+                else if (ev.Type == ValCraftLink.EvInteract) Console.WriteLine($"[host] MC asked Valheim to INTERACT at {sw.Elapsed.TotalSeconds:F1}s");
                 else if (ev.Type == ValCraftLink.EvHello && Payload.GetU32(ev.Payload, 2) == link.Session)
                 {
                     mcPid = Payload.GetU32(ev.Payload, 0);
@@ -46,6 +48,7 @@ static unsafe class FakeValheim
                 fixed (byte* d = copy) Buffer.MemoryCopy(v.Data, d, copy.Length, v.Bytes);
                 if (link.FrameStillValid(v)) { lastSeq = v.Seq; frames++; cw = v.Width; ch = v.Height; } else rejected++;
             }
+            for (int q = 0; q < 8 && tileQueue.Count > 0; q++) { if (link.TrySend(ValCraftLink.EvTerrainTile, tileQueue.Peek())) tileQueue.Dequeue(); else break; }
             var lines = File.ReadAllLines(cmdFile);
             for (; cmdLine < lines.Length; cmdLine++) pending.Enqueue(lines[cmdLine]);
             if (sw.ElapsedMilliseconds >= waitUntil && pending.Count > 0)
@@ -89,6 +92,28 @@ static unsafe class FakeValheim
                             break;
                         }
                     case "hover": link.TrySend(ValCraftLink.EvHoverText, System.Text.Encoding.UTF8.GetBytes(c.Length > 1 ? c[1] : "")); break;
+                    case "mbutton": link.TrySend(ValCraftLink.EvMouseButton, Payload.I32((int)F(0), (int)F(1), 0)); break;
+                    case "terrainflag": terrainFlag = a[0] == "on"; break;
+                    case "tp": link.TrySend(ValCraftLink.EvTeleport, Payload.F32(F(0), F(1), F(2))); break;
+                    case "terrain": // terrain <centerX> <centerZ> <radiusTiles> <baseY>: staircase rising +1 every 4 blocks in +X
+                        {
+                            int T = ValCraftLink.TerrainTile, ctx = (int)Math.Floor(F(0) / T), ctz = (int)Math.Floor(F(1) / T), rr = (int)F(2), by = (int)F(3);
+                            for (int tx = ctx - rr; tx <= ctx + rr; tx++)
+                                for (int tz = ctz - rr; tz <= ctz + rr; tz++)
+                                {
+                                    var pl = new byte[8 + T * T * 3];
+                                    BitConverter.GetBytes(tx).CopyTo(pl, 0); BitConverter.GetBytes(tz).CopyTo(pl, 4);
+                                    for (int i = 0; i < T; i++) for (int j = 0; j < T; j++)
+                                    {
+                                        int bx = tx * T + i, o = 8 + (i * T + j) * 3;
+                                        short top = (short)(by + Math.Max(0, (bx - (int)F(0)) / 4));
+                                        BitConverter.GetBytes(top).CopyTo(pl, o); pl[o + 2] = 1;
+                                    }
+                                    tileQueue.Enqueue(pl);
+                                }
+                            Console.WriteLine($"[host] queued {tileQueue.Count} terrain tiles");
+                            break;
+                        }
                     case "dims": link.TrySend(ValCraftLink.EvPlayerDims, Payload.F32(F(0), F(1))); break;
                     case "quit": goto done;
                 }

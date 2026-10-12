@@ -13,6 +13,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class ServerMoveCheckMixin {
 	@Inject(method = "isPlayerCollidingWithAnythingNew", at = @At("HEAD"), cancellable = true)
 	private void valcraft$ignore(CallbackInfoReturnable<Boolean> cir) {
-		if (CollisionWorld.IGNORE_MC_BLOCKS && ValCraftClient.collisionActive()) cir.setReturnValue(false);
+		if (CollisionWorld.IGNORE_MC_BLOCKS && ValCraftClient.collisionActive() && !ValCraftClient.terrainMode()) cir.setReturnValue(false);
 	}
 }

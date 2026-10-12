@@ -89,6 +89,12 @@ namespace ValCraft
             _cfgVertical = Config.Bind("Sync", "VerticalMode", VerticalMode.FollowMinecraft, "FollowMinecraft (default since 0.4.0): Minecraft's height as-is; MC collides with exported Valheim terrain + buildings. GroundSnap: 0.3.0 behaviour, stand on Valheim's ground + MC jump height (use with ExportCollision=false).");
             _cfgCollision = Config.Bind("Collision", "ExportCollision", true, "Send nearby Valheim colliders (building pieces, rocks, trees, terrain) to Minecraft as invisible collision boxes.");
             _cfgCollRadius = Config.Bind("Collision", "Radius", 32f, "Export radius around the player (m).");
+            var cfgTerrain = Config.Bind("Terrain", "TerrainBlocks", true, "Stream Valheim terrain (height + biome) to Minecraft as real blocks (collision, mining). Off = 0.4.x collision boxes.");
+            var cfgTerrainR = Config.Bind("Terrain", "Radius", 48f, "Terrain streaming radius around the player (m = blocks).");
+            var cfgYOff = Config.Bind("Terrain", "YOffset", 32f, "MC Y = Valheim Y + YOffset (sea level 30 -> MC 62; Valheim -96..288 fits MC -64..320).");
+            void ApplyTerrain() { TerrainExport.Enabled = cfgTerrain.Value; TerrainExport.Radius = Mathf.Clamp(cfgTerrainR.Value, 16f, 128f); PlayerSync.FixedAnchorY = cfgTerrain.Value ? -cfgYOff.Value : (float?)null; }
+            ApplyTerrain();
+            Config.SettingChanged += (_, __) => ApplyTerrain();
             void ApplyColl() { ColliderExport.Enabled = _cfgCollision.Value; ColliderExport.Radius = Mathf.Clamp(_cfgCollRadius.Value, 8f, 96f); }
             ApplyColl();
             Config.SettingChanged += (_, __) => ApplyColl();
@@ -183,6 +189,9 @@ namespace ValCraft
                     case ValCraftLink.EvPing:
                         Link.TrySend(ValCraftLink.EvPong, ev.Payload);
                         break;
+                    case ValCraftLink.EvBlockChanged:
+                        TerrainExport.OnBlockChanged(ev.Payload);
+                        break;
                     case ValCraftLink.EvInteract:
                         InteractBridge.Interact();
                         break;
@@ -229,6 +238,7 @@ namespace ValCraft
             if (kb.GetKeyDown(_cfgToggleOverlay.Value)) _overlayVisible = !_overlayVisible;
             if (kb.GetKeyDown(_cfgReAnchor.Value)) PlayerSync.ReAnchor();
             PlayerSync.Update(Link, _connected);
+            TerrainExport.Update(Link, _connected);
             if (_connected) InteractBridge.Update(Link, PlayerSync.Following && _inputActive);
             if (_cfgAutoInput.Value)
             {
@@ -241,6 +251,7 @@ namespace ValCraft
             uint flags = 0;
             if (InputBlock.LocalPlayerExists()) flags |= ValCraftLink.VFlagInGame;
             if (_inputActive) flags |= ValCraftLink.VFlagInputActive;
+            if (TerrainExport.Active) flags |= ValCraftLink.VFlagTerrainBlocks;
             Link.Flags = flags;
 
             if (_inputActive) _input.Forward((Link.PeerFlags & ValCraftLink.McFlagScreenOpen) != 0);

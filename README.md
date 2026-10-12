@@ -205,3 +205,32 @@ Risks: heightmap->block quantisation (1 m steps vs smooth slopes: stairs/slabs l
   under the crosshair wins, then Valheim's target (nearest along the camera ray within 3.5 m of your eye), then MC's normal
   item use. Holding right-click interacts once per press.
 - **Overlay only during gameplay:** hidden in Valheim's main menu/character select/loading (no local player) and the Esc menu.
+
+
+## 0.5.0 — Phase A: Valheim terrain as real Minecraft blocks
+- Valheim samples its terrain around the player's MC position (`[Terrain] Radius`, 48 m) in 8x8-column tiles on the MC
+  block grid (1 block = 1 m on the anchor): height by terrain raycast (fallback ZoneSystem), material from biome
+  (Meadows/Plains grass, Black Forest podzol, Swamp mud, Mountain/Deep North snow, Ashlands blackstone, Mistlands gravel,
+  Ocean/below sea level sand), paint (cultivated -> farmland, cleared -> gravel, paved -> cobblestone) and slope (steep -> stone).
+  Nearest tiles first, 6 per frame; tiles are rescanned continuously and re-sent only if changed (hoe/pickaxe edits).
+- MC's integrated server writes each column (surface, 3 sub-surface, stone, 16 deep), only changed columns, 24 tiles/tick,
+  no neighbour updates. Blocks are not drawn (MC world render stays off): they are collision, step-up and mining.
+- Vertical mapping is fixed: **MC Y = Valheim Y + `[Terrain] YOffset` (32)**: sea level 30 -> 62; Valheim -96..288 fits
+  MC -64..320. On linking, the MC player is teleported to that height (Valheim waits until MC confirms before following).
+- Terrain collision boxes are no longer sent; buildings/rocks/trees remain boxes. MC blocks count for collision again and
+  are pickable/minable. MC holds the player until the ground under them has arrived.
+- Phase B hook: MC block break/place events are sent to Valheim and logged
+  (`[terrain] MC broke minecraft:grass_block at MC (x,y,z) = Valheim (...) — not applied ... yet`).
+- `[Terrain] TerrainBlocks=false` returns to 0.4.x behaviour.
+
+## Roadmap
+- **Phase B (terrain edits -> Valheim):** apply the logged break/place events via TerrainComp/TerrainModifier (lower/raise
+  the cell), damage MineRock/Destructible for rock hits; Valheim-side edits already flow back via tile rescans.
+- **Phase C (items, Luke's design):** a configurable two-way item mapping table (e.g. `valcraft-items.cfg`):
+  `Wood <-> minecraft:oak_log`, `Stone <-> minecraft:cobblestone`, `CopperOre <-> minecraft:raw_copper`,
+  `Coal <-> minecraft:coal`, `TinOre <-> ...`, with counts. Valheim harvesting (trees, rocks, pickables, deposits) gives
+  the mapped MC items instead of / in addition to Valheim drops (hook ItemDrop pickup / Pickable / Destructible drops ->
+  EvGiveItem to MC, server gives item). Right-clicking a Valheim station (campfire, fireplace, smelter, kiln, charcoal
+  kiln, workbench) holding a mapped MC item: MC sends EvUseItemOn(itemId,count) with the interact; Valheim adds the mapped
+  Valheim item to the station (Smelter.QueueOre/AddFuel, Fireplace fuel, Container) and MC consumes the stack on ack.
+  Risks: duplication on lost acks (use request ids + ack), station APIs differ per type, multiplayer ownership.

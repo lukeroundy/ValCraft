@@ -36,7 +36,7 @@ public abstract class EntityCollisionMixin {
 
 	@Redirect(method = "collectColliders", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;getBlockCollisions(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/phys/AABB;)Ljava/lang/Iterable;"))
 	private static Iterable<VoxelShape> valcraft$ignoreMcBlocks(Level level, Entity entity, AABB box) {
-		if (CollisionWorld.IGNORE_MC_BLOCKS && CollisionWorld.appliesTo(entity)) return List.of();
+		if (CollisionWorld.IGNORE_MC_BLOCKS && CollisionWorld.appliesTo(entity) && !dev.valcraft.client.ValCraftClient.terrainMode()) return List.of();
 		return level.getBlockCollisions(entity, box);
 	}
 

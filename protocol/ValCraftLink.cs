@@ -91,6 +91,15 @@ namespace ValCraft.Protocol
         public const ushort EvHoverText = 21;
         /// <summary>M2V: MC right-click with no MC entity targeted and Valheim hover present -> Valheim interact.</summary>
         public const ushort EvInteract = 22;
+        /// <summary>V2M terrain tile: i32 tileX, i32 tileZ (MC block coords / 8), then 64 columns (x-major, 8x8) of
+        /// i16 topY (MC Y of the top solid block; short.MinValue = no data) + u8 material (TerrainMat).</summary>
+        public const ushort EvTerrainTile = 23;
+        /// <summary>M2V: i32 x, y, z (MC block), i32 kind (0 = broken, 1 = placed), UTF-8 block id. Phase B hook (logged only).</summary>
+        public const ushort EvBlockChanged = 24;
+        /// <summary>V2M: f32 x, y, z MC feet position to teleport the MC player to (vertical re-anchoring).</summary>
+        public const ushort EvTeleport = 25;
+        public const int TerrainTile = 8;
+        public const uint VFlagTerrainBlocks = 32;
 
         readonly MemoryMappedFile _mmf;
         readonly MemoryMappedViewAccessor _view;

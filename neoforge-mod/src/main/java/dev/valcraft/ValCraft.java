@@ -10,6 +10,6 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft() {
-		LOG.info("ValCraft loaded (milestone 5 (part 1): Valheim collision)");
+		LOG.info("ValCraft loaded (0.5.0: Valheim terrain as MC blocks)");
 	}
 }

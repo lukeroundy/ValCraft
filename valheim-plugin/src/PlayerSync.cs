@@ -56,6 +56,8 @@ namespace ValCraft
         internal static Vector3 Anchor => _anchor;
         internal static bool Anchored => Following && _anchored;
         internal static Component Player => _player;
+        internal static bool HaveState => _haveState;
+        internal static PlayerState State => _state;
         internal static bool HasLocalPlayer => LocalPlayer() != null;
         static MethodInfo _groundHeight;
         static Component _player;          // Player (MonoBehaviour)
@@ -114,6 +116,16 @@ namespace ValCraft
             catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[sync] {target}: {e.Message}"); return 0; }
         }
 
+        internal static float? FixedAnchorY;
+        static float _teleportX, _teleportY, _teleportZ, _teleportUntil, _nextTeleportSend;
+        static Vector3 _holdPos;
+        internal static bool TeleportPending => _teleportUntil > 0;
+        static void SendTeleport(ValCraftLink link)
+        {
+            if (!TeleportPending || Time.unscaledTime < _nextTeleportSend) return;
+            _nextTeleportSend = Time.unscaledTime + 1f; // repeat until MC reports the new height
+            link.TrySend(ValCraftLink.EvTeleport, Payload.F32(_teleportX, _teleportY, _teleportZ));
+        }
         internal static float NearClip = 0.05f, HitboxWidth = 0f, HitboxHeight = 0f, HitboxScale = 1f;
         static float _wantFalseSince = -1f;
         static Component _anchorPlayer;
@@ -161,7 +173,7 @@ namespace ValCraft
             else if (_wantFalseSince < 0) _wantFalseSince = Time.unscaledTime;
             if (want && !Following) Start(player);
             else if (!want && Following && (!connected || Time.unscaledTime - _wantFalseSince > 1f)) Stop("follow conditions ended");
-            if (Following && connected) SendDims(link);
+            if (Following && connected) { SendDims(link); SendTeleport(link); }
             else if (Following && player != _player) { Stop("local player changed"); if (want) Start(player); }
             if (!Following) return;
 
@@ -205,9 +217,24 @@ namespace ValCraft
             {
                 var p = _player.transform.position;
                 _anchor = new Vector3(p.x - fx, p.y - fy, p.z - fz);
+                if (FixedAnchorY.HasValue)
+                {
+                    // Terrain blocks: MC Y = Valheim Y - anchor.y must be a fixed mapping so the whole Valheim height range
+                    // fits MC's -64..320; move the MC player to the matching height instead of shifting the anchor.
+                    _anchor.y = FixedAnchorY.Value;
+                    _teleportY = p.y - _anchor.y;
+                    _teleportX = (float)s.FeetX; _teleportZ = (float)s.FeetZ;
+                    _teleportUntil = Time.unscaledTime + 8f;
+                    _holdPos = p;
+                }
                 _lastGroundFeetY = s.FeetY;
                 _anchored = true;
                 ValCraftPlugin.Log.LogInfo($"[sync] anchor {_anchor} (Valheim {p} = MC feet {s.FeetX:F2},{s.FeetY:F2},{s.FeetZ:F2})");
+            }
+            if (TeleportPending)
+            {
+                if (Math.Abs(s.FeetY - _teleportY) < 3.0 || Time.unscaledTime > _teleportUntil) { _teleportUntil = 0; ValCraftPlugin.Log.LogInfo($"[sync] MC player at Valheim height (MC feet Y {s.FeetY:F1})"); }
+                else { _targetPos = _holdPos; _targetRot = _player.transform.rotation; return; }
             }
             var pos = new Vector3(_anchor.x + fx, _anchor.y + fy, _anchor.z + fz);
             if (Vertical == VerticalMode.GroundSnap)
@@ -264,7 +291,7 @@ namespace ValCraft
 
         static void CameraPostfix(object __instance)
         {
-            if (!Following || !_haveState) return;
+            if (!Following || !_haveState || TeleportPending) return;
             Camera cam = null;
             try { cam = _gcCameraField?.GetValue(__instance) as Camera; } catch { }
             if (cam == null) cam = Camera.main;

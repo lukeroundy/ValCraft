@@ -34,6 +34,10 @@ public final class ValCraftClient {
 	/** True while connected to Valheim and the Hello was acknowledged: hidden window, no world render, injected input. */
 	public static boolean active() { return link != null && acked && !stopping; }
 	/** Valheim collision replaces MC's blocks for players (only once Valheim sent a non-empty snapshot). */
+	/** Valheim streams its terrain as real blocks (0.5.0+): MC blocks then count for collision/picking again. */
+	public static boolean terrainMode() { ValCraftLink l = link; return l != null && (l.peerFlags() & ValCraftLink.VFLAG_TERRAIN_BLOCKS) != 0; }
+	private static long holdSince;
+
 	public static boolean collisionActive() {
 		// Also while waiting for Valheim's first snapshot (player is held in place), so MC terrain can't suffocate us;
 		// an explicitly empty snapshot (Valheim ExportCollision=false) hands control back to MC's own blocks.
@@ -60,6 +64,28 @@ public final class ValCraftClient {
 	private static int loggedBoxes = -1;
 
 	/** True while Valheim forwards input to us (F7). */
+	/** Held until the terrain under the player exists (tile received and a solid block within 48 below), max 15 s. */
+	private static boolean groundReady(Minecraft mc) {
+		var p = mc.player;
+		if (holdSince == 0) holdSince = System.currentTimeMillis();
+		if (System.currentTimeMillis() - holdSince > 15000) return true;
+		if (!TerrainSync.haveTileAt(p.getX(), p.getZ())) return false;
+		var pos = p.blockPosition();
+		for (int dy = 0; dy <= 48; dy++) if (!mc.level.getBlockState(pos.below(dy)).isAir()) { holdSince = 0; return true; }
+		return false;
+	}
+
+	static void teleport(Minecraft mc, float x, float y, float z) {
+		ValCraft.LOG.info("[terrain] teleport MC player to {} {} {} (vertical anchor)", x, y, z);
+		holdSince = 0;
+		if (mc.player != null) { mc.player.setPos(x, y, z); mc.player.setDeltaMovement(0, 0, 0); }
+		var server = mc.getSingleplayerServer();
+		if (server != null && mc.player != null) {
+			var id = mc.player.getUUID();
+			server.execute(() -> { var sp = server.getPlayerList().getPlayer(id); if (sp != null) sp.connection.teleport(x, y, z, sp.getYRot(), sp.getXRot()); });
+		}
+	}
+
 	public static boolean sendToValheim(short type, byte[] payload) { ValCraftLink l = link; return l != null && acked && l.trySend(type, payload); }
 
 	public static boolean inputActive() { return active() && (link.peerFlags() & ValCraftLink.VFLAG_INPUT_ACTIVE) != 0; }
@@ -95,6 +121,11 @@ public final class ValCraftClient {
 				case ValCraftLink.EV_PLAYER_DIMS -> {
 					var bb = java.nio.ByteBuffer.wrap(ev.payload()).order(java.nio.ByteOrder.LITTLE_ENDIAN);
 					PlayerDims.set(mc, bb.getFloat(0), bb.getFloat(4));
+				}
+				case ValCraftLink.EV_TERRAIN_TILE -> TerrainSync.receive(ev.payload());
+				case ValCraftLink.EV_TELEPORT -> {
+					var bb = java.nio.ByteBuffer.wrap(ev.payload()).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+					teleport(mc, bb.getFloat(0), bb.getFloat(4), bb.getFloat(8));
 				}
 				case ValCraftLink.EV_HOVER_TEXT -> ValheimInteract.hoverText = new String(ev.payload(), java.nio.charset.StandardCharsets.UTF_8);
 				case ValCraftLink.EV_QUIT -> { quit(mc, "Valheim sent Quit"); return; }
@@ -153,7 +184,7 @@ public final class ValCraftClient {
 			}
 		}
 		// Until Valheim's first collision snapshot arrives, hover so we don't fall through MC's (ignored/void) world.
-		boolean hold = active() && mc.player != null && link.collisionSnapshotCount() == 0;
+		boolean hold = active() && mc.player != null && (link.collisionSnapshotCount() == 0 || (terrainMode() && !groundReady(mc)));
 		if (mc.player != null && hold != heldForCollision) {
 			mc.player.setNoGravity(hold);
 			heldForCollision = hold;
@@ -181,6 +212,7 @@ public final class ValCraftClient {
 		FrameExporter.reset();
 		CollisionWorld.clear();
 		ValheimInteract.hoverText = "";
+		TerrainSync.clearClient();
 		PlayerDims.set(mc, 0, 0);
 		AutoWorld.reset();
 		loggedBoxes = -1;

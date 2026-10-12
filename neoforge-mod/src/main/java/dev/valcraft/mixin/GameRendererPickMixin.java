@@ -21,7 +21,7 @@ public abstract class GameRendererPickMixin {
 	@Redirect(method = "pick(Lnet/minecraft/world/entity/Entity;DDF)Lnet/minecraft/world/phys/HitResult;",
 			at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;pick(DFZ)Lnet/minecraft/world/phys/HitResult;"))
 	private HitResult valcraft$noBlockPick(Entity e, double range, float pt, boolean fluids) {
-		if (!ValCraftClient.active()) return e.pick(range, pt, fluids);
+		if (!ValCraftClient.active() || ValCraftClient.terrainMode()) return e.pick(range, pt, fluids); // terrain blocks are minable
 		Vec3 eye = e.getEyePosition(pt), view = e.getViewVector(pt);
 		Vec3 end = eye.add(view.scale(range));
 		return BlockHitResult.miss(end, Direction.getNearest(view.x, view.y, view.z), BlockPos.containing(end));

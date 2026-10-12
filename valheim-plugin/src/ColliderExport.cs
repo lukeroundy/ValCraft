@@ -109,8 +109,8 @@ namespace ValCraft
                 foreach (var k in drop) _cache.Remove(k);
             }
 
-            // --- terrain heightfield ---
-            int r = Mathf.CeilToInt(TerrainRadius / TerrainCell);
+            // --- terrain heightfield (only when terrain isn't streamed as real MC blocks) ---
+            int r = TerrainExport.Active ? -1 : Mathf.CeilToInt(TerrainRadius / TerrainCell);
             int cx = Mathf.FloorToInt(center.x / TerrainCell), cz = Mathf.FloorToInt(center.z / TerrainCell);
             for (int dx = -r; dx <= r; dx++)
                 for (int dz = -r; dz <= r; dz++)
