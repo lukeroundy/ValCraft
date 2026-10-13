@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ValCraft: Minecraft inside Valheim</title>
+<style>
+body{font-family:Segoe UI,Arial,sans-serif;max-width:900px;margin:0 auto;padding:1.5em;line-height:1.55;color:#222}
+header{background:#2d3b2f;color:#fff;padding:1.5em;border-radius:8px}
+a.btn{display:inline-block;background:#3a7d44;color:#fff;padding:.7em 1.2em;border-radius:6px;text-decoration:none;margin:.3em .5em .3em 0;font-weight:600}
+a.alt{background:#555}code,pre{background:#f2f2f2;padding:2px 4px;border-radius:3px}pre{padding:.8em;overflow:auto}
+h2{border-bottom:1px solid #ddd;padding-bottom:.2em;margin-top:1.6em}
+</style></head><body>
+<header><h1>ValCraft</h1><p>Play Minecraft inside Valheim: build with Minecraft blocks in your Valheim world, with shared items, sleep, fires and more.</p></header>
+
+<h2>Download</h2>
+<p><a class="btn" href="https://github.com/OWNER/ValCraft/releases/latest">Windows installer (latest release)</a>
+<a class="btn alt" href="https://github.com/OWNER/ValCraft/releases">All releases &amp; manual files</a></p>
+<p>Current version: <b>0.14.1</b>, for Minecraft 1.21.1 with NeoForge 21.1.259 and Valheim with BepInEx 5.4.23.x.</p>
+
+<h2>Install (Windows, Steam)</h2>
+<ol>
+<li>Download <code>ValCraft-Installer-0.14.1.exe</code> and run it. SmartScreen may warn because the installer is unsigned: click <i>More info</i>, then <i>Run anyway</i>.</li>
+<li>The installer finds Valheim through Steam. If it can't, click <i>Browse</i> and select the folder that contains <code>valheim.exe</code>.</li>
+<li>If BepInEx is missing, the installer offers to download BepInExPack_Valheim from Thunderstore.</li>
+<li>Choose how to run Minecraft:
+ <ul><li><b>Portable Prism Launcher</b> (recommended): installed to <code>Documents\ValCraft\PrismLauncher</code> with a ready <i>ValCraft</i> instance (NeoForge, 4 GB RAM, Java downloaded automatically).</li>
+ <li><b>Your own launcher</b> (Prism, ATLauncher, CurseForge or the official launcher): the installer copies the mod into your mods folder and shows a setup guide.</li></ul></li>
+<li>Click <b>Install</b>. When asked, log in to your Microsoft account in Prism (<i>Log in now</i>).</li>
+<li>Start Valheim. Minecraft starts and connects automatically. Load a world and play.</li>
+</ol>
+
+<h2>Updating, repairing, uninstalling</h2>
+<p>Run the newest installer and click <i>Install / Repair</i>. Your settings, item mappings and Minecraft worlds are kept. <i>Check for updates</i> looks for the latest GitHub release. <i>Uninstall</i> removes the plugin, and optionally the settings and the portable Prism.</p>
+
+<h2>Launchers</h2>
+<table border="1" cellpadding="6" style="border-collapse:collapse">
+<tr><th>Launcher</th><th>Starts with Valheim?</th><th>How</th></tr>
+<tr><td>Prism (portable or installed)</td><td>Yes</td><td><code>prismlauncher.exe --launch ValCraft</code></td></tr>
+<tr><td>ATLauncher</td><td>Yes</td><td><code>ATLauncher.exe --launch "ValCraft" --close-launcher</code></td></tr>
+<tr><td>CurseForge app</td><td>No (no command line)</td><td>Start Minecraft yourself after Valheim</td></tr>
+<tr><td>Official launcher + NeoForge</td><td>No</td><td>Start Minecraft yourself after Valheim</td></tr>
+</table>
+<p>Settings live in <code>Valheim\BepInEx\config\dev.valcraft.valheim.cfg</code>, section <code>[Minecraft]</code>: <code>StartWithValheim</code>, <code>Launcher</code>, <code>PrismExe</code>, <code>InstanceName</code> and <code>ExtraArgs</code>.</p>
+
+<h2>Manual install</h2>
+<ol><li>Install <a href="https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/">BepInExPack_Valheim</a>.</li>
+<li>Copy <code>ValCraft.Valheim.dll</code> to <code>Valheim\BepInEx\plugins\ValCraft\</code>.</li>
+<li>Create a Minecraft 1.21.1 / NeoForge 21.1.259 instance and put <code>valcraft-0.14.1.jar</code> in its <code>mods</code> folder.</li>
+<li>Set the launcher settings above.</li></ol>
+
+<h2>Troubleshooting</h2>
+<ul><li>Use <i>Check link</i> in the installer. It reads <code>BepInEx\LogOutput.log</code> and Minecraft's <code>logs\latest.log</code>.</li>
+<li>Both sides must have the same ValCraft version, because the protocol changes between versions.</li></ul>
+</body></html>

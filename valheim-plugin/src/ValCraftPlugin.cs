@@ -33,7 +33,7 @@ namespace ValCraft
         uint _mcPid;
 
         ConfigEntry<bool> _cfgAutoLaunch, _cfgKillOnExit;
-        ConfigEntry<string> _cfgPrismExe, _cfgInstance, _cfgExtraArgs;
+        ConfigEntry<string> _cfgPrismExe, _cfgInstance, _cfgExtraArgs, _cfgLauncher;
         ConfigEntry<KeyCode> _cfgToggleInput, _cfgToggleOverlay;
         ConfigEntry<bool> _cfgAutoInput;
         bool _valheimOverride, _stallLogged, _lastInGame;
@@ -84,6 +84,7 @@ namespace ValCraft
             _cfgAutoLaunch = Config.Bind("Minecraft", "StartWithValheim", true, "Start Minecraft through Prism Launcher when Valheim starts (skipped if Minecraft is already connected or PrismExe is empty).");
             _cfgPrismExe = Config.Bind("Minecraft", "PrismExe", "", "Full path to PrismLauncher.exe, e.g. C:\\Users\\Luke\\AppData\\Local\\Programs\\PrismLauncher\\prismlauncher.exe");
             _cfgInstance = Config.Bind("Minecraft", "InstanceName", "ValCraft", "Prism instance name (folder name under Prism's instances directory). It must contain valcraft-<version>.jar in its mods folder.");
+            _cfgLauncher = Config.Bind("Minecraft", "Launcher", "Prism", new ConfigDescription("0.14.1: which launcher PrismExe points to. Prism: <exe> --launch <instance>. ATLauncher: <exe> --launch \"<instance>\" --close-launcher. Custom: <exe> ExtraArgs (use {instance} for the instance name).", new AcceptableValueList<string>("Prism", "ATLauncher", "Custom")));
             _cfgExtraArgs = Config.Bind("Minecraft", "ExtraArgs", "", "Extra Prism arguments (optional; --profile/--offline are not needed).");
             _cfgKillOnExit = Config.Bind("Minecraft", "StopMinecraftOnExit", true, "When Valheim quits: ask Minecraft to quit (it saves its world), and kill it if it is still running after QuitGraceSeconds.");
             _cfgQuitGrace = Config.Bind("Minecraft", "QuitGraceSeconds", 10, "Seconds Valheim waits on exit for Minecraft to shut down by itself before killing it.");
@@ -209,9 +210,20 @@ namespace ValCraft
             if (!File.Exists(exe)) { Log.LogWarning($"[launch] PrismExe not found: {exe}"); return; }
             if (Link != null && Link.PreviousPeerHeartbeatMs != 0 && ValCraftLink.NowMs() - Link.PreviousPeerHeartbeatMs < 3000)
             { Log.LogInfo("[launch] a ValCraft Minecraft is already running; it will reconnect, not launching another"); return; }
-            string id = PrismInstances.Resolve(exe, (_cfgInstance.Value ?? "").Trim());
-            if (id == null) return;
-            string args = $"--launch \"{id}\" {_cfgExtraArgs.Value}".Trim();
+            string kind = (_cfgLauncher.Value ?? "Prism").Trim();
+            string inst = (_cfgInstance.Value ?? "").Trim();
+            string args;
+            if (kind.Equals("ATLauncher", StringComparison.OrdinalIgnoreCase)) args = $"--launch \"{inst}\" --close-launcher {_cfgExtraArgs.Value}".Trim();
+            else if (kind.Equals("Custom", StringComparison.OrdinalIgnoreCase)) args = (_cfgExtraArgs.Value ?? "").Replace("{instance}", inst).Trim();
+            else
+            {
+                // 0.14.1: a fresh (portable) Prism has no Microsoft account: open its UI for login first, launch once an account exists
+                int acc = LauncherLogin.PrismAccounts(exe);
+                if (acc == 0) { StartCoroutine(LauncherLogin.WaitForLogin(exe, () => TryLaunchMinecraft())); return; }
+                string id = PrismInstances.Resolve(exe, inst);
+                if (id == null) return;
+                args = $"--launch \"{id}\" {_cfgExtraArgs.Value}".Trim();
+            }
             try
             {
                 Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });

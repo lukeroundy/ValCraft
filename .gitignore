@@ -5,3 +5,4 @@ build/
 run/
 *.shm
 .idea/
+dist/release-*/

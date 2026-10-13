@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>ValCraft-Installer</AssemblyName>
+    <RootNamespace>ValCraft.Installer</RootNamespace>
+    <Version>0.14.1</Version>
+    <Product>ValCraft Installer</Product>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <!-- artifacts to embed; override with -p:PluginDll=... -p:ModJar=... -->
+    <PluginDll Condition="'$(PluginDll)'==''">../valheim-plugin/bin/Release/netstandard2.1/ValCraft.Valheim.dll</PluginDll>
+    <ModJar Condition="'$(ModJar)'==''">../neoforge-mod/build/libs/valcraft-$(Version).jar</ModJar>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <EmbeddedResource Include="$(PluginDll)" LogicalName="ValCraft.Valheim.dll" />
+    <EmbeddedResource Include="$(ModJar)" LogicalName="valcraft.jar" />
+    <Compile Remove="tests/**" />
+  </ItemGroup>
+</Project>
