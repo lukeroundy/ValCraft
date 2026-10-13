@@ -28,15 +28,25 @@ public final class CollisionWorld {
 	public static boolean ready() { return index != null; }
 	public static int boxCount() { Index i = index; return i == null ? 0 : i.boxes; }
 
-	static void clear() { index = null; lastSnapshot = -1; }
+	static void clear() { gen++; index = null; lastSnapshot = -1; }
+	private static volatile int gen;
 
 	/** Client tick: pick up a new snapshot if Valheim published one. */
 	static void poll(ValCraftLink link) {
 		int n = link.collisionSnapshotCount();
 		if (n == 0 || n == lastSnapshot) return;
+		if (building) return; // 0.12.3: previous index still being built off-thread; pick this snapshot up next tick
 		float[] b = link.readCollision();
 		if (b == null) return;
 		lastSnapshot = n;
+		// 0.12.3: build the index off the client thread (snapshots arrive 4x/s while Valheim doors/boats move: 3000+ shapes each)
+		building = true;
+		int g = gen;
+		BUILDER.execute(() -> { try { var idx = build(b); if (g == gen) index = idx; } finally { building = false; } });
+	}
+	private static volatile boolean building;
+	private static final java.util.concurrent.ExecutorService BUILDER = java.util.concurrent.Executors.newSingleThreadExecutor(r -> { var t = new Thread(r, "ValCraft collision index"); t.setDaemon(true); return t; });
+	private static Index build(float[] b) {
 		var cells = new Long2ObjectOpenHashMap<List<VoxelShape>>();
 		int count = b.length / 6;
 		for (int i = 0; i < count; i++) {
@@ -49,7 +59,7 @@ public final class CollisionWorld {
 				for (int z = z0; z <= z1; z++)
 					cells.computeIfAbsent(key(x, z), k -> new ArrayList<>(4)).add(s);
 		}
-		index = new Index(cells, count);
+		return new Index(cells, count);
 	}
 
 	private static long key(int x, int z) { return ((long) x << 32) ^ (z & 0xFFFFFFFFL); }

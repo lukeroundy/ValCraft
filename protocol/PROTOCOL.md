@@ -284,3 +284,4 @@ No wire change: entity animation capture runs at 24 fps (41 ms) within 16 blocks
 ### 0.12.1 (still v20)
 - Valheim: HideValheimHud no longer hides the HUD while the large map (or build menu) is open; the map UI chain is activated; a map that is still not visible after 1.5 s is closed so input returns to Minecraft.
 - 0.12.2: while the large map is open Valheim closes it on M or Esc (raw key, Valheim's own Map key is swallowed); MC-side M while open also closes; no per-frame re-activation of the map root.
+- 0.12.3: map open requests within 0.6 s of a close are ignored (M flicker); weather: also EnvMan.IsWet()/m_forceEnv, logged on change + every 2 min; MC keeps server weather only (no rain/snow drawing, sky darkening or rain sounds while linked); collision index built off-thread; moving colliders keep cached visibility; lore guard reflection cached and no longer closes an M-opened map.

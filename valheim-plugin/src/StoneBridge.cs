@@ -44,11 +44,21 @@ namespace ValCraft
 
         internal static void SetLink(ValCraftLink l) { _link = l; }
 
+        // 0.12.3: reflection lookups cached (Guard runs every frame for 2 s after any MC interact, e.g. doors)
+        static readonly System.Collections.Generic.Dictionary<Type, Func<object>> _instCache = new System.Collections.Generic.Dictionary<Type, Func<object>>();
+        static System.Reflection.FieldInfo _modeF;
         static object Inst(Type t, string name = "instance")
         {
             if (t == null) return null;
-            try { var p = AccessTools.Property(t, name); if (p != null) return p.GetValue(null, null); } catch { }
-            try { return AccessTools.Field(t, "m_instance")?.GetValue(null); } catch { return null; }
+            if (!_instCache.TryGetValue(t, out var get))
+            {
+                var p = AccessTools.Property(t, name);
+                System.Reflection.FieldInfo f = null;
+                if (p == null) foreach (var fi in AccessTools.GetDeclaredFields(t)) if (fi.IsStatic && fi.FieldType == t) { f = fi; break; }
+                get = p != null ? (Func<object>)(() => p.GetValue(null, null)) : f != null ? (() => f.GetValue(null)) : (Func<object>)(() => null);
+                _instCache[t] = get;
+            }
+            try { return get(); } catch { return null; }
         }
         static string L(string s)
         {
@@ -153,8 +163,9 @@ namespace ValCraft
                 var mm = Inst(_minimapT);
                 if (mm != null && _setMapMode != null)
                 {
-                    var mode = AccessTools.Field(_minimapT, "m_mode")?.GetValue(mm);
-                    if (mode != null && Convert.ToInt32(mode) == 2) { _setMapMode.Invoke(mm, new[] { Enum.ToObject(_setMapMode.GetParameters()[0].ParameterType, 1) }); ValCraftPlugin.Log.LogInfo("[lore] closed the Valheim large map opened by an MC interact"); }
+                    if (_modeF == null) _modeF = AccessTools.Field(_minimapT, "m_mode");
+                    var mode = _modeF?.GetValue(mm);
+                    if (mode != null && Convert.ToInt32(mode) == 2 && !MapToggle.OpenedByUs) { _setMapMode.Invoke(mm, new[] { Enum.ToObject(_setMapMode.GetParameters()[0].ParameterType, 1) }); ValCraftPlugin.Log.LogInfo("[lore] closed the Valheim large map opened by an MC interact"); }
                 }
             }
             catch { }

@@ -14,7 +14,7 @@
     "TerrainMoveMixin"
   ],
   "client": [
-    "CameraMixin",
+    "CameraMixin", "NoRainRenderMixin", "ClientRainLevelMixin",
     "GameRendererAccessor",
     "GameRendererPickMixin",
     "ScreenEffectMixin",

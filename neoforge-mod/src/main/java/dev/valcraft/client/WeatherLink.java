@@ -8,7 +8,8 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * 0.12.0: Valheim weather drives MC (EV_WEATHER every 2 s: u8 flags 1 rain / 2 thunder / 4 snow, u8 len, env name).
- * Rain falls as snow in cold MC biomes (Mountain columns are snowy biomes); doWeatherCycle is off while linked.
+ * Server-side state only (mobs, crops, fishing, snow in cold biomes for gameplay); 0.12.3: MC draws no rain/snow while linked
+ * (NoRainRenderMixin, ClientRainLevelMixin) - Valheim shows the weather. doWeatherCycle is off while linked.
  */
 public final class WeatherLink {
 	private WeatherLink() {}

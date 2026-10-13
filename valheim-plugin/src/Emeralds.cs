@@ -58,7 +58,9 @@ namespace ValCraft
     internal static class MapToggle
     {
         static Type _t, _mode; static System.Reflection.MethodInfo _set, _isOpen; static System.Reflection.PropertyInfo _instP; static System.Reflection.FieldInfo _instF, _large;
-        static bool _init; static float _openedAt = -1f; static bool _checked;
+        static bool _init; static float _openedAt = -1f; static bool _checked; static float _closedAt = -10f;
+        /// <summary>0.12.3: a map opened with M must not be closed by the lore guard (it closes maps opened by interacts).</summary>
+        internal static bool OpenedByUs => _openedAt >= 0;
         static void Init()
         {
             if (_init) return; _init = true;
@@ -81,6 +83,9 @@ namespace ValCraft
                 if (inst == null || _set == null || _mode == null) { ValCraftPlugin.Log.LogInfo("[map] Minimap not available"); return; }
                 bool open = Open();
                 if (open) { Close("M in Minecraft"); return; }
+                // 0.12.3: the M press that closed the map in Valheim is then forwarded to MC (input returns to it) and came
+                // back as another open request: ignore opens shortly after a close
+                if (Time.unscaledTime - _closedAt < 0.6f) { ValCraftPlugin.Log.LogDebug("[map] open request right after close ignored"); return; }
                 PlayerSync.SetHud(true); // before opening: the map UI is under the hidden HUD
                 _set.Invoke(inst, new[] { Enum.ToObject(_mode, 2) });
                 _openedAt = Time.unscaledTime; _checked = false;
@@ -98,7 +103,7 @@ namespace ValCraft
         internal static void Update()
         {
             bool open = Open();
-            if (!open) { if (_openedAt >= 0) ValCraftPlugin.Log.LogInfo("[map] large map closed; input back to Minecraft"); _openedAt = -1f; return; }
+            if (!open) { if (_openedAt >= 0) { ValCraftPlugin.Log.LogInfo("[map] large map closed by Valheim; input back to Minecraft"); _closedAt = Time.unscaledTime; } _openedAt = -1f; return; }
             float now = Time.unscaledTime;
             if (_openedAt < 0) { _openedAt = now; _checked = true; } // opened by Valheim itself: still closable with M / Esc
             try
@@ -128,7 +133,7 @@ namespace ValCraft
         internal static void Close(string why)
         {
             try { Init(); if (Open()) _set.Invoke(Inst(), new[] { Enum.ToObject(_mode, 1) }); } catch (Exception e) { ValCraftPlugin.Log.LogWarning("[map] close failed: " + e.GetBaseException().Message); }
-            _openedAt = -1f;
+            _openedAt = -1f; _closedAt = Time.unscaledTime;
             ValCraftPlugin.Log.LogInfo($"[map] large map closed ({why}); input back to Minecraft");
         }
     }
@@ -137,7 +142,7 @@ namespace ValCraft
     internal static class WeatherLink
     {
         internal static bool Enabled = true;
-        static float _next; static string _last;
+        static float _next, _nextLog; static string _last;
         internal static void Update(ValCraft.Protocol.ValCraftLink link)
         {
             if (!Enabled || link == null || Time.unscaledTime < _next) return;
@@ -146,9 +151,13 @@ namespace ValCraft
             {
                 var t = AccessTools.TypeByName("EnvMan");
                 var inst = AccessTools.Property(t, "instance")?.GetValue(null, null); if (inst == null) return;
-                var env = AccessTools.Method(t, "GetCurrentEnvironment")?.Invoke(inst, null); if (env == null) return;
-                string name = (string)AccessTools.Field(env.GetType(), "m_name").GetValue(env) ?? "";
-                bool wet = (bool)AccessTools.Field(env.GetType(), "m_isWet").GetValue(env);
+                var env = AccessTools.Method(t, "GetCurrentEnvironment")?.Invoke(inst, null) ?? AccessTools.Field(t, "m_currentEnv")?.GetValue(inst);
+                if (env == null) { Diag.Warn("weather", "[weather] EnvMan has no current environment"); return; }
+                string name = (string)AccessTools.Field(env.GetType(), "m_name")?.GetValue(env) ?? "";
+                bool wet = (bool)(AccessTools.Field(env.GetType(), "m_isWet")?.GetValue(env) ?? false);
+                // 0.12.3: also Valheim's own wet check (rain in the current biome/env), and the forced environment if any
+                try { var iw = AccessTools.Method(t, "IsWet", Type.EmptyTypes); if (iw != null && iw.IsStatic) wet |= (bool)iw.Invoke(null, null); } catch { }
+                try { var fe = AccessTools.Field(t, "m_forceEnv")?.GetValue(inst) as string; if (!string.IsNullOrEmpty(fe)) name = fe; } catch { }
                 string n = name.ToLowerInvariant();
                 bool snow = n.Contains("snow") || n.Contains("blizzard");
                 bool thunder = n.Contains("thunder") || (n.Contains("storm") && !snow);
@@ -157,7 +166,8 @@ namespace ValCraft
                 var nb = System.Text.Encoding.UTF8.GetBytes(name); int nl = Math.Min(nb.Length, 64);
                 var p = new byte[2 + nl]; p[0] = flags; p[1] = (byte)nl; Array.Copy(nb, 0, p, 2, nl);
                 link.TrySend(ValCraft.Protocol.ValCraftLink.EvWeather, p);
-                if (name != _last) { _last = name; ValCraftPlugin.Log.LogInfo($"[weather] Valheim environment '{name}' -> MC rain {rain}, thunder {thunder}, snow {snow}"); }
+                string key = name + flags;
+                if (key != _last || Time.unscaledTime > _nextLog) { _last = key; _nextLog = Time.unscaledTime + 120f; ValCraftPlugin.Log.LogInfo($"[weather] Valheim environment '{name}' (wet {wet}) -> MC rain {rain}, thunder {thunder}, snow {snow}"); }
             }
             catch (Exception e) { Diag.Warn("weather", "[weather] " + e.GetBaseException().Message); }
         }

@@ -98,10 +98,11 @@ namespace ValCraft
                     if (budget-- <= 0) { if (e == null) continue; }
                     else
                     {
+                        bool shapeSame = e != null && e.MeshId == meshId && e.Scale == t.lossyScale; // 0.12.3: moving only (doors): keep visibility
                         if (e == null) _cache[id] = e = new Entry();
                         e.Pos = t.position; e.Rot = t.rotation; e.Scale = t.lossyScale; e.MeshId = meshId; e.B = c.bounds;
                         e.Boxes.Clear();
-                        e.Visible = HasVisual(c);
+                        if (!shapeSame) e.Visible = HasVisual(c);
                         try { Compute(c, e.Boxes); } catch (Exception ex) { ValCraftPlugin.Log.LogDebug($"[collision] {c.name}: {ex.Message}"); }
                     }
                 }
