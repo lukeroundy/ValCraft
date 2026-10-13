@@ -75,6 +75,18 @@ public final class ValCraftClient {
 		return false;
 	}
 
+	/** 0.14.2: Hugin talking by itself in Valheim -> chat line (topic as action bar). Right-click opens the full text (EV_LORE_TEXT). */
+	static void npcSay(Minecraft mc, String s) {
+		if (mc.player == null) return;
+		int nl = s.indexOf('\n');
+		String topic = nl >= 0 ? s.substring(0, nl).trim() : "", text = (nl >= 0 ? s.substring(nl + 1) : s).trim().replace('\n', ' ');
+		var line = net.minecraft.network.chat.Component.literal("[Hugin] ").withStyle(net.minecraft.ChatFormatting.GOLD)
+			.append(net.minecraft.network.chat.Component.literal(topic.isEmpty() ? "" : topic + ": ").withStyle(net.minecraft.ChatFormatting.YELLOW))
+			.append(net.minecraft.network.chat.Component.literal(text).withStyle(net.minecraft.ChatFormatting.WHITE));
+		mc.gui.getChat().addMessage(line);
+		mc.gui.setOverlayMessage(net.minecraft.network.chat.Component.literal("Hugin: " + (topic.isEmpty() ? "right-click the raven to read" : topic)).withStyle(net.minecraft.ChatFormatting.GOLD), false);
+	}
+
 	static void teleport(Minecraft mc, float x, float y, float z) {
 		ValCraft.LOG.info("[terrain] teleport MC player to {} {} {} (vertical anchor)", x, y, z);
 		holdSince = 0;
@@ -136,6 +148,7 @@ public final class ValCraftClient {
 				case ValCraftLink.EV_NET_ROLE -> NetLink.receive(ev.payload());
 				case ValCraftLink.EV_CHEST_CONTENTS -> ChestLink.contents(mc, ev.payload());
 				case ValCraftLink.EV_LORE_TEXT -> LoreScreen.receive(mc, ev.payload());
+				case ValCraftLink.EV_NPC_SAY -> npcSay(mc, new String(ev.payload(), java.nio.charset.StandardCharsets.UTF_8));
 				case ValCraftLink.EV_VMOB_LIST -> dev.valcraft.mobs.MobSync.receiveVList(mc, ev.payload());
 				case ValCraftLink.EV_MOB_HURT -> dev.valcraft.mobs.MobSync.hurtMob(mc, ev.payload());
 				case ValCraftLink.EV_BLOCK_SYNC_CONFIG -> BlockSync.receiveConfig(ev.payload());

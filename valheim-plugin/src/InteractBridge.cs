@@ -94,6 +94,22 @@ namespace ValCraft
                     break;
                 }
             }
+            // 0.14.2: Hugin/Munin are not hit by the ray (character layer / large trigger): pick by the view ray
+            if (_target == null && active && player != null && cam != null)
+            {
+                try
+                {
+                    var eye = player.transform.position + Vector3.up * 1.6f;
+                    var rv = RavenBridge.Pick(cam.transform.position, cam.transform.forward, Range + Vector3.Distance(cam.transform.position, eye));
+                    if (rv != null)
+                    {
+                        _target = rv.gameObject;
+                        try { text = Clean(_getHoverText.Invoke(rv.GetComponentInParent(_hoverable), null) as string); } catch { text = ""; }
+                        if (!Proper(text, _target)) text = "Hugin\n[Right-click] Talk";
+                    }
+                }
+                catch { }
+            }
             if (text != _sent)
             {
                 var bytes = Encoding.UTF8.GetBytes(text);
@@ -112,6 +128,7 @@ namespace ValCraft
             void Stage(string what) { long now = sw.ElapsedTicks; double ms = (now - last) * 1000.0 / System.Diagnostics.Stopwatch.Frequency; last = now; if (ms > 5) ValCraftPlugin.Log.LogWarning($"[interact] slow stage '{what}' on {go.name}: {ms:F1} ms"); }
             bool done = ItemBridge.TryUseHeld(go); Stage("held item on station"); if (done) return; // 0.8.0: holding a mapped MC item on a Valheim station
             done = ItemBridge.TryOpenChest(go); Stage("chest"); if (done) return; // 0.10.0: chests open as a Minecraft screen
+            done = RavenBridge.TryInteract(go, player); Stage("raven"); if (done) return; // 0.14.2: Hugin text in MC
             done = StoneBridge.TryInteract(go, player); Stage("lore stone"); if (done) return; // 0.11.0: vegvisir / rune stone text in MC
             try
             {

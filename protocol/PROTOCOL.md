@@ -341,3 +341,7 @@ MC-side classification is property-driven for any mod (BlockProps): render layer
   Whitelisted single-axis Create BEs only; others keep periodic snapshots.
 - Block-entity captures: face direction from the quad winding, near-grey/weak vertex colours ignored (no baked shading).
 - Sections: block changes are hooked at ServerLevel.sendBlockUpdated and queued ahead of entity traffic; Valheim rebuilds the changed section first.
+
+## v26 (0.14.2): Hugin
+- **EvNpcSay 76** (V→MC): UTF-8 `topic\ntext`, with tags stripped and at most one slot long. Sent when a raven (Hugin/Munin) talks by itself (Chat.SetNpcText). MC shows a chat line plus an action-bar hint. Repeats of the same text are suppressed for 30 s.
+- A right-click on a raven (picked by its distance from the view ray, because the interact ray misses it) runs the vanilla Raven.Interact. The text it shows (Chat.SetNpcText or TextViewer.ShowText within 1.5 s) is sent as **EvLoreText 65** (the lore screen). Valheim's own text viewer is closed by the lore guard for 2 s.

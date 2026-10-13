@@ -67,6 +67,7 @@ namespace ValCraft
             PlayerSync.Apply(_harmony);
             ItemBridge.Apply(_harmony);
             HealthLink.Apply(_harmony);
+            try { RavenBridge.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[raven] hook failed: " + e.Message); }
             try { SleepLink.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[sleep] hook failed: " + e.Message); }
             try { FireLink.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[fire] hook failed: " + e.Message); }
             // 0.12.1: HudWanted was never assigned, so HideValheimHud hid the HUD every frame (build menu, large map)
@@ -376,7 +377,7 @@ namespace ValCraft
             Part("Logo");
             try { MapToggle.Update(); } catch { }
             Part("MapToggle");
-            StoneBridge.SetLink(Link); try { StoneBridge.Guard(); } catch { }
+            StoneBridge.SetLink(Link); RavenBridge.SetLink(Link); try { StoneBridge.Guard(); } catch { }
             try { if (_connected) InteractBridge.Update(Link, PlayerSync.Following && _inputActive); } catch (Exception e) { Diag.Warn("interact", "[interact] update error: " + e.GetBaseException().Message); }
             Part("InteractBridge");
             try { if (_connected) ValheimHit.Update(Link, PlayerSync.Following && _inputActive); } catch (Exception e) { Diag.Warn("hit", "[hit] update error: " + e.GetBaseException().Message); }

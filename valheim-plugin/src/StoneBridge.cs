@@ -60,6 +60,10 @@ namespace ValCraft
             }
             try { return get(); } catch { return null; }
         }
+        internal static void ArmGuard() { _guardUntil = Time.unscaledTime + 2f; }
+        internal static string Localize(string s) { if (!_init) Init(); return L(s); }
+        internal static string StripTags(string s) => Tags.Replace(s ?? "", "");
+        internal static void SendLore(string title, string text) => Send(title, text);
         static string L(string s)
         {
             if (string.IsNullOrEmpty(s)) return "";
