@@ -304,3 +304,4 @@ player on the host (op = the Valheim event id for EV_DAMAGE, EV_GIVE_ITEM, EV_CO
 `valcraft:to_valheim` S→C {i16 event, byte[]}: the server's answer for that player's Valheim (EV_CONSUME_ACK, EV_CHEST_OP, EV_ATTACK, EV_VMOB_HURT, EV_BLOCK_CHANGED).
 Authority: multiplayer uses a fixed shared anchor (MC x = Valheim x, MC z = −Valheim z, Y as before); each Valheim monster / MC-mob stand-in is mirrored only by the
 nearest Valheim player (4 m hysteresis); MC terrain edits go to the editing (or nearest) player's Valheim only; time/weather come from the host only.
+- 0.13.0 (same build): "Loading terrain..." no longer waits 30 s for a section compile that never happens while linked (ready once the player chunk is loaded); tunnel clients are teleported by the server only (no "moved too quickly").

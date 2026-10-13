@@ -78,7 +78,7 @@ public final class ValCraftClient {
 	static void teleport(Minecraft mc, float x, float y, float z) {
 		ValCraft.LOG.info("[terrain] teleport MC player to {} {} {} (vertical anchor)", x, y, z);
 		holdSince = 0;
-		if (mc.player != null) { mc.player.setPos(x, y, z); mc.player.setDeltaMovement(0, 0, 0); }
+		if (mc.player != null && !Ops.remote(mc)) { mc.player.setPos(x, y, z); mc.player.setDeltaMovement(0, 0, 0); } // tunnel client: the server's teleport moves us (no "moved too quickly")
 		if (mc.player != null) Ops.run(mc, dev.valcraft.net.ServerOps.OP_TELEPORT, le(12).putFloat(x).putFloat(y).putFloat(z).array()); // 0.13.0: server-side (no "moved too quickly" for tunnel clients)
 	}
 
