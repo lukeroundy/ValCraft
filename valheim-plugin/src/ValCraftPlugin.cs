@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.MemoryMappedFiles;
@@ -224,16 +225,31 @@ namespace ValCraft
             var sw = System.Diagnostics.Stopwatch.StartNew();
             UpdateInner();
             double ms = sw.Elapsed.TotalMilliseconds;
-            if (ms > 15 && Time.unscaledTime >= _nextSlowLog) { _nextSlowLog = Time.unscaledTime + 5f; Log.LogWarning($"[perf] ValCraft frame update took {ms:F1} ms"); }
+            if (ms > 15 && Time.unscaledTime >= _nextSlowLog)
+            {
+                _nextSlowLog = Time.unscaledTime + 5f;
+                // 0.13.1: which parts
+                var parts = new List<KeyValuePair<string, double>>(_parts); parts.Sort((x, y) => y.Value.CompareTo(x.Value));
+                var sb = new System.Text.StringBuilder();
+                for (int i = 0; i < parts.Count && i < 4; i++) sb.Append(i == 0 ? "" : ", ").Append(parts[i].Key).Append(' ').Append(parts[i].Value.ToString("F1"));
+                Log.LogWarning($"[perf] ValCraft frame update took {ms:F1} ms ({sb})");
+            }
+            _parts.Clear();
         }
+        readonly Dictionary<string, double> _parts = new Dictionary<string, double>();
+        readonly System.Diagnostics.Stopwatch _partSw = new System.Diagnostics.Stopwatch();
+        void Part(string name) { double ms = _partSw.Elapsed.TotalMilliseconds; _partSw.Restart(); _parts.TryGetValue(name, out var o); _parts[name] = o + ms; }
         void UpdateInner()
         {
+            _partSw.Restart();
             try { NetTunnel.Update(Link, _connected); } catch (Exception e) { Diag.Warn("net", "[net] update error: " + e.GetBaseException().Message); }
+            Part("NetTunnel");
             if (Link == null) return;
             float t = Time.unscaledTime;
             if (t >= _nextHeartbeat) { Link.Heartbeat(); _nextHeartbeat = t + 0.1f; }
             if (t >= _nextSizeRequest) { Link.RequestFrameSize(Screen.width, Screen.height); _nextSizeRequest = t + 1f; }
 
+            Part("start");
             while (Link.TryReceive(out var ev))
             {
                 switch (ev.Type)
@@ -305,6 +321,7 @@ namespace ValCraft
                     Log.LogInfo($"[link] status: connected, not following (MC world loaded={(Link.PeerFlags & ValCraftLink.McFlagWorldLoaded) != 0}, Valheim player={(PlayerSync.HasLocalPlayer ? "yes" : "no")}, FollowMinecraft={PlayerSync.Enabled})");
             }
 
+            Part("events");
             var kb = UnityInput.Current;
             if (kb.GetKeyDown(_cfgToggleInput.Value))
             {
@@ -315,20 +332,34 @@ namespace ValCraft
             if (kb.GetKeyDown(_cfgToggleOverlay.Value)) _overlayVisible = !_overlayVisible;
             if (kb.GetKeyDown(_cfgReAnchor.Value)) PlayerSync.ReAnchor();
             try { PlayerSync.Update(Link, _connected); } catch (Exception e) { Diag.Warn("sync", "[sync] update error: " + e.GetBaseException().Message); }
+            Part("PlayerSync");
             try { TerrainExport.Update(Link, _connected); } catch (Exception e) { Diag.Warn("terrain", "[terrain] update error: " + e.GetBaseException().Message); }
+            Part("TerrainExport");
             try { BlockRender.Update(Link, _connected); } catch (Exception e) { Diag.Warn("blocks", "[blocks] update error: " + e.GetBaseException().Message); }
+            Part("BlockRender");
             try { ItemBridge.Update(Link, _connected); } catch (Exception e) { Diag.Warn("items", "[items] update error: " + e.GetBaseException().Message); }
+            Part("ItemBridge");
             try { if (_connected) WorldInfo.Update(Link); } catch (Exception e) { Diag.Warn("world", "[world] " + e.GetBaseException().Message); }
+            Part("WorldInfo");
             try { if (_connected && PlayerSync.Following) WeatherLink.Update(Link); } catch { }
+            Part("WeatherLink");
             try { if (_connected && PlayerSync.Following) DayLink.Update(Link); } catch (Exception e) { Diag.Warn("day", "[time] update error: " + e.GetBaseException().Message); }
+            Part("DayLink");
             try { if (_connected) Hazards.Update(Link); } catch (Exception e) { Diag.Warn("hazard", "[hazard] update error: " + e.GetBaseException().Message); }
+            Part("Hazards");
             try { if (_connected) MobBridge.Update(Link); else MobBridge.Clear("disconnected"); } catch (Exception e) { Diag.Warn("mobs", "[mobs] update error: " + e.GetBaseException().Message); }
+            Part("MobBridge");
             try { HealthLink.Update(Link); } catch (Exception e) { Diag.Warn("health", "[health] update error: " + e.GetBaseException().Message); }
+            Part("HealthLink");
             try { Logo.Tick(PlayerSync.HasLocalPlayer); } catch { }
+            Part("Logo");
             try { MapToggle.Update(); } catch { }
+            Part("MapToggle");
             StoneBridge.SetLink(Link); try { StoneBridge.Guard(); } catch { }
             try { if (_connected) InteractBridge.Update(Link, PlayerSync.Following && _inputActive); } catch (Exception e) { Diag.Warn("interact", "[interact] update error: " + e.GetBaseException().Message); }
+            Part("InteractBridge");
             try { if (_connected) ValheimHit.Update(Link, PlayerSync.Following && _inputActive); } catch (Exception e) { Diag.Warn("hit", "[hit] update error: " + e.GetBaseException().Message); }
+            Part("ValheimHit");
             if (_cfgAutoInput.Value)
             {
                 // Automatic: Minecraft gets input whenever we're in-game following MC and no Valheim UI is open.
@@ -336,6 +367,7 @@ namespace ValCraft
                 if (want != _inputActive) SetInputActive(want);
             }
             try { ColliderExport.Update(Link, PlayerSync.Anchored); } catch (Exception e) { Diag.Warn("collision", "[collision] update error: " + e.GetBaseException().Message); }
+            Part("ColliderExport");
 
             uint flags = 0;
             if (InputBlock.LocalPlayerExists()) flags |= ValCraftLink.VFlagInGame;

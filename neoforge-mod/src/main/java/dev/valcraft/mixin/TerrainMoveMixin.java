@@ -46,6 +46,14 @@ public abstract class TerrainMoveMixin {
 		if (DEBUG && self.level().isClientSide && (dbg++ % 10) == 0)
 			dev.valcraft.ValCraft.LOG.info("[move] in {} out {} feet {} g {} onGround {}", move, r, String.format("%.3f", feet), String.format("%.3f", g), self.onGround());
 		if (ny < g - 1e-4 && g - feet < 2.5) cir.setReturnValue(new Vec3(r.x, g - feet, r.z));      // lift onto ground
-		else if (self.onGround() && move.y <= 0 && ny > g && ny - g < 0.6) cir.setReturnValue(new Vec3(r.x, g - feet, r.z)); // stick downhill
+		else if (self.onGround() && move.y <= 0 && ny > g && ny - g < 0.6 && !blockedBelow(bb.move(r.x, r.y, r.z), g)) cir.setReturnValue(new Vec3(r.x, g - feet, r.z)); // stick downhill
+	}
+
+	/** 0.13.1: standing on a Valheim box (stairs, floors) above the terrain: don't pull the feet down into it. */
+	private static boolean blockedBelow(AABB moved, double g) {
+		if (moved.minY - g < 1e-3) return false;
+		AABB sweep = new AABB(moved.minX + 1e-3, g, moved.minZ + 1e-3, moved.maxX - 1e-3, moved.minY + 1e-3, moved.maxZ - 1e-3);
+		for (var s : CollisionWorld.query(sweep)) for (AABB b : s.toAabbs()) if (b.intersects(sweep)) return true;
+		return false;
 	}
 }

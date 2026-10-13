@@ -130,7 +130,7 @@ final class AutoWorld {
 			// 0.9.5: wait for Valheim's world identity, but never forever: after 20 s open the legacy/default world
 			long now = System.currentTimeMillis();
 			if (waitSince == 0) { waitSince = now; ValCraft.LOG.info("[autoworld] waiting for Valheim world identity..."); }
-			if (now - waitSince < (vUid == null ? 20000 : 8000)) { if (now - lastWaitLog > 5000) { lastWaitLog = now; ValCraft.LOG.info("[autoworld] still waiting for Valheim world ({} s)", (now - waitSince) / 1000); } return; }
+			if (now - waitSince < (vUid == null ? 20000 : 8000) || (vUid == null && NetLink.known())) { /* 0.13.1: v21 Valheim linked: wait for its world as long as it takes */ if (now - lastWaitLog > 5000) { lastWaitLog = now; ValCraft.LOG.info("[autoworld] still waiting for Valheim world ({} s)", (now - waitSince) / 1000); } return; }
 			if (vUid != null) name = folderFor(mc, cfg); // identity known, no role (old plugin?): single player
 			else {
 			name = cfg.getProperty("worldName", "ValCraft").trim();

@@ -17,6 +17,8 @@ public abstract class MinecraftUseMixin {
 		if (ValheimInteract.tryInteract((Minecraft) (Object) this) || dev.valcraft.client.HoeLink.tryUse((Minecraft) (Object) this) || dev.valcraft.client.BuildLink.tryUse((Minecraft) (Object) this)) {
 			rightClickDelay = 4;
 			ci.cancel();
+			return;
 		}
+		dev.valcraft.client.ValheimPlace.retarget((Minecraft) (Object) this); // 0.13.1
 	}
 }

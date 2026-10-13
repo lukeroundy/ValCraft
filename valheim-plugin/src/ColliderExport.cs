@@ -211,7 +211,10 @@ namespace ValCraft
             }
 
             // column raster (tilted boxes, stairs, rocks, terrain-like meshes)
-            float cell = 0.5f;
+            // 0.13.1: small pieces (stairs, ramps, roofs) at 0.25 m with the highest sample per column, so slopes become
+            // <= 0.25 m steps MC can walk up (step height 0.6); big meshes (rocks) keep 0.5 m centre samples
+            bool fine = b.size.x * b.size.z <= 36f;
+            float cell = fine ? 0.25f : 0.5f;
             while ((b.size.x / cell) * (b.size.z / cell) > 1024f) cell *= 1.5f;
             int nx = Mathf.Max(1, Mathf.CeilToInt(b.size.x / cell)), nz = Mathf.Max(1, Mathf.CeilToInt(b.size.z / cell));
             float top = b.max.y + 0.5f, bottom = b.min.y - 0.5f, len = b.size.y + 1f;
@@ -220,6 +223,15 @@ namespace ValCraft
                 {
                     float x = b.min.x + (ix + 0.5f) * cell, z = b.min.z + (iz + 0.5f) * cell;
                     if (!c.Raycast(new Ray(new Vector3(x, top, z), Vector3.down), out var hd, len)) continue;
+                    if (fine)
+                    {
+                        float q = cell * 0.45f;
+                        for (int k = 0; k < 4; k++)
+                        {
+                            float sx = x + ((k & 1) == 0 ? -q : q), sz = z + ((k & 2) == 0 ? -q : q);
+                            if (c.Raycast(new Ray(new Vector3(sx, top, sz), Vector3.down), out var hk, len) && hk.point.y > hd.point.y) hd = hk;
+                        }
+                    }
                     float y0 = c.Raycast(new Ray(new Vector3(x, bottom, z), Vector3.up), out var hu, len) ? hu.point.y : hd.point.y - 0.5f;
                     if (y0 > hd.point.y - 0.05f) y0 = hd.point.y - 0.05f;
                     var min = new Vector3(x - cell * 0.5f, y0, z - cell * 0.5f);

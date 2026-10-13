@@ -131,6 +131,41 @@ public final class CollisionWorld {
 		return new net.minecraft.world.phys.BlockHitResult(h, face, net.minecraft.core.BlockPos.containing(h), false);
 	}
 
+	/** 0.13.1: crosshair ray vs Valheim boxes as a block hit: location on the box face, face = hit side, block pos = the
+	 * (air) cell in front of the face, so MC places into that cell. Null if no box is hit. Render thread. */
+	public static net.minecraft.world.phys.BlockHitResult clipFace(net.minecraft.world.phys.Vec3 a, net.minecraft.world.phys.Vec3 b) {
+		if (index == null || !ValCraftClient.collisionActive()) return null;
+		net.minecraft.world.phys.BlockHitResult best = null; double bd = Double.MAX_VALUE;
+		for (VoxelShape s : query(new AABB(a, b).inflate(0.01)))
+			for (AABB box : s.toAabbs()) {
+				if (box.contains(a)) continue;
+				var h = AABB.clip(List.of(box), a, b, net.minecraft.core.BlockPos.ZERO);
+				if (h == null) continue;
+				double d = h.getLocation().distanceToSqr(a);
+				if (d < bd) { bd = d; best = h; }
+			}
+		if (best == null) return null;
+		var n = best.getDirection().getNormal();
+		var loc = best.getLocation();
+		var pos = net.minecraft.core.BlockPos.containing(loc.x + n.getX() * 0.01, loc.y + n.getY() * 0.01, loc.z + n.getZ() * 0.01);
+		// the surface sits inside that cell: if more than half of it is behind the surface, use the next cell (floats < 0.5 instead)
+		var ax = best.getDirection().getAxis(); double c = ax.choose(loc.x, loc.y, loc.z); int step = ax.choose(n.getX(), n.getY(), n.getZ());
+		double depth = step > 0 ? c - Math.floor(c) : Math.ceil(c) - c;
+		if (depth > 0.5 && depth < 0.999) pos = pos.relative(best.getDirection());
+		return new net.minecraft.world.phys.BlockHitResult(loc, best.getDirection(), pos, false);
+	}
+
+	/** 0.13.1: a Valheim surface backs this face of an (air) cell: the face of `pos` toward `dir` lies on/inside a Valheim box
+	 * (within half a block of the face plane, central area), so torches, carpets, buttons... can attach there. Any thread. */
+	public static boolean supportsFace(net.minecraft.core.BlockPos pos, net.minecraft.core.Direction dir) {
+		if (index == null || !ValCraftClient.collisionActive()) return false;
+		AABB r = new AABB(pos).move(dir.getStepX() * 0.5, dir.getStepY() * 0.5, dir.getStepZ() * 0.5);
+		double ix = dir.getAxis() == net.minecraft.core.Direction.Axis.X ? 0 : 0.3, iy = dir.getAxis() == net.minecraft.core.Direction.Axis.Y ? 0 : 0.3, iz = dir.getAxis() == net.minecraft.core.Direction.Axis.Z ? 0 : 0.3;
+		r = r.deflate(ix, iy, iz); // slab +-0.5 around the face plane, central 0.4 x 0.4
+		for (VoxelShape s : query(r)) for (AABB b : s.toAabbs()) if (b.intersects(r)) return true;
+		return false;
+	}
+
 	/** 0.12.0: a Valheim box fills a real part of this block cell (fluids must not flow there). Any thread. */
 	public static boolean occupies(net.minecraft.core.BlockPos p) {
 		if (index == null || !ValCraftClient.collisionActive()) return false;

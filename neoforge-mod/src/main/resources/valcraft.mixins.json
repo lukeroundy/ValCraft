@@ -10,7 +10,7 @@
     "EntityFluidAccessor",
     "McWorldIrrelevantMixin",
     "PlayerDimsMixin",
-    "ServerMoveCheckMixin", "LoopbackListenMixin",
+    "ServerMoveCheckMixin", "LoopbackListenMixin", "ValheimSupportMixin",
     "TerrainMoveMixin"
   ],
   "client": [
