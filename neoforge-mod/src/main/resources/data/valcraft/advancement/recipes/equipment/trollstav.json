@@ -1,0 +1,54 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_troll_hide": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:troll_hide"
+          }
+        ]
+      }
+    },
+    "has_ashwood": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:ashwood"
+          }
+        ]
+      }
+    },
+    "has_bone_fragments": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:bone_fragments"
+          }
+        ]
+      }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "valcraft:trollstav"
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_troll_hide",
+      "has_ashwood",
+      "has_bone_fragments",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "valcraft:trollstav"
+    ]
+  }
+}

@@ -1,19 +1,20 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_bow",
   "pattern": [
-    " MW",
-    "L W",
-    " MW"
+    " MS",
+    "B S",
+    " MS"
   ],
   "key": {
     "M": {
       "item": "valcraft:flametal"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "valcraft:asksvin_hide"
     },
-    "W": {
+    "S": {
       "item": "minecraft:string"
     }
   },

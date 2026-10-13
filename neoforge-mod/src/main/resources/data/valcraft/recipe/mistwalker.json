@@ -1,17 +1,21 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_sword",
   "pattern": [
     " M ",
     " M ",
-    " L "
+    "BWB"
   ],
   "key": {
     "M": {
       "item": "valcraft:refined_eitr"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "W": {
+      "item": "valcraft:yggdrasil_wood"
+    },
+    "B": {
+      "item": "valcraft:refined_eitr"
     }
   },
   "result": {

@@ -1,16 +1,17 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_helmet",
   "pattern": [
     "MMM",
-    "MLM"
+    "MBM"
   ],
   "key": {
     "M": {
       "item": "valcraft:asksvin_hide"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "valcraft:flametal"
     }
   },
   "result": {

@@ -1,0 +1,43 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_fenris_hair": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:fenris_hair"
+          }
+        ]
+      }
+    },
+    "has_linen_thread": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:linen_thread"
+          }
+        ]
+      }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "valcraft:fenris_leggings"
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_fenris_hair",
+      "has_linen_thread",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "valcraft:fenris_leggings"
+    ]
+  }
+}

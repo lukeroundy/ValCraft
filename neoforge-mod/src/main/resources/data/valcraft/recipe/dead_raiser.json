@@ -1,20 +1,21 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_staff",
   "pattern": [
     "  M",
-    " L ",
-    "S  "
+    " W ",
+    "W B"
   ],
   "key": {
     "M": {
       "item": "valcraft:bone_fragments"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "W": {
+      "item": "valcraft:yggdrasil_wood"
     },
-    "S": {
-      "item": "minecraft:stick"
+    "B": {
+      "item": "valcraft:refined_eitr"
     }
   },
   "result": {

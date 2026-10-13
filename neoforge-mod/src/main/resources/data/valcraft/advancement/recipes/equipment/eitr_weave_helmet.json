@@ -1,0 +1,43 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_linen_thread": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:linen_thread"
+          }
+        ]
+      }
+    },
+    "has_refined_eitr": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:refined_eitr"
+          }
+        ]
+      }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "valcraft:eitr_weave_helmet"
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_linen_thread",
+      "has_refined_eitr",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "valcraft:eitr_weave_helmet"
+    ]
+  }
+}

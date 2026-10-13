@@ -1,0 +1,43 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_carapace": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:carapace"
+          }
+        ]
+      }
+    },
+    "has_refined_eitr": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:refined_eitr"
+          }
+        ]
+      }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "valcraft:spinesnap"
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_carapace",
+      "has_refined_eitr",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "valcraft:spinesnap"
+    ]
+  }
+}

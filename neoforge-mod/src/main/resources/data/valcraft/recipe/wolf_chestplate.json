@@ -1,8 +1,9 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_chestplate",
   "pattern": [
-    "MLM",
+    "MBM",
     "MMM",
     "MMM"
   ],
@@ -10,8 +11,8 @@
     "M": {
       "item": "valcraft:wolf_pelt"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "valcraft:silver_ingot"
     }
   },
   "result": {

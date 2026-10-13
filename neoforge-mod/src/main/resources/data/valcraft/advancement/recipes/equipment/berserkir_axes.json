@@ -1,0 +1,54 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_flametal": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:flametal"
+          }
+        ]
+      }
+    },
+    "has_ashwood": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:ashwood"
+          }
+        ]
+      }
+    },
+    "has_asksvin_hide": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:asksvin_hide"
+          }
+        ]
+      }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "valcraft:berserkir_axes"
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_flametal",
+      "has_ashwood",
+      "has_asksvin_hide",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "valcraft:berserkir_axes"
+    ]
+  }
+}

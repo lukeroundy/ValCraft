@@ -12,11 +12,14 @@ namespace ValCraft.Launcher
 {
     public static class LauncherInfo
     {
-        public const string Version = "0.15.0";
+        public const string Version = "0.15.1";
         public const string ExeName = "ValCraft-Launcher.exe";
         public const string Pages = "https://lukeroundy.github.io/ValCraft/";
         public static string Repo => Versions.GitHubRepo;
-        public static string ReleasesApi => $"https://api.github.com/repos/{Repo}/releases?per_page=6";
+        /// <summary>0.15.1: VALCRAFT_RELEASES_API (or --api) overrides the releases endpoint, e.g. for a mock release server.</summary>
+        public static string ApiOverride;
+        public static string ReleasesApi => !string.IsNullOrEmpty(ApiOverride) ? ApiOverride : !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VALCRAFT_RELEASES_API")) ? Environment.GetEnvironmentVariable("VALCRAFT_RELEASES_API") : $"https://api.github.com/repos/{Repo}/releases?per_page=6";
+        public const string SteamInstallUri = "steam://install/892970", EpicStoreUrl = "https://store.epicgames.com/p/valheim", SteamCmdInfo = "https://api.steamcmd.net/v1/info/892970";
         public static string LatestApi => $"https://api.github.com/repos/{Repo}/releases/latest";
         public static string SteamLaunchUri => "steam://rungameid/" + Versions.ValheimAppId;
         public static readonly (string label, string url)[] Guides =
@@ -236,11 +239,232 @@ namespace ValCraft.Launcher
     /// <summary>Self-update: the running exe can't overwrite itself; a short cmd script swaps the files after we exit.</summary>
     public static class SelfUpdate
     {
-        public static string Script(string current, string downloaded, int pid) =>
+        public static string Script(string current, string downloaded, int pid, string args = "") =>
             "@echo off\r\n" +
             $":wait\r\ntasklist /FI \"PID eq {pid}\" | find \"{pid}\" >nul && (ping -n 2 127.0.0.1 >nul & goto wait)\r\n" +
             $"move /y \"{downloaded}\" \"{current}\" >nul\r\n" +
-            $"start \"\" \"{current}\"\r\n" +
+            $"start \"\" \"{current}\"{(string.IsNullOrEmpty(args) ? "" : " " + args)}\r\n" +
             "del \"%~f0\"\r\n";
+    }
+}
+
+
+namespace ValCraft.Launcher
+{
+    using System.IO.Compression;
+    using System.Text.RegularExpressions;
+
+    // ---------------- 0.15.1: store detection (Steam / Epic) ----------------
+    public enum Store { None, Steam, Epic }
+    public sealed class GameInstall
+    {
+        public Store Store; public string Dir, Manifest, EpicNamespace, EpicItemId, EpicAppName;
+        /// <summary>URI that launches Valheim through its store.</summary>
+        public string LaunchUri => Store == Store.Epic ? $"com.epicgames.launcher://apps/{Uri.EscapeDataString(EpicNamespace ?? "")}%3A{Uri.EscapeDataString(EpicItemId ?? "")}%3A{Uri.EscapeDataString(EpicAppName ?? "")}?action=launch&silent=true" : LauncherInfo.SteamLaunchUri;
+    }
+    public static class Stores
+    {
+        /// <summary>Steam first (appmanifest_892970.acf in any library), then Epic (ProgramData\Epic\EpicGamesLauncher\Data\Manifests\*.item).</summary>
+        public static GameInstall Find(IEnumerable<string> steamRoots, string epicManifestDir)
+        {
+            foreach (var root in steamRoots.Where(r => !string.IsNullOrEmpty(r)).Distinct(StringComparer.OrdinalIgnoreCase))
+                foreach (var lib in ValCraft.Installer.SteamLocator.Libraries(root))
+                {
+                    var acf = Path.Combine(lib, "steamapps", "appmanifest_892970.acf");
+                    if (!File.Exists(acf)) continue;
+                    var m = Regex.Match(File.ReadAllText(acf), "\"installdir\"\\s+\"([^\"]+)\"");
+                    var dir = Path.Combine(lib, "steamapps", "common", m.Success ? m.Groups[1].Value : "Valheim");
+                    return new GameInstall { Store = Store.Steam, Dir = dir, Manifest = acf };
+                }
+            var epic = FindEpic(epicManifestDir);
+            return epic ?? new GameInstall { Store = Store.None };
+        }
+        public static GameInstall FindEpic(string manifestDir)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(manifestDir) || !Directory.Exists(manifestDir)) return null;
+                foreach (var f in Directory.GetFiles(manifestDir, "*.item"))
+                {
+                    var o = MiniJson.Parse(File.ReadAllText(f)) as Dictionary<string, object>;
+                    if (o == null) continue;
+                    string name = MiniJson.S(o, "DisplayName") ?? "", loc = MiniJson.S(o, "InstallLocation");
+                    if (name.IndexOf("Valheim", StringComparison.OrdinalIgnoreCase) < 0 && (loc == null || !File.Exists(Path.Combine(loc, "valheim.exe")))) continue;
+                    return new GameInstall { Store = Store.Epic, Dir = loc, Manifest = f, EpicNamespace = MiniJson.S(o, "CatalogNamespace"), EpicItemId = MiniJson.S(o, "CatalogItemId"), EpicAppName = MiniJson.S(o, "AppName") };
+                }
+            }
+            catch { }
+            return null;
+        }
+        public static string DefaultEpicManifests => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Epic", "EpicGamesLauncher", "Data", "Manifests");
+    }
+
+    // ---------------- 0.15.1: Valheim update warning (local appmanifest buildid vs Steam public branch) ----------------
+    public static class SteamBuild
+    {
+        public static string LocalBuildId(string acf)
+        {
+            try { var m = Regex.Match(File.ReadAllText(acf), "\"buildid\"\\s+\"(\\d+)\""); return m.Success ? m.Groups[1].Value : null; } catch { return null; }
+        }
+        /// <summary>api.steamcmd.net/v1/info/892970 -> data.892970.depots.branches.public.buildid</summary>
+        public static string PublicBuildId(string json)
+        {
+            try
+            {
+                var o = MiniJson.Parse(json) as Dictionary<string, object>;
+                var d = (o?["data"] as Dictionary<string, object>)?["892970"] as Dictionary<string, object>;
+                var br = ((d?["depots"] as Dictionary<string, object>)?["branches"] as Dictionary<string, object>)?["public"] as Dictionary<string, object>;
+                return br == null ? null : MiniJson.S(br, "buildid");
+            }
+            catch { return null; }
+        }
+        public static string Banner(string local, string pub)
+        {
+            if (string.IsNullOrEmpty(local) || string.IsNullOrEmpty(pub) || local == pub) return null;
+            long l, p; if (long.TryParse(local, out l) && long.TryParse(pub, out p) && l > p) return null;
+            return $"Valheim update on Steam: build {pub} (you have {local}). After it installs, ValCraft may need an update too.";
+        }
+    }
+
+    // ---------------- 0.15.1: world backup ----------------
+    public static class Backup
+    {
+        public static string ValheimWorlds => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "AppData", "LocalLow", "IronGate", "Valheim");
+        public static string Dir => Path.Combine(LauncherInfo.DataDir, "backups");
+        public static string Marker => Path.Combine(LauncherInfo.DataDir, "backup-done.txt");
+        public static bool Done => File.Exists(Marker);
+        public static string McSaves(InstallState st) => st?.ModsDir == null ? null : Path.Combine(Path.GetDirectoryName(st.ModsDir.TrimEnd('\\', '/')), "saves");
+
+        /// <summary>Files to back up: Valheim worlds_local/worlds (*.db, *.fwl) and every Minecraft world folder in saves.</summary>
+        public static List<(string file, string entry)> Plan(string valheimRoot, string mcSaves)
+        {
+            var l = new List<(string, string)>();
+            if (!string.IsNullOrEmpty(valheimRoot))
+                foreach (var sub in new[] { "worlds_local", "worlds" })
+                {
+                    var d = Path.Combine(valheimRoot, sub); if (!Directory.Exists(d)) continue;
+                    foreach (var f in Directory.GetFiles(d))
+                        if (f.EndsWith(".db", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".fwl", StringComparison.OrdinalIgnoreCase)) l.Add((f, "valheim/" + sub + "/" + Path.GetFileName(f)));
+                }
+            if (!string.IsNullOrEmpty(mcSaves) && Directory.Exists(mcSaves))
+                foreach (var w in Directory.GetDirectories(mcSaves))
+                    foreach (var f in Directory.GetFiles(w, "*", SearchOption.AllDirectories))
+                    {
+                        if (Path.GetFileName(f) == "session.lock") continue;
+                        l.Add((f, "minecraft/saves/" + f.Substring(mcSaves.Length).TrimStart('\\', '/').Replace('\\', '/')));
+                    }
+            return l;
+        }
+        /// <summary>Writes backup-yyyyMMdd-HHmmss.zip into outDir; returns its path. Files in use are copied via a shared read.</summary>
+        public static string Run(List<(string file, string entry)> plan, string outDir, Action<int, int> progress = null)
+        {
+            Directory.CreateDirectory(outDir);
+            var zip = Path.Combine(outDir, "backup-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".zip");
+            using (var fs = File.Create(zip))
+            using (var z = new ZipArchive(fs, ZipArchiveMode.Create))
+            {
+                int i = 0;
+                foreach (var (file, entry) in plan)
+                {
+                    try
+                    {
+                        using (var src = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                        using (var dst = z.CreateEntry(entry, CompressionLevel.Optimal).Open()) src.CopyTo(dst);
+                    }
+                    catch (IOException) { }
+                    progress?.Invoke(++i, plan.Count);
+                }
+            }
+            try { Directory.CreateDirectory(Path.GetDirectoryName(Marker)); File.WriteAllText(Marker, zip); } catch { }
+            return zip;
+        }
+    }
+
+    // ---------------- 0.15.1: settings (plugin BepInEx cfg + mod valcraft.properties) ----------------
+    public static class CfgFile
+    {
+        /// <summary>BepInEx .cfg: set "Key = value" in [Section], adding the section/key if missing; keeps comments.</summary>
+        public static void SetBep(string path, string section, string key, string value)
+        {
+            var lines = File.Exists(path) ? File.ReadAllLines(path).ToList() : new List<string>();
+            int sec = lines.FindIndex(l => l.Trim() == "[" + section + "]");
+            if (sec < 0) { if (lines.Count > 0 && lines[lines.Count - 1].Trim() != "") lines.Add(""); lines.Add("[" + section + "]"); lines.Add(""); lines.Add($"{key} = {value}"); }
+            else
+            {
+                int end = lines.FindIndex(sec + 1, l => l.TrimStart().StartsWith("[")); if (end < 0) end = lines.Count;
+                int k = -1; for (int i = sec + 1; i < end; i++) if (Regex.IsMatch(lines[i], "^\\s*" + Regex.Escape(key) + "\\s*=")) { k = i; break; }
+                if (k >= 0) lines[k] = $"{key} = {value}"; else { int at = end; while (at > sec + 1 && lines[at - 1].Trim() == "") at--; lines.Insert(at, $"{key} = {value}"); }
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(path)); File.WriteAllLines(path, lines);
+        }
+        public static string GetBep(string path, string section, string key)
+        {
+            if (!File.Exists(path)) return null; bool inSec = false;
+            foreach (var l in File.ReadAllLines(path))
+            {
+                var t = l.Trim();
+                if (t.StartsWith("[")) { inSec = t == "[" + section + "]"; continue; }
+                if (!inSec) continue;
+                var m = Regex.Match(t, "^" + Regex.Escape(key) + "\\s*=\\s*(.*)$"); if (m.Success) return m.Groups[1].Value.Trim();
+            }
+            return null;
+        }
+        /// <summary>Java .properties key=value (keys we write are plain ASCII).</summary>
+        public static void SetProp(string path, string key, string value)
+        {
+            var lines = File.Exists(path) ? File.ReadAllLines(path).ToList() : new List<string>();
+            int k = lines.FindIndex(l => Regex.IsMatch(l, "^\\s*" + Regex.Escape(key) + "\\s*[=:]"));
+            if (k >= 0) lines[k] = key + "=" + value; else lines.Add(key + "=" + value);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)); File.WriteAllLines(path, lines);
+        }
+        public static string GetProp(string path, string key)
+        {
+            if (!File.Exists(path)) return null;
+            foreach (var l in File.ReadAllLines(path)) { var m = Regex.Match(l, "^\\s*" + Regex.Escape(key) + "\\s*[=:]\\s*(.*)$"); if (m.Success) return m.Groups[1].Value.Trim(); }
+            return null;
+        }
+    }
+    public sealed class Settings
+    {
+        public static readonly string[] Families = { "zombie", "skeleton", "creeper", "spider", "enderman", "slime", "illager", "animal", "villager", "other" };
+        public Dictionary<string, bool> Swap = Families.ToDictionary(f => f, f => true);
+        public bool MuteMusic = true, StartWithValheim = true, CrossGameCombat = true; public int MaxMobs = 24; public double EmeraldChance = 0.005;
+        public static string PluginCfg(InstallState st) => st?.Valheim == null ? null : Path.Combine(st.Valheim, "BepInEx", "config", "dev.valcraft.valheim.cfg");
+        public static string ModCfg(InstallState st) => st?.ModsDir == null ? null : Path.Combine(Path.GetDirectoryName(st.ModsDir.TrimEnd('\\', '/')), "config", "valcraft.properties");
+        static bool B(string s, bool d) => s == null ? d : s.Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
+        public static Settings Load(string pluginCfg, string modCfg)
+        {
+            var s = new Settings();
+            if (pluginCfg != null)
+            {
+                foreach (var f in Families) s.Swap[f] = B(CfgFile.GetBep(pluginCfg, "MobAudio", "Swap_" + f), B(modCfg == null ? null : CfgFile.GetProp(modCfg, "swapSounds." + f), true));
+                s.StartWithValheim = B(CfgFile.GetBep(pluginCfg, "Minecraft", "StartWithValheim"), true);
+                s.CrossGameCombat = B(CfgFile.GetBep(pluginCfg, "Mobs", "CrossGameCombat"), true);
+                int mm; if (int.TryParse(CfgFile.GetBep(pluginCfg, "Blocks", "MaxMobs"), out mm)) s.MaxMobs = mm;
+            }
+            if (modCfg != null)
+            {
+                s.MuteMusic = B(CfgFile.GetProp(modCfg, "muteMusic"), true);
+                double e; if (double.TryParse(CfgFile.GetProp(modCfg, "emeraldChance"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out e)) s.EmeraldChance = e;
+            }
+            return s;
+        }
+        public void Save(string pluginCfg, string modCfg)
+        {
+            string L(bool b) => b ? "true" : "false";
+            if (pluginCfg != null)
+            {
+                foreach (var f in Families) CfgFile.SetBep(pluginCfg, "MobAudio", "Swap_" + f, L(Swap[f]));
+                CfgFile.SetBep(pluginCfg, "Minecraft", "StartWithValheim", L(StartWithValheim));
+                CfgFile.SetBep(pluginCfg, "Mobs", "CrossGameCombat", L(CrossGameCombat));
+                CfgFile.SetBep(pluginCfg, "Blocks", "MaxMobs", MaxMobs.ToString());
+            }
+            if (modCfg != null)
+            {
+                foreach (var f in Families) CfgFile.SetProp(modCfg, "swapSounds." + f, L(Swap[f]));
+                CfgFile.SetProp(modCfg, "muteMusic", L(MuteMusic));
+                CfgFile.SetProp(modCfg, "emeraldChance", EmeraldChance.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+        }
     }
 }

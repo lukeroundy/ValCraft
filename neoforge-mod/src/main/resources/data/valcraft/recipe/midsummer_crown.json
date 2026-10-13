@@ -1,16 +1,17 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_helmet_misc",
   "pattern": [
     "MMM",
-    "MLM"
+    "MBM"
   ],
   "key": {
     "M": {
       "item": "minecraft:dandelion"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "valcraft:leather_scraps"
     }
   },
   "result": {

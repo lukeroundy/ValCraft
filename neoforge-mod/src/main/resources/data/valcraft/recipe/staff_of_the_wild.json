@@ -1,20 +1,21 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_staff",
   "pattern": [
     "  M",
-    " L ",
-    "S  "
+    " W ",
+    "W B"
   ],
   "key": {
     "M": {
       "item": "valcraft:ancient_bark"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "W": {
+      "item": "valcraft:ashwood"
     },
-    "S": {
-      "item": "minecraft:stick"
+    "B": {
+      "item": "minecraft:iron_ingot"
     }
   },
   "result": {

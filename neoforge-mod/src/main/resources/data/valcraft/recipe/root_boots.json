@@ -1,16 +1,17 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_boots",
   "pattern": [
-    "MLM",
+    "MBM",
     "M M"
   ],
   "key": {
     "M": {
       "item": "valcraft:ancient_bark"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "minecraft:iron_ingot"
     }
   },
   "result": {

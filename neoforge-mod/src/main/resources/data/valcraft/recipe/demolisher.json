@@ -1,20 +1,18 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_sledge",
   "pattern": [
     "MMM",
-    "MLM",
-    " S "
+    "MWM",
+    " W "
   ],
   "key": {
     "M": {
       "item": "valcraft:carapace"
     },
-    "L": {
-      "item": "minecraft:leather"
-    },
-    "S": {
-      "item": "minecraft:stick"
+    "W": {
+      "item": "valcraft:yggdrasil_wood"
     }
   },
   "result": {

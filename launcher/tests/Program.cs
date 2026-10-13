@@ -50,6 +50,47 @@ static class T
         File.WriteAllText(LauncherInstall.StartMenuLink(pd), "l"); File.WriteAllText(LauncherInstall.DesktopLink(dd), "l");
         LauncherInstall.Uninstall(null, lad, pd, dd);
         Ok(!File.Exists(exe) && !File.Exists(LauncherInstall.StartMenuLink(pd)) && !File.Exists(LauncherInstall.DesktopLink(dd)), "launcher uninstall removes exe + shortcuts");
+        // ---- 0.15.1 ----
+        var sroot = Path.Combine(tmp, "Steam"); var lib2 = Path.Combine(tmp, "Lib2");
+        Directory.CreateDirectory(Path.Combine(sroot, "steamapps")); Directory.CreateDirectory(Path.Combine(lib2, "steamapps", "common", "Valheim"));
+        File.WriteAllText(Path.Combine(sroot, "steamapps", "libraryfolders.vdf"), "\"libraryfolders\" { \"1\" { \"path\" \"" + lib2.Replace("\\", "\\\\") + "\" } }");
+        var acf = Path.Combine(lib2, "steamapps", "appmanifest_892970.acf");
+        File.WriteAllText(acf, "\"AppState\" { \"appid\" \"892970\" \"installdir\" \"Valheim\" \"buildid\" \"18000001\" }");
+        var gi = Stores.Find(new[] { sroot }, Path.Combine(tmp, "nope"));
+        Ok(gi.Store == Store.Steam && gi.Manifest == acf && gi.LaunchUri == "steam://rungameid/892970", "Steam install found via libraryfolders.vdf");
+        Ok(SteamBuild.LocalBuildId(acf) == "18000001", "local buildid");
+        var sj = "{\"data\":{\"892970\":{\"depots\":{\"branches\":{\"public\":{\"buildid\":\"18000555\",\"timeupdated\":\"1\"}}}}},\"status\":\"success\"}";
+        Ok(SteamBuild.PublicBuildId(sj) == "18000555", "steamcmd public buildid");
+        Ok(SteamBuild.Banner("18000001", "18000555")?.Contains("18000555") == true && SteamBuild.Banner("18000555", "18000555") == null && SteamBuild.Banner("19", "18") == null && SteamBuild.Banner(null, "1") == null, "update banner only when Steam is newer");
+        var em = Path.Combine(tmp, "EpicManifests"); Directory.CreateDirectory(em);
+        File.WriteAllText(Path.Combine(em, "abc.item"), "{\"DisplayName\":\"Valheim\",\"InstallLocation\":\"D:\\\\Epic\\\\Valheim\",\"CatalogNamespace\":\"ns1\",\"CatalogItemId\":\"item1\",\"AppName\":\"Oak\"}");
+        var ge = Stores.Find(new[] { Path.Combine(tmp, "noSteam") }, em);
+        Ok(ge.Store == Store.Epic && ge.Dir == "D:\\Epic\\Valheim" && ge.LaunchUri == "com.epicgames.launcher://apps/ns1%3Aitem1%3AOak?action=launch&silent=true", "Epic install + launch URI: " + ge.LaunchUri);
+        Ok(Stores.Find(new string[0], Path.Combine(tmp, "x")).Store == Store.None, "no store -> None (install prompt)");
+        // backup
+        var vr = Path.Combine(tmp, "IronGate"); Directory.CreateDirectory(Path.Combine(vr, "worlds_local"));
+        File.WriteAllText(Path.Combine(vr, "worlds_local", "Midgard.db"), "db"); File.WriteAllText(Path.Combine(vr, "worlds_local", "Midgard.fwl"), "fwl"); File.WriteAllText(Path.Combine(vr, "worlds_local", "x.txt"), "no");
+        var saves = Path.Combine(tmp, "mc", "saves"); Directory.CreateDirectory(Path.Combine(saves, "ValCraft", "region"));
+        File.WriteAllText(Path.Combine(saves, "ValCraft", "level.dat"), "lvl"); File.WriteAllText(Path.Combine(saves, "ValCraft", "region", "r.0.0.mca"), "mca"); File.WriteAllText(Path.Combine(saves, "ValCraft", "session.lock"), "x");
+        var bp = Backup.Plan(vr, saves);
+        Ok(bp.Count == 4 && bp.Any(b => b.entry == "valheim/worlds_local/Midgard.db") && bp.Any(b => b.entry == "minecraft/saves/ValCraft/region/r.0.0.mca"), "backup plan: " + string.Join(", ", bp.Select(b => b.entry)));
+        var zipPath = Backup.Run(bp, Path.Combine(tmp, "backups"));
+        using (var z = System.IO.Compression.ZipFile.OpenRead(zipPath)) Ok(z.Entries.Count == 4 && new StreamReader(z.GetEntry("valheim/worlds_local/Midgard.fwl").Open()).ReadToEnd() == "fwl", "backup zip written: " + Path.GetFileName(zipPath));
+        Ok(Backup.McSaves(st) == Path.Combine(Path.GetDirectoryName(Prism.ModsDir(prism)), "saves"), "MC saves next to mods");
+        // settings
+        var pcfg = Path.Combine(tmp, "dev.valcraft.valheim.cfg");
+        File.WriteAllLines(pcfg, new[] { "## Settings file", "", "[Minecraft]", "", "## Start MC", "StartWithValheim = true", "", "[Blocks]", "MaxMobs = 24", "" });
+        var mcfg = Path.Combine(tmp, "config", "valcraft.properties");
+        Directory.CreateDirectory(Path.GetDirectoryName(mcfg)); File.WriteAllLines(mcfg, new[] { "#ValCraft", "autoWorld=true", "muteMusic=true" });
+        var set = Settings.Load(pcfg, mcfg);
+        Ok(set.StartWithValheim && set.MaxMobs == 24 && set.MuteMusic && set.Swap.Values.All(v => v), "settings load defaults");
+        set.Swap["creeper"] = false; set.MuteMusic = false; set.StartWithValheim = false; set.MaxMobs = 40; set.EmeraldChance = 0.01;
+        set.Save(pcfg, mcfg);
+        var set2 = Settings.Load(pcfg, mcfg);
+        Ok(!set2.Swap["creeper"] && set2.Swap["zombie"] && !set2.MuteMusic && !set2.StartWithValheim && set2.MaxMobs == 40 && Math.Abs(set2.EmeraldChance - 0.01) < 1e-9, "settings round trip");
+        var plines = File.ReadAllLines(pcfg);
+        Ok(plines.Contains("## Start MC") && plines.Count(l => l.StartsWith("StartWithValheim")) == 1 && plines.Contains("[MobAudio]") && plines.Contains("Swap_creeper = false"), "BepInEx cfg edited in place (comments kept, section added)");
+        Ok(File.ReadAllLines(mcfg).Contains("swapSounds.creeper=false") && File.ReadAllLines(mcfg).Contains("autoWorld=true") && CfgFile.GetProp(mcfg, "muteMusic") == "false", "valcraft.properties edited");
         Directory.Delete(tmp, true);
         Console.WriteLine(fails == 0 ? "ALL PASS" : fails + " FAILED"); return fails == 0 ? 0 : 1;
     }

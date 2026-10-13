@@ -1,20 +1,21 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_spear",
   "pattern": [
     "  M",
-    " L ",
-    "S  "
+    " W ",
+    "W B"
   ],
   "key": {
     "M": {
       "item": "valcraft:flametal"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "W": {
+      "item": "valcraft:ashwood"
     },
-    "S": {
-      "item": "minecraft:stick"
+    "B": {
+      "item": "valcraft:asksvin_hide"
     }
   },
   "result": {

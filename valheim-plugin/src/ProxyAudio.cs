@@ -19,6 +19,24 @@ namespace ValCraft
         static int _ctx; // > 0 while a proxy's own code is running (hit/death/alert/attack)
         static Type _elT, _zsfxT;
         internal static int Muted;
+        /// 0.15.1: per mob family (launcher settings, [MobAudio] Swap_<family>): true = silence the Valheim stand-in.
+        internal static readonly Dictionary<string, bool> Swap = new Dictionary<string, bool>();
+        internal static readonly string[] Families = { "zombie", "skeleton", "creeper", "spider", "enderman", "slime", "illager", "animal", "villager", "other" };
+        internal static bool SwapFor(string mob) => !Swap.TryGetValue(Family(mob), out var v) || v;
+        internal static string Family(string mob)
+        {
+            var m = (mob ?? "").ToLowerInvariant().Replace(' ', '_');
+            if (m.Contains("zombie") || m == "husk" || m == "drowned" || m.Contains("piglin") || m == "zoglin") return "zombie";
+            if (m.Contains("skeleton") || m == "stray" || m == "bogged") return "skeleton";
+            if (m.Contains("creeper")) return "creeper";
+            if (m.Contains("spider")) return "spider";
+            if (m.Contains("enderman") || m.Contains("endermite")) return "enderman";
+            if (m.Contains("slime") || m.Contains("magma_cube")) return "slime";
+            if (m == "pillager" || m == "vindicator" || m == "evoker" || m == "ravager" || m == "witch" || m == "illusioner" || m == "vex") return "illager";
+            if (m.Contains("villager") || m.Contains("wandering_trader")) return "villager";
+            if (System.Text.RegularExpressions.Regex.IsMatch(m, "^(cow|pig|sheep|chicken|horse|donkey|mule|rabbit|wolf|cat|ocelot|fox|goat|llama|trader_llama|parrot|bee|turtle|panda|polar_bear|mooshroom|frog|axolotl|camel|sniffer|armadillo|strider|hoglin)$")) return "animal";
+            return "other";
+        }
 
         internal static void Apply(Harmony h)
         {

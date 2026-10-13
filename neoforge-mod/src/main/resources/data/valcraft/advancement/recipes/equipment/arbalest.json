@@ -1,0 +1,54 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_black_metal": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:black_metal"
+          }
+        ]
+      }
+    },
+    "has_yggdrasil_wood": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:yggdrasil_wood"
+          }
+        ]
+      }
+    },
+    "has_refined_eitr": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:refined_eitr"
+          }
+        ]
+      }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "valcraft:arbalest"
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_black_metal",
+      "has_yggdrasil_wood",
+      "has_refined_eitr",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "valcraft:arbalest"
+    ]
+  }
+}

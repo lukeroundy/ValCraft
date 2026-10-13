@@ -1,19 +1,17 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_sledge",
   "pattern": [
     "MMM",
-    "MLM",
-    " S "
+    "MWM",
+    " W "
   ],
   "key": {
     "M": {
       "item": "valcraft:hard_antler"
     },
-    "L": {
-      "item": "minecraft:leather"
-    },
-    "S": {
+    "W": {
       "item": "minecraft:stick"
     }
   },

@@ -1,17 +1,21 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_greatsword",
   "pattern": [
     " MM",
-    "MM ",
-    "L  "
+    "MMM",
+    "WB "
   ],
   "key": {
     "M": {
       "item": "valcraft:flametal"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "W": {
+      "item": "valcraft:ashwood"
+    },
+    "B": {
+      "item": "valcraft:asksvin_hide"
     }
   },
   "result": {

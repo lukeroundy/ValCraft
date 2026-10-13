@@ -1,19 +1,20 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_bow",
   "pattern": [
-    " MW",
-    "L W",
-    " MW"
+    " MS",
+    "B S",
+    " MS"
   ],
   "key": {
     "M": {
       "item": "valcraft:carapace"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "valcraft:refined_eitr"
     },
-    "W": {
+    "S": {
       "item": "minecraft:string"
     }
   },

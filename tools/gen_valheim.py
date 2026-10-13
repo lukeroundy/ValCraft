@@ -1,6 +1,7 @@
 """0.11.0: generates every Valheim item missing in Minecraft from valheim_items.py: original procedural 16x16 textures,
 armor layers, models, lang, recipes, tags, the Java registration table (valcraft_items.json) and the ItemMap defaults."""
 import json, math, os, random, re
+import pixelart
 from valheim_items import ARMOR_SETS, ARMOR_NAMES, ITEMS, SLOT_SHARE
 
 BASE = {'rag': (150, 130, 100), 'leather': (140, 90, 50), 'troll': (70, 100, 140), 'iron': (150, 155, 165), 'root': (90, 110, 60),
@@ -147,44 +148,83 @@ TAG = {'sword': 'swords', 'greatsword': 'swords', 'knife': 'swords', 'mace': 'sw
        'axe': 'axes', 'battleaxe': 'axes', 'pickaxe': 'pickaxes', 'hoe': 'hoes', 'helmet': 'head_armor', 'helmet_misc': 'head_armor', 'chestplate': 'chest_armor',
        'leggings': 'leg_armor', 'boots': 'foot_armor', 'arrow': 'arrows'}
 
+PAT2 = {'sword': [' M ', ' M ', 'BWB'], 'greatsword': [' MM', 'MMM', 'WB '], 'knife': [' M', 'WB'], 'axe': ['MM ', 'MW ', ' WB'], 'battleaxe': ['MMM', 'MWM', 'BW '],
+        'mace': ['MMM', ' W ', 'BW '], 'club': ['  M', ' M ', 'B  '], 'sledge': ['MMM', 'MWM', ' W '], 'pickaxe': ['MMM', ' W ', 'BW '], 'hoe': ['MM ', ' W ', 'BW '],
+        'spear': ['  M', ' W ', 'W B'], 'atgeir': [' MM', 'BWM', 'W  '], 'fist': ['M M', 'BMB'], 'staff': ['  M', ' W ', 'W B'], 'bow': [' MS', 'B S', ' MS'],
+        'crossbow': ['MWM', 'SBS', ' W '], 'shield': ['MBM', 'MMM', ' M '], 'helmet': ['MMM', 'MBM'], 'chestplate': ['MBM', 'MMM', 'MMM'], 'leggings': ['MMM', 'MBM', 'M M'],
+        'boots': ['MBM', 'M M'], 'cape': ['MBM', 'MMM', 'M M'], 'helmet_misc': ['MMM', 'MBM']}
+WOODT = ['minecraft:stick', 'minecraft:stick', 'minecraft:stick', 'minecraft:stick', 'valcraft:fine_wood', 'valcraft:yggdrasil_wood', 'valcraft:ashwood']
+BIND = ['valcraft:leather_scraps', 'valcraft:leather_scraps', 'valcraft:leather_scraps', 'valcraft:leather_scraps', 'valcraft:linen_thread', 'valcraft:refined_eitr', 'valcraft:asksvin_hide']
+SET2 = {'rag': ('valcraft:leather_scraps', 'minecraft:string'), 'leather': ('valcraft:deer_hide', 'valcraft:leather_scraps'), 'troll': ('valcraft:troll_hide', 'valcraft:bone_fragments'),
+        'iron': ('minecraft:iron_ingot', 'valcraft:deer_hide'), 'root': ('valcraft:ancient_bark', 'minecraft:iron_ingot'), 'wolf': ('valcraft:wolf_pelt', 'valcraft:silver_ingot'),
+        'fenris': ('valcraft:fenris_hair', 'valcraft:linen_thread'), 'padded': ('minecraft:iron_ingot', 'valcraft:linen_thread'), 'carapace': ('valcraft:carapace', 'valcraft:refined_eitr'),
+        'eitr_weave': ('valcraft:linen_thread', 'valcraft:refined_eitr'), 'flametal': ('valcraft:flametal', 'valcraft:asksvin_hide'), 'embla': ('valcraft:linen_thread', 'valcraft:morgen_sinew'),
+        'ask': ('valcraft:asksvin_hide', 'valcraft:flametal')}
+CAPE_STATS = {'deer_hide_cape': 'speed', 'troll_hide_cape': 'stealth', 'wolf_fur_cape': 'frost', 'lox_cape': 'cold', 'linen_cape': 'speed', 'feather_cape': 'feather', 'asksvin_cloak': 'speed_stamina'}
+
+def advancements(D, wj):
+    """0.15.1: recipe-book unlock advancements for every valcraft recipe (unlocked when you hold any ingredient)."""
+    rd = f'{D}/valcraft/recipe'; n = 0
+    for f in sorted(os.listdir(rd)):
+        r = json.load(open(f'{rd}/{f}')); name = f[:-5]
+        items = []
+        if 'key' in r: items = [v['item'] for v in r['key'].values() if 'item' in v]
+        elif 'ingredients' in r: items = [v['item'] for v in r['ingredients'] if 'item' in v]
+        elif 'ingredient' in r and 'item' in r['ingredient']: items = [r['ingredient']['item']]
+        items = [i for i in dict.fromkeys(items) if i not in ('minecraft:stick', 'minecraft:string')] or items[:1]
+        if not items: continue
+        crit = {f'has_{i.split(":")[1]}': {'trigger': 'minecraft:inventory_changed', 'conditions': {'items': [{'items': i}]}} for i in items}
+        crit['has_the_recipe'] = {'trigger': 'minecraft:recipe_unlocked', 'conditions': {'recipe': f'valcraft:{name}'}}
+        wj(f'{D}/valcraft/advancement/recipes/{r.get("category", "misc")}/{name}.json', {'parent': 'minecraft:recipes/root', 'criteria': crit,
+           'requirements': [list(crit)], 'rewards': {'recipes': [f'valcraft:{name}']}})
+        n += 1
+    return n
+
 def run(png, wj, A, D, R, lang, base_cs):
     entries, sets, tags, covered = [], [], {}, []
     def tex(n, kind, palname):
-        rnd = random.Random(n); png(f'{A}/textures/item/{n}.png', 16, 16, draw(kind, rnd).pixels(ramp(BASE[palname]), rnd))
+        png(f'{A}/textures/item/{n}.png', 16, 16, pixelart.icon(n, kind, BASE[palname], BASE))  # 0.15.1: crisp templated pixel art
         wj(f'{A}/models/item/{n}.json', {'parent': f'minecraft:item/{KIND_MODEL.get(kind, "generated")}', 'textures': {'layer0': f'valcraft:item/{n}'}})
-    def recipe(n, kind, palname):
-        pat = PAT.get(kind)
-        if not pat or palname not in MAT: return
-        key = {'M': MAT[palname]}; flat = ''.join(pat)
-        if 'L' in flat: key['L'] = 'minecraft:leather'
-        if 'S' in flat: key['S'] = 'minecraft:stick'
-        if 'W' in flat: key['W'] = 'minecraft:string'
-        wj(f'{D}/valcraft/recipe/{n}.json', {'type': 'minecraft:crafting_shaped', 'category': 'equipment', 'pattern': pat, 'key': {k: {'item': v} for k, v in key.items()}, 'result': {'id': f'valcraft:{n}', 'count': 1}})
+    def recipe(n, kind, palname, tier=0):
+        # 0.15.1: Valheim-like costs: main material + tier wood + tier binding (leather scraps -> linen -> eitr -> asksvin hide)
+        pat = PAT2.get(kind)
+        if not pat: return
+        if palname in SET2: mat, bind = SET2[palname]
+        elif palname in MAT: mat, bind = MAT[palname], BIND[min(tier, 6)]
+        else: return
+        key = {'M': mat}; flat = ''.join(pat)
+        if 'W' in flat: key['W'] = WOODT[min(tier, 6)]
+        if 'B' in flat: key['B'] = bind
+        if 'S' in flat: key['S'] = 'minecraft:string'
+        cat = 'equipment' if kind not in ('cape',) else 'misc'
+        wj(f'{D}/valcraft/recipe/{n}.json', {'type': 'minecraft:crafting_shaped', 'category': cat, 'group': f'valcraft_{kind}', 'pattern': pat, 'key': {k: {'item': v} for k, v in key.items()}, 'result': {'id': f'valcraft:{n}', 'count': 1}})
+    png(f'{A}/textures/item/empty_slot_cape.png', 16, 16, pixelart.empty_cape_slot())
     vmap = []  # (valcraft id, [prefabs])
     for sname, (tier, pal, total, tough, ench, slots) in ARMOR_SETS.items():
         d = {s: max(1, round(total * SLOT_SHARE[s])) for s in SLOT_SHARE}
         sets.append({'name': sname, 'def': [d['boots'], d['leggings'], d['chestplate'], d['helmet']], 'tough': tough, 'ench': ench, 'dur': 8 + tier * 5})
         rnd = random.Random(sname); r = ramp(BASE[pal])
-        png(f'{A}/textures/models/armor/{sname}_layer_1.png', 64, 32, armor_layer(r, rnd)); png(f'{A}/textures/models/armor/{sname}_layer_2.png', 64, 32, armor_layer(r, rnd, True))
+        l1, l2 = pixelart.armor_layers(sname); png(f'{A}/textures/models/armor/{sname}_layer_1.png', 64, 32, l1); png(f'{A}/textures/models/armor/{sname}_layer_2.png', 64, 32, l2)
         for slot in ('helmet', 'chestplate', 'leggings', 'boots'):
             if slot == 'helmet' and slot not in slots: continue
-            n = f'{sname}_{slot}'; tex(n, slot, pal); recipe(n, slot, sname)
+            n = f'{sname}_{slot}'; tex(n, slot, pal); recipe(n, slot, sname, tier)
             entries.append({'id': n, 'kind': slot, 'tier': tier, 'set': sname}); tags.setdefault(TAG[slot], []).append(n)
             lang[f'item.valcraft.{n}'] = f'{ARMOR_NAMES[sname]} {"Chest" if slot == "chestplate" else slot.title()}'
             if slots.get(slot): vmap.append((n, [slots[slot]]))
             covered.append(n)
     sets.append({'name': 'cloth', 'def': [1, 1, 1, 1], 'tough': 0.0, 'ench': 20, 'dur': 6})
     r = ramp(BASE['linen']); rnd = random.Random('cloth')
-    png(f'{A}/textures/models/armor/cloth_layer_1.png', 64, 32, armor_layer(r, rnd)); png(f'{A}/textures/models/armor/cloth_layer_2.png', 64, 32, armor_layer(r, rnd))
+    l1, l2 = pixelart.armor_layers('cloth'); png(f'{A}/textures/models/armor/cloth_layer_1.png', 64, 32, l1); png(f'{A}/textures/models/armor/cloth_layer_2.png', 64, 32, l2)
     for it in ITEMS:
         n, kind, tier, pal, prefabs, name = it[:6]; extra = it[6] if len(it) > 6 else {}
         tex(n, kind, pal); lang[f'item.valcraft.{n}'] = name
+        if kind == 'cape': png(f'{A}/textures/entity/cape/{n}.png', 64, 32, pixelart.cape_texture(n, BASE[pal]))  # 0.15.1: worn cape
         e = {'id': n, 'kind': kind, 'tier': tier}
         if 'food' in extra: e['food'] = list(extra['food'])
         if kind == 'helmet_misc': e['set'] = 'cloth'
         entries.append(e)
         if kind in TAG: tags.setdefault(TAG[kind], []).append(n)
-        if kind not in ('meat', 'cooked', 'fish', 'egg', 'bowl', 'bread', 'mead', 'berry', 'carrot', 'mushroom') or 'food' not in extra: recipe(n, kind, pal)
+        if kind not in ('meat', 'cooked', 'fish', 'egg', 'bowl', 'bread', 'mead', 'berry', 'carrot', 'mushroom') or 'food' not in extra: recipe(n, kind, pal, tier)
         if kind == 'arrow' and pal in MAT:
             wj(f'{D}/valcraft/recipe/{n}.json', {'type': 'minecraft:crafting_shapeless', 'category': 'equipment', 'ingredients': [{'item': i} for i in (MAT[pal], 'minecraft:stick', 'minecraft:feather', 'minecraft:string')], 'result': {'id': f'valcraft:{n}', 'count': 8}})
         if prefabs: vmap.append((n, prefabs))

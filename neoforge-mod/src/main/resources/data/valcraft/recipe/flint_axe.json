@@ -1,20 +1,21 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_axe",
   "pattern": [
-    "MM",
-    "ML",
-    " S"
+    "MM ",
+    "MW ",
+    " WB"
   ],
   "key": {
     "M": {
       "item": "minecraft:flint"
     },
-    "L": {
-      "item": "minecraft:leather"
-    },
-    "S": {
+    "W": {
       "item": "minecraft:stick"
+    },
+    "B": {
+      "item": "valcraft:leather_scraps"
     }
   },
   "result": {

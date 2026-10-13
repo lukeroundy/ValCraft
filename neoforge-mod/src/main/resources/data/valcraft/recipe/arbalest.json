@@ -1,19 +1,23 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_crossbow",
   "pattern": [
-    "MLM",
-    "WMW",
-    " L "
+    "MWM",
+    "SBS",
+    " W "
   ],
   "key": {
     "M": {
       "item": "valcraft:black_metal"
     },
-    "L": {
-      "item": "minecraft:leather"
-    },
     "W": {
+      "item": "valcraft:yggdrasil_wood"
+    },
+    "B": {
+      "item": "valcraft:refined_eitr"
+    },
+    "S": {
       "item": "minecraft:string"
     }
   },

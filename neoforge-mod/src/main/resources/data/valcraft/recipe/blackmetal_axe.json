@@ -1,20 +1,21 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_axe",
   "pattern": [
-    "MM",
-    "ML",
-    " S"
+    "MM ",
+    "MW ",
+    " WB"
   ],
   "key": {
     "M": {
       "item": "valcraft:black_metal"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "W": {
+      "item": "valcraft:fine_wood"
     },
-    "S": {
-      "item": "minecraft:stick"
+    "B": {
+      "item": "valcraft:linen_thread"
     }
   },
   "result": {

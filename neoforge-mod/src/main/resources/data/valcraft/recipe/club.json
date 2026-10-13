@@ -1,17 +1,18 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_club",
   "pattern": [
     "  M",
     " M ",
-    "L  "
+    "B  "
   ],
   "key": {
     "M": {
       "item": "minecraft:oak_planks"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "valcraft:leather_scraps"
     }
   },
   "result": {

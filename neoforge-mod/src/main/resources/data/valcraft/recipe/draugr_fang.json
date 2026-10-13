@@ -1,19 +1,20 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_bow",
   "pattern": [
-    " MW",
-    "L W",
-    " MW"
+    " MS",
+    "B S",
+    " MS"
   ],
   "key": {
     "M": {
       "item": "valcraft:silver_ingot"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "valcraft:leather_scraps"
     },
-    "W": {
+    "S": {
       "item": "minecraft:string"
     }
   },

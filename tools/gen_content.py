@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """0.10.0: generates ValCraft tin/bronze resources (original procedural pixel art, models, recipes, loot, tags, lang)."""
 import json, os, random, struct, zlib
+import pixelart
 R = os.path.join(os.path.dirname(__file__), '..', 'neoforge-mod', 'src', 'main', 'resources')
 A = os.path.join(R, 'assets', 'valcraft'); D = os.path.join(R, 'data')
 
@@ -72,8 +73,9 @@ items = {}
 for metal in ('tin', 'bronze'):
     for tool in ('sword', 'pickaxe', 'axe', 'shovel', 'hoe', 'helmet', 'chestplate', 'leggings', 'boots'):
         n = f'{metal}_{tool}'; png(f'{A}/textures/item/{n}.png', 16, 16, from_mask(M[tool], metal)); items[n] = 'handheld' if tool in ('sword', 'pickaxe', 'axe', 'shovel', 'hoe') else 'generated'
-    png(f'{A}/textures/models/armor/{metal}_layer_1.png', 64, 32, armor_layer(metal))
-    png(f'{A}/textures/models/armor/{metal}_layer_2.png', 64, 32, armor_layer(metal))
+    l1, l2 = pixelart.armor_layers(metal)  # 0.15.1: Norse-styled worn armour
+    png(f'{A}/textures/models/armor/{metal}_layer_1.png', 64, 32, l1); png(f'{A}/textures/models/armor/{metal}_layer_2.png', 64, 32, l2)
+    for slot in ('helmet', 'chestplate', 'leggings', 'boots'): png(f'{A}/textures/item/{metal}_{slot}.png', 16, 16, pixelart.icon(f'{metal}_{slot}', slot, PAL[metal][2], {}))
 for n, mask, metal in (('tin_ingot', 'ingot', 'tin'), ('tin_nugget', 'nugget', 'tin'), ('raw_tin', 'raw', 'tin'), ('bronze_ingot', 'ingot', 'bronze')):
     png(f'{A}/textures/item/{n}.png', 16, 16, from_mask(M[mask], metal)); items[n] = 'generated'
 # placeholder: parchment with a rune
@@ -133,5 +135,6 @@ import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gen_valheim
 _cov, _nmap, _napp = gen_valheim.run(png, wj, A, D, R, lang, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'protocol', 'ItemMap.cs'))
 print(f'valheim items: {len(_cov)} generated, item map {_nmap} entries, {_napp} migrations')
+print('recipe advancements:', gen_valheim.advancements(D, wj))
 wj(f'{A}/lang/en_us.json', lang)
 print('generated')

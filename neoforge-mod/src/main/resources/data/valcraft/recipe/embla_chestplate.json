@@ -1,17 +1,18 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_chestplate",
   "pattern": [
-    "MLM",
+    "MBM",
     "MMM",
     "MMM"
   ],
   "key": {
     "M": {
-      "item": "valcraft:refined_eitr"
+      "item": "valcraft:linen_thread"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "valcraft:morgen_sinew"
     }
   },
   "result": {

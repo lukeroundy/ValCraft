@@ -1,17 +1,18 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_leggings",
   "pattern": [
     "MMM",
-    "MLM",
+    "MBM",
     "M M"
   ],
   "key": {
     "M": {
       "item": "valcraft:leather_scraps"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "minecraft:string"
     }
   },
   "result": {

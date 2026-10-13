@@ -1,16 +1,20 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_knife",
   "pattern": [
-    "M",
-    "L"
+    " M",
+    "WB"
   ],
   "key": {
     "M": {
       "item": "valcraft:black_metal"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "W": {
+      "item": "valcraft:fine_wood"
+    },
+    "B": {
+      "item": "valcraft:linen_thread"
     }
   },
   "result": {

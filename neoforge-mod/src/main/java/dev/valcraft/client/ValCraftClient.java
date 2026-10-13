@@ -94,6 +94,7 @@ public final class ValCraftClient {
 		if (mc.player != null) Ops.run(mc, dev.valcraft.net.ServerOps.OP_TELEPORT, le(12).putFloat(x).putFloat(y).putFloat(z).array()); // 0.13.0: server-side (no "moved too quickly" for tunnel clients)
 	}
 
+	public static boolean linked() { return link != null && acked; }
 	public static boolean sendToValheim(short type, byte[] payload) { ValCraftLink l = link; return l != null && acked && l.trySend(type, payload); }
 
 	public static boolean inputActive() { return active() && (link.peerFlags() & ValCraftLink.VFLAG_INPUT_ACTIVE) != 0; }

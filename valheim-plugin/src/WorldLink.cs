@@ -342,7 +342,7 @@ namespace ValCraft
                 }
                 foreach (var cd in go.GetComponentsInChildren<Component>(true)) if (cd != null && cd.GetType().Name == "CharacterDrop") UnityEngine.Object.Destroy(cd);
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
-                ProxyAudio.Silence(go); // 0.15.0: no Valheim sounds from MC-mob stand-ins
+                if (ProxyAudio.SwapFor(m.Name)) ProxyAudio.Silence(go); // 0.15.0: no Valheim sounds from MC-mob stand-ins (0.15.1: per family)
                 // 0.9.2: not kinematic (Character code sets velocity every FixedUpdate -> 20k Unity warnings); frozen dynamic body, moved by position
                 var rb = go.GetComponent<Rigidbody>(); if (rb != null) { rb.isKinematic = false; rb.useGravity = false; rb.constraints = RigidbodyConstraints.FreezeAll; rb.interpolation = RigidbodyInterpolation.None; }
                 var cap = go.GetComponent<CapsuleCollider>();

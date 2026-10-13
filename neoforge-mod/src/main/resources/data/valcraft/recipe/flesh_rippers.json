@@ -1,16 +1,17 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_fist",
   "pattern": [
     "M M",
-    "LML"
+    "BMB"
   ],
   "key": {
     "M": {
       "item": "valcraft:wolf_pelt"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "valcraft:silver_ingot"
     }
   },
   "result": {

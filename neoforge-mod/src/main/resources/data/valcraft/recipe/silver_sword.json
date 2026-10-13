@@ -1,17 +1,21 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_sword",
   "pattern": [
     " M ",
     " M ",
-    " L "
+    "BWB"
   ],
   "key": {
     "M": {
       "item": "valcraft:silver_ingot"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "W": {
+      "item": "minecraft:stick"
+    },
+    "B": {
+      "item": "valcraft:leather_scraps"
     }
   },
   "result": {

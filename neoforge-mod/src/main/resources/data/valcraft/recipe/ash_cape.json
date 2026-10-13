@@ -1,8 +1,9 @@
 {
   "type": "minecraft:crafting_shaped",
-  "category": "equipment",
+  "category": "misc",
+  "group": "valcraft_cape",
   "pattern": [
-    "MLM",
+    "MBM",
     "MMM",
     "M M"
   ],
@@ -10,8 +11,8 @@
     "M": {
       "item": "valcraft:ashwood"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "valcraft:asksvin_hide"
     }
   },
   "result": {

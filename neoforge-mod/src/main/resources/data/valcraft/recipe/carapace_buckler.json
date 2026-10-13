@@ -1,8 +1,9 @@
 {
   "type": "minecraft:crafting_shaped",
   "category": "equipment",
+  "group": "valcraft_shield",
   "pattern": [
-    "MLM",
+    "MBM",
     "MMM",
     " M "
   ],
@@ -10,8 +11,8 @@
     "M": {
       "item": "valcraft:carapace"
     },
-    "L": {
-      "item": "minecraft:leather"
+    "B": {
+      "item": "valcraft:refined_eitr"
     }
   },
   "result": {

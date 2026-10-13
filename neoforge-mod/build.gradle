@@ -15,7 +15,8 @@ neoForge {
         client {
             client()
             // Hide the window as soon as MC owns it (also set this in the Prism instance's JVM arguments)
-            systemProperty 'valcraft.startHidden', 'true'
+            systemProperty 'valcraft.startHidden', System.getenv('VC_STARTHIDDEN') ?: 'true'
+            systemProperty 'valcraft.selftest', System.getenv('VC_SELFTEST') ?: 'false'
             systemProperty 'valcraft.debugMove', System.getenv('VC_DEBUGMOVE') ?: 'false'
             if (project.hasProperty('quickPlay')) programArguments.addAll('--quickPlaySingleplayer', project.property('quickPlay').toString())
         }

@@ -1,0 +1,54 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_freeze_gland": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:freeze_gland"
+          }
+        ]
+      }
+    },
+    "has_ashwood": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:ashwood"
+          }
+        ]
+      }
+    },
+    "has_asksvin_hide": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "valcraft:asksvin_hide"
+          }
+        ]
+      }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "valcraft:dundr"
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_freeze_gland",
+      "has_ashwood",
+      "has_asksvin_hide",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "valcraft:dundr"
+    ]
+  }
+}

@@ -131,6 +131,7 @@ namespace ValCraft
             DayLink.Enabled = Config.Bind("Time", "SyncDayNight", true, "Valheim's time of day drives Minecraft (MC daylight cycle paused while linked).").Value;
             Hazards.Fire = Config.Bind("Hazards", "Fire", true, "Valheim fire (campfires, burning areas, fire AoE, lava) damages and ignites the Minecraft player.").Value;
             Hazards.Water = Config.Bind("Hazards", "Water", true, "Valheim water and tar act as water for the Minecraft player (swimming, air, drowning; tar slows).").Value;
+            foreach (var fam in ProxyAudio.Families) ProxyAudio.Swap[fam] = Config.Bind("MobAudio", "Swap_" + fam, true, $"Minecraft {fam} mobs: true = their Valheim stand-ins are silent and you hear the Minecraft sounds; false = Valheim sounds, Minecraft muted for this family (set from the ValCraft Launcher settings).").Value;
             MobBridge.Enabled = Config.Bind("Mobs", "CrossGameCombat", true, "Minecraft hostiles and Valheim monsters see and fight each other (invisible proxies on both sides).").Value;
             MobBridge.MaxProxies = Config.Bind("Mobs", "MaxProxies", 24, "Max proxies per side.").Value;
             MobBridge.ProxyPrefab = Config.Bind("Mobs", "ProxyPrefab", "Greyling", "Valheim creature prefab used (invisible, AI off) as the stand-in for Minecraft mobs.").Value;
@@ -296,6 +297,7 @@ namespace ValCraft
                         else if (ev.Type == ValCraftLink.EvBuildMenu) ItemBridge.BuildMenu();
                         else if (ev.Type == ValCraftLink.EvBuildSelect) ItemBridge.BuildSelect(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvMobList) MobBridge.Receive(ev.Payload);
+                        else if (ev.Type == ValCraftLink.EvCape) CapeLink.Receive(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvVMobHurt) MobBridge.VMobHurt(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvLevelGround) TerrainEdit.LevelGround();
                         else if (ev.Type == ValCraftLink.EvMapToggle) MapToggle.Toggle();
@@ -368,6 +370,7 @@ namespace ValCraft
             Part("Hazards");
             try { if (_connected) MobBridge.Update(Link); else MobBridge.Clear("disconnected"); } catch (Exception e) { Diag.Warn("mobs", "[mobs] update error: " + e.GetBaseException().Message); }
             Part("MobBridge");
+            try { CapeLink.Update(); } catch { }
             try { HealthLink.Update(Link); } catch (Exception e) { Diag.Warn("health", "[health] update error: " + e.GetBaseException().Message); }
             Part("HealthLink");
             try { if (_connected) SleepLink.Update(Link); else SleepLink.Reset(); } catch (Exception e) { Diag.Warn("sleep", "[sleep] update error: " + e.GetBaseException().Message); }

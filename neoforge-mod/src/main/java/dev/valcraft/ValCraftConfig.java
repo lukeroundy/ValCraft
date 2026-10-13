@@ -29,6 +29,9 @@ public final class ValCraftConfig {
 		try { return Double.parseDouble(p().getProperty("emeraldChance", "0.005").trim()); } catch (NumberFormatException e) { return 0.005; }
 	}
 
+	/** 0.15.1: launcher settings page: swapSounds.<family> (default true = Minecraft sound on, Valheim stand-in muted). */
+	public static boolean swapSounds(String family) { return !"false".equalsIgnoreCase(p().getProperty("swapSounds." + family, "true").trim()); }
+
 	public static double dragonChancePerMinute() {
 		try { return Double.parseDouble(p().getProperty("dragonChancePerMinute", "0.002").trim()); } catch (NumberFormatException e) { return 0.002; }
 	}

@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "valcraft:deer_hide_cape",
+    "valcraft:troll_hide_cape",
+    "valcraft:wolf_fur_cape",
+    "valcraft:lox_cape",
+    "valcraft:linen_cape",
+    "valcraft:feather_cape",
+    "valcraft:asksvin_cloak",
+    "valcraft:ash_cape",
+    "valcraft:cape_of_odin"
+  ]
+}

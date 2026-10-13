@@ -92,6 +92,7 @@ public final class GenItems {
 		ValCraft.LOG.info("[content] {} Valheim items, {} armor sets", ALL.size(), SETS.size());
 	}
 	static final Map<String, Integer> durMul = new HashMap<>();
+	public static java.util.List<String> SETS_NAMES() { var l = new java.util.ArrayList<>(SETS.keySet()); l.add("tin"); l.add("bronze"); return l; }
 
 	static String tab(String kind, boolean food) {
 		if (food) return "food";
@@ -110,7 +111,7 @@ public final class GenItems {
 				var t = switch (kind) { case "chestplate" -> ArmorItem.Type.CHESTPLATE; case "leggings" -> ArmorItem.Type.LEGGINGS; case "boots" -> ArmorItem.Type.BOOTS; default -> ArmorItem.Type.HELMET; };
 				return new ArmorItem(SETS.get(set), t, p.durability(t.getDurability(durMul.getOrDefault(set, 10))));
 			}
-			case "cape" -> { return new Item(p.stacksTo(1)); }
+			case "cape" -> { return new Capes.CapeItem(p.stacksTo(1)); } // 0.15.1: wearable, stats
 			case "axe" -> { return new AxeItem(TIERS[tier], p.attributes(melee(tier, kind))); }
 			case "pickaxe" -> { return new PickaxeItem(TIERS[tier], p.attributes(melee(tier, kind))); }
 			case "hoe" -> { return new HoeItem(TIERS[tier], p.attributes(melee(tier, kind))); }

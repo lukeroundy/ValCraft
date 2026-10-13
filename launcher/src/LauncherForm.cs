@@ -24,6 +24,9 @@ namespace ValCraft.Launcher
             var f = new LauncherForm(offline: args.Contains("--offline"));
             int i = Array.IndexOf(args, "--screenshot");
             if (i >= 0 && i + 1 < args.Length) f.ScreenshotPath = args[i + 1];
+            int a = Array.IndexOf(args, "--api"); if (a >= 0 && a + 1 < args.Length) LauncherInfo.ApiOverride = args[a + 1];
+            int st = Array.IndexOf(args, "--steam-api"); if (st >= 0 && st + 1 < args.Length) LauncherForm.SteamInfoOverride = args[st + 1];
+            if (args.Contains("--settings")) f.OpenSettingsOnShow = true;
             Application.Run(f);
         }
     }
@@ -41,7 +44,8 @@ namespace ValCraft.Launcher
 
         // ---- layout ----
         static readonly Rectangle RClose = new Rectangle(784, 8, 28, 28), RMin = new Rectangle(752, 8, 28, 28), RCard = new Rectangle(32, 172, 330, 150),
-            RPrev = new Rectangle(36, 226, 26, 40), RNext = new Rectangle(332, 226, 26, 40), RLaunch = new Rectangle(566, 388, 228, 54), RBar = new Rectangle(28, 422, 510, 10);
+            RPrev = new Rectangle(36, 226, 26, 40), RNext = new Rectangle(332, 226, 26, 40), RLaunch = new Rectangle(566, 388, 228, 54), RBar = new Rectangle(28, 422, 510, 10),
+            RSettings = new Rectangle(566, 344, 110, 30), RBackup = new Rectangle(684, 344, 110, 30);
         readonly List<(Rectangle r, string url)> _links = new List<(Rectangle, string)>();
 
         // ---- state ----
@@ -50,7 +54,8 @@ namespace ValCraft.Launcher
         readonly Progress _prog = new Progress { Total = 1 }; string _latest;
         readonly System.Windows.Forms.Timer _tick = new System.Windows.Forms.Timer { Interval = 1000 };
         readonly bool _forceOffline; int _autoAdvance;
-        public string ScreenshotPath;
+        public string ScreenshotPath; public bool OpenSettingsOnShow; public static string SteamInfoOverride;
+        string _banner; GameInstall _game; DateTime _nextCheck = DateTime.MaxValue;
 
         public LauncherForm(bool offline)
         {
@@ -62,13 +67,15 @@ namespace ValCraft.Launcher
             _hero = Res("hero.jpg"); _cardImgs = new[] { Res("card1.jpg"), Res("card2.jpg"), Res("card3.jpg") }; _logoIcon = null;
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             _news = CachedNews() ?? new List<NewsCard> { new NewsCard { Title = "Welcome to ValCraft", Text = "Real Minecraft inside Valheim: build with Minecraft blocks in your Valheim world." } };
-            _tick.Tick += (s, e) => { UpdateRunning(); if (++_autoAdvance % 8 == 0 && _news.Count > 1) { _card = (_card + 1) % _news.Count; Invalidate(RCard); } };
+            _tick.Tick += (s, e) => { UpdateRunning(); if (DateTime.Now > _nextCheck && !_busy && !_running) { _nextCheck = DateTime.MaxValue; _busy = true; new Thread(CheckAndUpdate) { IsBackground = true }.Start(); } if (++_autoAdvance % 8 == 0 && _news.Count > 1) { _card = (_card + 1) % _news.Count; Invalidate(RCard); } };
             _tick.Start();
             UpdateRunning();
             Shown += (s, e) =>
             {
                 if (ScreenshotPath != null) { var t = new System.Windows.Forms.Timer { Interval = 2500 }; t.Tick += (a, b) => { t.Stop(); Snap(ScreenshotPath); Close(); }; t.Start(); }
                 new Thread(CheckAndUpdate) { IsBackground = true }.Start();
+                new Thread(CheckGame) { IsBackground = true }.Start();
+                if (OpenSettingsOnShow) BeginInvoke((Action)OpenSettings);
             };
         }
 
@@ -109,6 +116,7 @@ namespace ValCraft.Launcher
                 if (rel == null) { Done("No releases published yet.", true); return; }
                 _latest = rel.Version;
                 if (st == null) { Done("ValCraft is not installed yet: run ValCraft-Installer first. (Latest: " + rel.Version + ")", true); return; }
+                if (!string.IsNullOrEmpty(st.Version) && Versions.Compare(st.Version, rel.Version) > 0) { Done($"ValCraft {st.Version} is installed (newer than the latest release {rel.Version}); not downgrading.", true); return; }
                 var sumsUrl = rel.Asset("SHA256SUMS.txt");
                 if (sumsUrl == null) { Done("Latest release has no SHA256SUMS.txt; not updating.", true); return; }
                 Dictionary<string, string> sums; using (var w = Web()) sums = Sums.Parse(w.DownloadString(sumsUrl));
@@ -139,7 +147,7 @@ namespace ValCraft.Launcher
                 {
                     SetStatus("Updating the launcher - restarting...");
                     var cmd = Path.Combine(Path.GetTempPath(), "valcraft-launcher-update.cmd");
-                    File.WriteAllText(cmd, SelfUpdate.Script(Application.ExecutablePath, relaunch, Process.GetCurrentProcess().Id));
+                    File.WriteAllText(cmd, SelfUpdate.Script(Application.ExecutablePath, relaunch, Process.GetCurrentProcess().Id, string.IsNullOrEmpty(LauncherInfo.ApiOverride) ? "" : "--api \"" + LauncherInfo.ApiOverride + "\""));
                     Process.Start(new ProcessStartInfo("cmd.exe", "/c \"" + cmd + "\"") { CreateNoWindow = true, UseShellExecute = false, WindowStyle = ProcessWindowStyle.Hidden });
                     Ui(Close); return;
                 }
@@ -155,7 +163,31 @@ namespace ValCraft.Launcher
 
         static string Short(string s) => s == null ? "" : s.Length > 80 ? s.Substring(0, 77) + "..." : s;
 
-        void Done(string status, bool canLaunch) => Ui(() => { _status = status; _busy = false; _canLaunch = canLaunch; _prog.Total = 1; _prog.Done = 1; Invalidate(); });
+        void Done(string status, bool canLaunch) => Ui(() => { _status = status; _busy = false; _canLaunch = canLaunch; _prog.Total = 1; _prog.Done = 1; _nextCheck = DateTime.Now.AddMinutes(30); Invalidate(); });
+
+        // ---------------- 0.15.1: store + Valheim build ----------------
+        static IEnumerable<string> SteamRoots()
+        {
+            string R(Microsoft.Win32.RegistryKey hive, string path, string name) { try { using (var k = hive.OpenSubKey(path)) return k?.GetValue(name) as string; } catch { return null; } }
+            yield return R(Microsoft.Win32.Registry.CurrentUser, @"Software\Valve\Steam", "SteamPath");
+            yield return R(Microsoft.Win32.Registry.LocalMachine, @"SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath");
+            yield return R(Microsoft.Win32.Registry.LocalMachine, @"SOFTWARE\Valve\Steam", "InstallPath");
+            var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86); if (!string.IsNullOrEmpty(pf)) yield return Path.Combine(pf, "Steam");
+        }
+        void CheckGame()
+        {
+            try
+            {
+                var g = Stores.Find(SteamRoots(), Stores.DefaultEpicManifests);
+                Ui(() => { _game = g; Invalidate(); });
+                if (g.Store != Store.Steam || _forceOffline) return;
+                var local = SteamBuild.LocalBuildId(g.Manifest);
+                string json; using (var w = Web()) json = w.DownloadString(SteamInfoOverride ?? LauncherInfo.SteamCmdInfo);
+                var b = SteamBuild.Banner(local, SteamBuild.PublicBuildId(json));
+                Ui(() => { _banner = b; Invalidate(); });
+            }
+            catch { }
+        }
 
         void Download(string url, string file)
         {
@@ -197,7 +229,7 @@ namespace ValCraft.Launcher
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
-            string h = RClose.Contains(e.Location) ? "close" : RMin.Contains(e.Location) ? "min" : RLaunch.Contains(e.Location) ? "launch" : RPrev.Contains(e.Location) ? "prev" : RNext.Contains(e.Location) ? "next" : null;
+            string h = RClose.Contains(e.Location) ? "close" : RMin.Contains(e.Location) ? "min" : RLaunch.Contains(e.Location) ? "launch" : RSettings.Contains(e.Location) ? "settings" : RBackup.Contains(e.Location) ? "backup" : RPrev.Contains(e.Location) ? "prev" : RNext.Contains(e.Location) ? "next" : null;
             foreach (var l in _links) if (l.r.Contains(e.Location)) h = l.url;
             if (h == null && RCard.Contains(e.Location) && _news.Count > 0 && _news[_card].Url != null) h = "card";
             Cursor = h != null && h != "close" && h != "min" ? Cursors.Hand : Cursors.Default;
@@ -221,6 +253,8 @@ namespace ValCraft.Launcher
                 case "next": if (_news.Count > 0) { _card = (_card + 1) % _news.Count; _autoAdvance = 0; Invalidate(); } break;
                 case "card": Open(_news[_card].Url); break;
                 case "launch": Launch(); break;
+                case "settings": OpenSettings(); break;
+                case "backup": DoBackup(thenLaunch: false); break;
                 default: Open(_hover); break;
             }
         }
@@ -231,13 +265,77 @@ namespace ValCraft.Launcher
         {
             if (_busy || !_canLaunch) return;
             if (_running) { _status = "Valheim is already running."; Invalidate(); return; }
+            if (_game != null && _game.Store == Store.None) { AskInstallValheim(); return; }
+            if (!Backup.Done && !_screenshotMode)
+            {
+                var r = MessageBox.Show(this, "Before ValCraft links Minecraft and Valheim for the first time, back up your worlds?\n\nThis zips your Valheim worlds (.db/.fwl) and your Minecraft saves into\n" + Backup.Dir, "ValCraft - back up worlds", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                if (r == DialogResult.Cancel) return;
+                if (r == DialogResult.Yes) { DoBackup(thenLaunch: true); return; }
+                try { Directory.CreateDirectory(LauncherInfo.DataDir); File.WriteAllText(Backup.Marker, "skipped " + DateTime.Now.ToString("s")); } catch { }
+            }
+            StartGame();
+        }
+
+        bool _screenshotMode => ScreenshotPath != null;
+        void StartGame()
+        {
+            var store = _game?.Store == Store.Epic ? "Epic Games" : "Steam";
             try
             {
-                Process.Start(new ProcessStartInfo(LauncherInfo.SteamLaunchUri) { UseShellExecute = true });
-                _status = "Starting Valheim through Steam... Minecraft starts automatically once Valheim is up.";
+                Process.Start(new ProcessStartInfo(_game?.LaunchUri ?? LauncherInfo.SteamLaunchUri) { UseShellExecute = true });
+                _status = $"Starting Valheim through {store}... Minecraft starts automatically once Valheim is up.";
             }
-            catch (Exception ex) { _status = "Could not start Steam: " + ex.Message; }
+            catch (Exception ex) { _status = $"Could not start {store}: " + ex.Message; }
             Invalidate();
+        }
+
+        void AskInstallValheim()
+        {
+            using (var d = new Form { Text = "Valheim not found", FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(420, 150), MaximizeBox = false, MinimizeBox = false, BackColor = Panel, ForeColor = Color.White })
+            {
+                d.Controls.Add(new Label { Text = "Valheim is not installed. Where do you want to get it?", Left = 16, Top = 16, Width = 390, Height = 40, ForeColor = Color.White });
+                var bs = new Button { Text = "Steam", Left = 16, Top = 70, Width = 120, Height = 32, DialogResult = DialogResult.Yes, BackColor = Gold, ForeColor = Color.Black, FlatStyle = FlatStyle.Flat };
+                var be = new Button { Text = "Epic Games", Left = 146, Top = 70, Width = 120, Height = 32, DialogResult = DialogResult.No, BackColor = Gold, ForeColor = Color.Black, FlatStyle = FlatStyle.Flat };
+                var bc = new Button { Text = "Cancel", Left = 284, Top = 70, Width = 120, Height = 32, DialogResult = DialogResult.Cancel, FlatStyle = FlatStyle.Flat };
+                d.Controls.AddRange(new Control[] { bs, be, bc }); d.CancelButton = bc;
+                var r = d.ShowDialog(this);
+                if (r == DialogResult.Yes) { Open(LauncherInfo.SteamInstallUri); _status = "Steam is installing Valheim. Launch again when it's done."; }
+                else if (r == DialogResult.No) { Open(LauncherInfo.EpicStoreUrl); _status = "Get Valheim in the Epic Games Store, then launch again."; }
+                Invalidate();
+            }
+        }
+
+        void DoBackup(bool thenLaunch)
+        {
+            if (_busy) return;
+            var st = InstallState.Load();
+            _busy = true; Invalidate();
+            new Thread(() =>
+            {
+                try
+                {
+                    var plan = Backup.Plan(Backup.ValheimWorlds, Backup.McSaves(st));
+                    SetStatus($"Backing up {plan.Count} files...");
+                    var zip = Backup.Run(plan, Backup.Dir, (i, n) => Ui(() => { _prog.Total = n; _prog.Done = i; Invalidate(new Rectangle(0, 380, 560, 120)); }));
+                    Done("Backup saved: " + zip, true);
+                    if (thenLaunch) Ui(StartGame);
+                }
+                catch (Exception e) { Done("Backup failed: " + Short(e.Message), true); }
+            }) { IsBackground = true }.Start();
+        }
+
+        void OpenSettings()
+        {
+            var st = InstallState.Load();
+            string pc = Settings.PluginCfg(st), mc = Settings.ModCfg(st);
+            if (pc == null && mc == null) { _status = "Install ValCraft first, then change its settings here."; Invalidate(); return; }
+            using (var f = new SettingsForm(Settings.Load(pc, mc)))
+                if (f.ShowDialog(this) == DialogResult.OK)
+                {
+                    try { f.Result.Save(pc, mc); _status = "Settings saved. They apply the next time Valheim and Minecraft start."; }
+                    catch (Exception e) { _status = "Could not save settings: " + Short(e.Message); }
+                    Invalidate();
+                }
         }
 
         // ---------------- painting ----------------
@@ -294,6 +392,24 @@ namespace ValCraft.Launcher
             string bt = _busy ? "UPDATING..." : _running ? "RUNNING" : "LAUNCH GAME";
             var bs = g.MeasureString(bt, _fBtn);
             using (var b = new SolidBrush(en ? Color.FromArgb(45, 30, 0) : Color.FromArgb(200, 190, 160))) g.DrawString(bt, _fBtn, b, rb.X + (rb.Width - bs.Width) / 2, rb.Y + (rb.Height - bs.Height) / 2);
+
+            // 0.15.1: settings / backup buttons
+            foreach (var (r, id, label) in new[] { (RSettings, "settings", "SETTINGS"), (RBackup, "backup", "BACKUP") })
+            {
+                bool h = _hover == id;
+                using (var b = new SolidBrush(Color.FromArgb(h ? 200 : 150, 25, 25, 30))) g.FillRectangle(b, r);
+                using (var p = new Pen(h ? Gold : Color.FromArgb(120, 242, 183, 5))) g.DrawRectangle(p, r.X, r.Y, r.Width - 1, r.Height - 1);
+                var ls = g.MeasureString(label, _fSmallB);
+                using (var b = new SolidBrush(h ? Gold : Color.FromArgb(230, 230, 230))) g.DrawString(label, _fSmallB, b, r.X + (r.Width - ls.Width) / 2, r.Y + (r.Height - ls.Height) / 2);
+            }
+            if (_banner != null)
+            {
+                var br = new Rectangle(400, 54, 400, 52);
+                using (var b = new SolidBrush(Color.FromArgb(215, 120, 70, 10))) g.FillRectangle(b, br);
+                using (var p = new Pen(Gold)) g.DrawRectangle(p, br.X, br.Y, br.Width - 1, br.Height - 1);
+                using (var tb = new SolidBrush(Color.White)) g.DrawString("\u26a0 " + _banner, _fSmall, tb, new RectangleF(br.X + 8, br.Y + 4, br.Width - 16, br.Height - 6));
+            }
+            if (_game != null && _game.Store == Store.Epic) Txt(g, "Epic Games", _fSmall, TextDim, 700, 470);
 
             // client version
             var iv = InstallState.Load()?.Version;
