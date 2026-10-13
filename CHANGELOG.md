@@ -4,6 +4,8 @@
 - New **ValCraft Launcher** (`ValCraft-Launcher.exe`): a dark, borderless launcher with a news carousel built from GitHub release notes and guide links. On open it checks the latest release, downloads the plugin DLL and mod jar with live speed and time remaining, verifies them against SHA256SUMS and installs them to the same paths the installer uses. It can update itself and starts Valheim through Steam. When offline it falls back to the cached news.
 - The installer now installs the launcher to `%LOCALAPPDATA%\Programs\ValCraft`, adds a Start Menu entry, creates a desktop shortcut (optional, on by default) and offers to open the launcher at the end. Uninstall removes the launcher and its shortcuts.
 - New docs pages: Getting Started, Commands, FAQ.
+- New blocky Norse ValCraft icon (multi-size .ico, 16 to 256 px) for the launcher, installer, window titles, shortcuts and the docs favicon.
+- Valheim stand-ins for Minecraft mobs are silent. Their AudioSources/ZSFX are disabled, audio-only entries are removed from their EffectLists, and the EffectList.Create spawns for proxy hit, death, alert, attack and footstep effects are muted. Visual effects stay and the Minecraft sounds still play.
 - `make-release.sh` builds the launcher and stages `ValCraft-Launcher.exe` with the other release files.
 
 ## 0.14.3 (Minecraft mod + installer; Valheim plugin unchanged, protocol v26)

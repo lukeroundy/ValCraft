@@ -342,7 +342,7 @@ namespace ValCraft
                 }
                 foreach (var cd in go.GetComponentsInChildren<Component>(true)) if (cd != null && cd.GetType().Name == "CharacterDrop") UnityEngine.Object.Destroy(cd);
                 foreach (var r in go.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
-                foreach (var a in go.GetComponentsInChildren<AudioSource>(true)) a.mute = true;
+                ProxyAudio.Silence(go); // 0.15.0: no Valheim sounds from MC-mob stand-ins
                 // 0.9.2: not kinematic (Character code sets velocity every FixedUpdate -> 20k Unity warnings); frozen dynamic body, moved by position
                 var rb = go.GetComponent<Rigidbody>(); if (rb != null) { rb.isKinematic = false; rb.useGravity = false; rb.constraints = RigidbodyConstraints.FreezeAll; rb.interpolation = RigidbodyInterpolation.None; }
                 var cap = go.GetComponent<CapsuleCollider>();
@@ -362,7 +362,7 @@ namespace ValCraft
         {
             if (!_proxies.TryGetValue(id, out var px)) return;
             _proxies.Remove(id); if (px.Ch != null) _proxyToMc.Remove(px.Ch);
-            try { if (px.Go != null) _sceneDestroy.Invoke(Zns(), new object[] { px.Go }); } catch { }
+            try { ProxyAudio.Forget(px.Go); if (px.Go != null) _sceneDestroy.Invoke(Zns(), new object[] { px.Go }); } catch { }
         }
 
         internal static void Clear(string why)

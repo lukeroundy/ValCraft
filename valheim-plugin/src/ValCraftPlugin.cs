@@ -68,6 +68,7 @@ namespace ValCraft
             ItemBridge.Apply(_harmony);
             HealthLink.Apply(_harmony);
             try { RavenBridge.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[raven] hook failed: " + e.Message); }
+            try { ProxyAudio.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[mobaudio] hook failed: " + e.Message); }
             try { SleepLink.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[sleep] hook failed: " + e.Message); }
             try { FireLink.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[fire] hook failed: " + e.Message); }
             // 0.12.1: HudWanted was never assigned, so HideValheimHud hid the HUD every frame (build menu, large map)

@@ -36,6 +36,7 @@ namespace ValCraft.Installer
         public Wizard()
         {
             Text = $"ValCraft {Versions.ValCraft} Installer";
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             ClientSize = new Size(760, 626); FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; Font = new Font("Segoe UI", 9f);
             int y = 10;
             Add(new Label { Text = $"ValCraft {Versions.ValCraft}: Valheim plugin + Minecraft {Versions.Minecraft} / NeoForge {Versions.NeoForge} mod", Left = 12, Top = y, Width = 730, Font = new Font("Segoe UI", 11f, FontStyle.Bold) }); y += 32;

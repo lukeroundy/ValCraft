@@ -55,6 +55,7 @@ namespace ValCraft.Launcher
         public LauncherForm(bool offline)
         {
             _forceOffline = offline;
+            try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             Text = "ValCraft Launcher"; FormBorderStyle = FormBorderStyle.None; StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new Size(820, 500); DoubleBuffered = true; BackColor = Panel;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
