@@ -9,7 +9,7 @@ namespace ValCraft.Installer
 {
     public static class Versions
     {
-        public const string ValCraft = "0.14.1";
+        public const string ValCraft = "0.14.2";
         public const string Minecraft = "1.21.1";
         /// <summary>NeoForge build the mod is compiled against (user confirmed 21.1.259; 21.1.251+ also loads).</summary>
         public const string NeoForge = "21.1.259";
