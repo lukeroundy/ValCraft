@@ -80,10 +80,11 @@ namespace ValCraft
                 var inst = Inst();
                 if (inst == null || _set == null || _mode == null) { ValCraftPlugin.Log.LogInfo("[map] Minimap not available"); return; }
                 bool open = Open();
-                if (!open) PlayerSync.SetHud(true); // before opening: the map UI is under the hidden HUD
-                _set.Invoke(inst, new[] { Enum.ToObject(_mode, open ? 1 : 2) });
-                _openedAt = open ? -1f : Time.unscaledTime; _checked = false;
-                ValCraftPlugin.Log.LogInfo(open ? "[map] closed from MC" : "[map] large map opened from MC (Valheim has input; M / Esc closes)");
+                if (open) { Close("M in Minecraft"); return; }
+                PlayerSync.SetHud(true); // before opening: the map UI is under the hidden HUD
+                _set.Invoke(inst, new[] { Enum.ToObject(_mode, 2) });
+                _openedAt = Time.unscaledTime; _checked = false;
+                ValCraftPlugin.Log.LogInfo("[map] large map opened from MC (Valheim has input; M / Esc closes)");
             }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning("[map] toggle failed: " + e.GetBaseException().Message); }
         }
@@ -91,26 +92,44 @@ namespace ValCraft
         {
             try { Init(); return _isOpen != null && (bool)_isOpen.Invoke(null, null); } catch { return false; }
         }
-        /// <summary>Every frame: keep the map's UI chain visible; never leave input on an invisible map.</summary>
+        /// <summary>Every frame: keep the map's UI chain visible while it opens; close it on M / Esc (0.12.2: Valheim's own
+        /// Map key is swallowed by ValCraft's input handling, and re-activating the root every frame fought Valheim's close).
+        /// Closing restores HUD hiding (HudWanted) and auto-input gives control back to Minecraft.</summary>
         internal static void Update()
         {
-            if (_openedAt < 0) return;
-            if (!Open()) { _openedAt = -1f; return; }
+            bool open = Open();
+            if (!open) { if (_openedAt >= 0) ValCraftPlugin.Log.LogInfo("[map] large map closed; input back to Minecraft"); _openedAt = -1f; return; }
+            float now = Time.unscaledTime;
+            if (_openedAt < 0) { _openedAt = now; _checked = true; } // opened by Valheim itself: still closable with M / Esc
             try
             {
                 var root = _large?.GetValue(Inst()) as GameObject;
-                if (root != null && !root.activeInHierarchy)
-                    for (var t = root.transform; t != null; t = t.parent)
-                        if (!t.gameObject.activeSelf) { ValCraftPlugin.Log.LogInfo($"[map] activating hidden map ancestor '{t.name}'"); t.gameObject.SetActive(true); }
-                if (!_checked && Time.unscaledTime - _openedAt > 1.5f)
+                if (!_checked)
                 {
-                    _checked = true;
-                    bool vis = root != null && root.activeInHierarchy;
-                    ValCraftPlugin.Log.LogInfo($"[map] large map visible={vis} (root {(root != null ? root.name : "null")})");
-                    if (!vis) { _set.Invoke(Inst(), new[] { Enum.ToObject(_mode, 1) }); _openedAt = -1f; ValCraftPlugin.Log.LogWarning("[map] large map not visible: closed again, input back to Minecraft"); }
+                    if (root != null && !root.activeInHierarchy)
+                        for (var t = root.transform; t != null; t = t.parent)
+                            if (!t.gameObject.activeSelf) { ValCraftPlugin.Log.LogInfo($"[map] activating hidden map ancestor '{t.name}'"); t.gameObject.SetActive(true); }
+                    if (now - _openedAt > 1.5f)
+                    {
+                        _checked = true;
+                        bool vis = root != null && root.activeInHierarchy;
+                        ValCraftPlugin.Log.LogInfo($"[map] large map visible={vis} (root {(root != null ? root.name : "null")})");
+                        if (!vis) { Close("not visible"); return; }
+                    }
                 }
+                if (now - _openedAt < 0.3f) return; // the M press that opened it
+                var kb = BepInEx.UnityInput.Current;
+                if (kb.GetKeyDown(KeyCode.M)) Close("M");
+                else if (kb.GetKeyDown(KeyCode.Escape)) Close("Esc");
+                else if (_checked && root != null && !root.activeInHierarchy && now - _openedAt > 2f) Close("map hidden by Valheim");
             }
             catch (Exception e) { Diag.Warn("map", "[map] " + e.GetBaseException().Message); }
+        }
+        internal static void Close(string why)
+        {
+            try { Init(); if (Open()) _set.Invoke(Inst(), new[] { Enum.ToObject(_mode, 1) }); } catch (Exception e) { ValCraftPlugin.Log.LogWarning("[map] close failed: " + e.GetBaseException().Message); }
+            _openedAt = -1f;
+            ValCraftPlugin.Log.LogInfo($"[map] large map closed ({why}); input back to Minecraft");
         }
     }
 
