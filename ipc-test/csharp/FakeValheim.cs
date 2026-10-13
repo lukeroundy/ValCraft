@@ -116,7 +116,7 @@ static unsafe class FakeValheim
                         link.TrySend(ValCraftLink.EvMouseButton, Payload.I32(b, 1, 0));
                         link.TrySend(ValCraftLink.EvMouseButton, Payload.I32(b, 0, 0)); break;
                     case "key": link.TrySend(ValCraftLink.EvKey, Payload.I32((int)F(0), 0, 1, 0)); link.TrySend(ValCraftLink.EvKey, Payload.I32((int)F(0), 0, 0, 0)); break;
-                    case "hold": link.TrySend(ValCraftLink.EvKey, Payload.I32((int)F(0), 0, 1, 0)); pending.Enqueue("release " + a[0]); waitUntil = sw.ElapsedMilliseconds + (long)F(1); continue;
+                    case "hold": link.TrySend(ValCraftLink.EvKey, Payload.I32((int)F(0), 0, 1, 0)); { var rest = pending.ToArray(); pending.Clear(); pending.Enqueue("release " + a[0]); foreach (var r in rest) pending.Enqueue(r); } waitUntil = sw.ElapsedMilliseconds + (long)F(1); continue;
                     case "release": link.TrySend(ValCraftLink.EvKey, Payload.I32((int)F(0), 0, 0, 0)); break;
                     case "type": foreach (char ch2 in c[1]) link.TrySend(ValCraftLink.EvChar, Payload.I32(ch2, 0)); break;
                     case "move": link.TrySend(ValCraftLink.EvMouseMove, Payload.F32(F(0), F(1), 0.5f, 0.5f)); break;
