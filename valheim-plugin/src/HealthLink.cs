@@ -167,6 +167,7 @@ namespace ValCraft
 
         static System.Reflection.MethodInfo _getAttacker;
         internal static bool McDead => _mcDead;
+        internal static bool KillFailed => _killFailed;
         internal static void Reset() { _hp = -1; _mcDead = false; _killedForMc = false; }
 
         internal static void Update(ValCraftLink link)

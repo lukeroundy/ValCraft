@@ -191,7 +191,17 @@ namespace ValCraft
         static bool _alignPending; static Component _deadPlayer;
         internal static bool AlignPending => _alignPending;
         /// <summary>HealthLink: the Valheim player is being killed for an MC death; align the respawn instead of re-anchoring.</summary>
-        internal static void ExpectRespawn() { if (_anchored) { _alignPending = true; _deadPlayer = _player; } }
+        internal static void ExpectRespawn() { if (_anchored) { _alignPending = true; _deadPlayer = _player; _alignSince = Time.unscaledTime; } }
+        static float _alignSince;
+        /// <summary>/valcraft offset: move the horizontal mapping (MC builds move in Valheim; MC blocks are not touched), MC player follows.</summary>
+        internal static void SetOffset(float x, float z, bool relative)
+        {
+            var uid = WorldInfo.Uid(); if (!uid.HasValue) return;
+            var cur = AnchorStore.Get(uid.Value); var nv = relative ? new Vector2(cur.x + x, cur.y + z) : new Vector2(x, z);
+            AnchorStore.Set(uid.Value, nv);
+            ValCraftPlugin.Log.LogInfo($"[sync] mapping offset for world {uid} set to ({nv.x:F2}, {nv.y:F2}) (was {cur.x:F2}, {cur.y:F2}); re-anchoring");
+            ReAnchor();
+        }
         public static void ReAnchor() { _anchored = false; _haveY = false; ValCraftPlugin.Log.LogInfo("[sync] re-anchoring at the current Valheim position"); }
 
         static void Start(Component player)
@@ -235,13 +245,17 @@ namespace ValCraft
                 _anchor = new Vector3(p.x - fx, p.y - fy, p.z - fz);
                 bool mp = NetTunnel.Multiplayer;
                 if (mp) { _anchor.x = 0; _anchor.z = 0; } // 0.13.0: everyone in one MC world -> one shared mapping (MC x = Valheim x, MC z = -Valheim z)
-                if (FixedAnchorY.HasValue || mp)
+                // 0.13.5: the horizontal mapping is persisted per Valheim world and authoritative (it used to be recomputed from the two
+                // saved player positions at every link, so any divergence between them shifted every MC build in Valheim).
+                bool stored = false; var uid = WorldInfo.Uid();
+                if (!mp && uid.HasValue) { var off = AnchorStore.Get(uid.Value); _anchor.x = off.x; _anchor.z = off.y; stored = true; }
+                if (FixedAnchorY.HasValue || mp || stored)
                 {
                     // Terrain blocks: MC Y = Valheim Y - anchor.y must be a fixed mapping so the whole Valheim height range
                     // fits MC's -64..320; move the MC player to the matching height instead of shifting the anchor.
                     if (FixedAnchorY.HasValue) _anchor.y = FixedAnchorY.Value;
                     _teleportY = p.y - _anchor.y;
-                    _teleportX = mp ? p.x : (float)s.FeetX; _teleportZ = mp ? -p.z : (float)s.FeetZ;
+                    _teleportX = p.x - _anchor.x; _teleportZ = -(p.z - _anchor.z);
                     _teleportUntil = Time.unscaledTime + 8f;
                     _holdPos = p;
                 }
@@ -252,7 +266,10 @@ namespace ValCraft
             if (_alignPending)
             {
                 var p = _player.transform.position;
-                if (ReferenceEquals(_player, _deadPlayer) || HealthLink.McDead) { _targetPos = p; _targetRot = _player.transform.rotation; return; } // wait for both respawns
+                bool same = ReferenceEquals(_player, _deadPlayer);
+                if (HealthLink.McDead || (same && !HealthLink.KillFailed && Time.unscaledTime - _alignSince < 30f)) { _targetPos = p; _targetRot = _player.transform.rotation; return; } // wait for both respawns
+                // 0.13.4 log: the Valheim kill failed, so the same player was held at the death spot forever while MC walked on -> the two
+                // saved positions diverged. Now: Valheim never died -> just align MC to it.
                 _alignPending = false; _deadPlayer = null;
                 _teleportX = p.x - _anchor.x; _teleportY = p.y - _anchor.y; _teleportZ = -(p.z - _anchor.z);
                 _teleportUntil = Time.unscaledTime + 10f; _holdPos = p; _lastGroundFeetY = _teleportY; _haveY = false; _nextTeleportSend = 0;

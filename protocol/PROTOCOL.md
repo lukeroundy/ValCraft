@@ -323,3 +323,7 @@ On a death the anchor is kept: the MC player is teleported to where Valheim resp
 ## v23 (0.13.4) — respawn order
 | 73 EvRespawnReady | V→MC | u8 (0 Valheim still respawning: keep MC's respawn button disabled, "Waiting for Valheim..."; 1 Valheim's new player is alive, not teleporting/intro → MC respawns itself). Every 0.5 s while MC is dead after a linked kill. No 0 seen → no gate; 60 s timeout re-enables the button. |
 Valheim kill: m_lastHit is given a HitData before Player.OnDeath (0.13.3 log: OnDeath NullReferenceException, no tombstone/respawn); fallback lethal ApplyDamage; if both fail MC is released at once. After MC respawns Valheim moves it to the Valheim respawn point (anchor kept, 0.13.2).
+
+## v24 (0.13.5) — persistent mapping
+| 74 EvOffset | MC→V | u8 relative (0 set, 1 nudge), f32 x, f32 z: change this Valheim world's stored horizontal mapping offset (MC `/valcraft offset x z`, `/valcraft nudge dx dz`). |
+Single player: the horizontal anchor is no longer recomputed from the two saved player positions at link time. It is stored per Valheim world uid in BepInEx/config/valcraft-anchors.txt (default (0,0) = the 0.13.0 mapping MC x = Valheim x, MC z = −Valheim z, same as multiplayer); on link the MC player is teleported to its Valheim position. Death alignment no longer holds the Valheim player forever when the Valheim kill failed.

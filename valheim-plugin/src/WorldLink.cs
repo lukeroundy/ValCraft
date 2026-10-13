@@ -220,6 +220,16 @@ namespace ValCraft
     internal static class WorldInfo
     {
         static float _next; static FieldInfo _world, _uid, _name; static bool _loggedWait; static long _sentUid = long.MinValue;
+        /// <summary>Current Valheim world uid (null if no world loaded).</summary>
+        internal static long? Uid()
+        {
+            try
+            {
+                if (_world == null) { _world = AccessTools.Field(Refl.T("ZNet"), "m_world"); var wt = Refl.T("World"); _uid = AccessTools.Field(wt, "m_uid"); _name = AccessTools.Field(wt, "m_name"); }
+                var w = _world?.GetValue(null); return w == null ? (long?)null : (long)_uid.GetValue(w);
+            }
+            catch { return null; }
+        }
         internal static void Update(ValCraftLink link)
         {
             if (link == null || Time.unscaledTime < _next) return;
