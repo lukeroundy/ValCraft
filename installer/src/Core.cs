@@ -9,7 +9,7 @@ namespace ValCraft.Installer
 {
     public static class Versions
     {
-        public const string ValCraft = "0.14.3";
+        public const string ValCraft = "0.15.0";
         public const string Minecraft = "1.21.1";
         /// <summary>NeoForge build the mod is compiled against (user confirmed 21.1.259; 21.1.251+ also loads).</summary>
         public const string NeoForge = "21.1.259";
@@ -284,6 +284,53 @@ namespace ValCraft.Installer
             var urls = Regex.Matches(releaseJson, "\"browser_download_url\"\\s*:\\s*\"([^\"]+)\"").Cast<Match>().Select(m => m.Groups[1].Value).ToList();
             return urls.FirstOrDefault(u => Regex.IsMatch(u, "Windows-MSVC-Portable-[\\d.]+\\.zip$"))
                 ?? urls.FirstOrDefault(u => Regex.IsMatch(u, "Windows-MinGW-w64-Portable-[\\d.]+\\.zip$"));
+        }
+    }
+
+    /// <summary>0.15.0: the ValCraft Launcher, per-user (no admin): %LOCALAPPDATA%\Programs\ValCraft\ValCraft-Launcher.exe,
+    /// Start Menu entry always, desktop shortcut optional.</summary>
+    public static class LauncherInstall
+    {
+        public const string ExeName = "ValCraft-Launcher.exe";
+        public static string Dir(string localAppData = null) => Path.Combine(localAppData ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "ValCraft");
+        public static string Exe(string localAppData = null) => Path.Combine(Dir(localAppData), ExeName);
+        public static string StartMenuLink(string programsDir = null) => Path.Combine(programsDir ?? Environment.GetFolderPath(Environment.SpecialFolder.Programs), "ValCraft Launcher.lnk");
+        public static string DesktopLink(string desktopDir = null) => Path.Combine(desktopDir ?? Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "ValCraft Launcher.lnk");
+
+        /// <summary>Write the launcher exe (old one kept as .bak while replacing). Returns the exe path.</summary>
+        public static string Install(byte[] exe, Action<string> log, string localAppData = null)
+        {
+            var dst = Exe(localAppData);
+            Directory.CreateDirectory(Path.GetDirectoryName(dst));
+            if (File.Exists(dst)) File.Copy(dst, dst + ".bak", true);
+            File.WriteAllBytes(dst, exe);
+            if (File.Exists(dst + ".bak")) File.Delete(dst + ".bak");
+            log?.Invoke("launcher installed: " + dst);
+            return dst;
+        }
+
+        public static void Uninstall(Action<string> log, string localAppData = null, string programsDir = null, string desktopDir = null)
+        {
+            foreach (var l in new[] { StartMenuLink(programsDir), DesktopLink(desktopDir) }) if (File.Exists(l)) { File.Delete(l); log?.Invoke("removed " + l); }
+            var d = Dir(localAppData);
+            if (File.Exists(Path.Combine(d, ExeName))) { File.Delete(Path.Combine(d, ExeName)); log?.Invoke("removed " + Path.Combine(d, ExeName)); }
+            try { if (Directory.Exists(d) && !Directory.EnumerateFileSystemEntries(d).Any()) Directory.Delete(d); } catch { }
+        }
+
+        /// <summary>Create a .lnk through the Windows Script Host (COM, Windows only).</summary>
+        public static bool CreateShortcut(string lnk, string target, string description)
+        {
+            try
+            {
+                var t = Type.GetTypeFromProgID("WScript.Shell");
+                if (t == null) return false;
+                dynamic shell = Activator.CreateInstance(t);
+                dynamic sc = shell.CreateShortcut(lnk);
+                sc.TargetPath = target; sc.WorkingDirectory = Path.GetDirectoryName(target); sc.Description = description; sc.IconLocation = target + ",0";
+                sc.Save();
+                return true;
+            }
+            catch { return false; }
         }
     }
 

@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><Nullable>disable</Nullable><ImplicitUsings>disable</ImplicitUsings></PropertyGroup>
+  <ItemGroup><Compile Include="../src/LauncherCore.cs" /><Compile Include="../../installer/src/Core.cs" /><PackageReference Include="Microsoft.CSharp" Version="4.7.0" /></ItemGroup>
+</Project>

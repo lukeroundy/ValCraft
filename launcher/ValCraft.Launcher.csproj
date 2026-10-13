@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>ValCraft-Launcher</AssemblyName>
+    <RootNamespace>ValCraft.Launcher</RootNamespace>
+    <Version>0.15.0</Version>
+    <Product>ValCraft Launcher</Product>
+    <ApplicationManifest>../installer/app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Compile Include="../installer/src/Core.cs" Link="Shared/Core.cs" />
+    <EmbeddedResource Include="assets/hero.jpg" LogicalName="hero.jpg" />
+    <EmbeddedResource Include="assets/card1.jpg" LogicalName="card1.jpg" />
+    <EmbeddedResource Include="assets/card2.jpg" LogicalName="card2.jpg" />
+    <EmbeddedResource Include="assets/card3.jpg" LogicalName="card3.jpg" />
+    <Compile Remove="tests/**" />
+  </ItemGroup>
+  <ItemGroup><Reference Include="Microsoft.CSharp" /></ItemGroup>
+</Project>

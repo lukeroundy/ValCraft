@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.0
+- New **ValCraft Launcher** (`ValCraft-Launcher.exe`): a dark, borderless launcher with a news carousel built from GitHub release notes and guide links. On open it checks the latest release, downloads the plugin DLL and mod jar with live speed and time remaining, verifies them against SHA256SUMS and installs them to the same paths the installer uses. It can update itself and starts Valheim through Steam. When offline it falls back to the cached news.
+- The installer now installs the launcher to `%LOCALAPPDATA%\Programs\ValCraft`, adds a Start Menu entry, creates a desktop shortcut (optional, on by default) and offers to open the launcher at the end. Uninstall removes the launcher and its shortcuts.
+- New docs pages: Getting Started, Commands, FAQ.
+- `make-release.sh` builds the launcher and stages `ValCraft-Launcher.exe` with the other release files.
+
 ## 0.14.3 (Minecraft mod + installer; Valheim plugin unchanged, protocol v26)
 - A fresh Minecraft no longer gets stuck on the accessibility welcome screen ("Welcome to Minecraft!"). It is closed automatically, the onboarding and narrator are turned off and saved, and the automatic world load continues.
 - Minecraft music is off while linked to Valheim (`muteMusic=true` in `config/valcraft.properties`; set it to false to keep the music).

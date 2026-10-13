@@ -27,6 +27,7 @@ namespace ValCraft.Installer
     {
         readonly TextBox _valheim = new TextBox(), _prismRoot = new TextBox(), _ownExe = new TextBox(), _ownMods = new TextBox(), _instance = new TextBox(), _log = new TextBox();
         readonly RadioButton _portable = new RadioButton(), _own = new RadioButton();
+        readonly CheckBox _desktop = new CheckBox { Text = "Create a desktop shortcut for the ValCraft Launcher (Start Menu entry is always added)", Checked = true };
         readonly ComboBox _launcher = new ComboBox();
         readonly Label _status = new Label();
         readonly List<Button> _buttons = new List<Button>();
@@ -35,7 +36,7 @@ namespace ValCraft.Installer
         public Wizard()
         {
             Text = $"ValCraft {Versions.ValCraft} Installer";
-            ClientSize = new Size(760, 600); FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; Font = new Font("Segoe UI", 9f);
+            ClientSize = new Size(760, 626); FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; Font = new Font("Segoe UI", 9f);
             int y = 10;
             Add(new Label { Text = $"ValCraft {Versions.ValCraft}: Valheim plugin + Minecraft {Versions.Minecraft} / NeoForge {Versions.NeoForge} mod", Left = 12, Top = y, Width = 730, Font = new Font("Segoe UI", 11f, FontStyle.Bold) }); y += 32;
             Add(new Label { Text = "Valheim folder:", Left = 12, Top = y + 3, Width = 100 });
@@ -52,7 +53,8 @@ namespace ValCraft.Installer
             var b1 = new Button { Text = "...", Left = 640, Top = 106, Width = 40 }; b1.Click += (s, e) => PickFile(_ownExe); g.Controls.Add(b1);
             g.Controls.Add(new Label { Text = "Mods folder:", Left = 30, Top = 140, Width = 90 }); _ownMods.SetBounds(125, 137, 510, 23); g.Controls.Add(_ownMods);
             var b2 = new Button { Text = "...", Left = 640, Top = 136, Width = 40 }; b2.Click += (s, e) => PickFolder(_ownMods); g.Controls.Add(b2);
-            y += 180;
+            y += 178;
+            _desktop.SetBounds(14, y, 500, 22); Add(_desktop); y += 26;
 
             Btn("Install / Repair", 12, y, 120, () => Run(Install));
             Btn("Uninstall", 137, y, 90, () => Run(Uninstall));
@@ -211,12 +213,18 @@ namespace ValCraft.Installer
             Log("config updated: " + Plugin.ConfigFile(v) + " [" + string.Join(", ", cfg.Select(kv => kv.Key + "=" + kv.Value)) + "]");
             File.WriteAllText(Path.Combine(v, "BepInEx", "plugins", "ValCraft", "ValCraft-Minecraft-Setup.html"), Guide.Html(v));
             SaveState();
+            // 0.15.0: ValCraft Launcher (per user), Start Menu always, desktop shortcut if ticked
+            var lexe = LauncherInstall.Install(Res("launcher.exe"), Log);
+            if (LauncherInstall.CreateShortcut(LauncherInstall.StartMenuLink(), lexe, "ValCraft Launcher")) Log("Start Menu entry: " + LauncherInstall.StartMenuLink());
+            bool desk = (bool)Invoke(new Func<bool>(() => _desktop.Checked));
+            if (desk && LauncherInstall.CreateShortcut(LauncherInstall.DesktopLink(), lexe, "ValCraft Launcher")) Log("desktop shortcut: " + LauncherInstall.DesktopLink());
             Log($"ValCraft {Versions.ValCraft} installed.");
             if (portable && Prism.Accounts((string)Invoke(new Func<string>(() => _prismRoot.Text.Trim()))) == 0)
             {
                 if (Ask("Installed. Prism needs your Microsoft (Minecraft) account once.\n\nOpen Prism now to log in? (Accounts > Add Microsoft)\nIf you skip this, Valheim opens Prism for the login on first start.")) Invoke(new Action(LoginNow));
             }
-            else Tell($"ValCraft {Versions.ValCraft} installed. Start Valheim; Minecraft starts automatically{(cfg.TryGetValue("StartWithValheim", out var sw) && sw == "false" ? " - no: start Minecraft yourself after Valheim" : "")}.");
+            if (Ask($"ValCraft {Versions.ValCraft} installed.\n\nOpen the ValCraft Launcher now? (It keeps ValCraft up to date and starts Valheim through Steam.)"))
+                try { Process.Start(new ProcessStartInfo(lexe) { UseShellExecute = true }); } catch (Exception e) { Log(e.Message); }
         }
 
         void Uninstall()
@@ -235,6 +243,7 @@ namespace ValCraft.Installer
             }
             string mods = (string)Invoke(new Func<string>(() => _ownMods.Text.Trim()));
             if (mods != "" && Directory.Exists(mods) && Ask("Remove the ValCraft jar from " + mods + "?")) Mods.RemoveJar(mods, Log);
+            if (Ask("Remove the ValCraft Launcher and its shortcuts?")) LauncherInstall.Uninstall(Log);
             Log("uninstalled. BepInEx itself was left in place.");
             Tell("ValCraft removed.");
         }
