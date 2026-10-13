@@ -28,7 +28,7 @@ public final class ServerOps {
 	public static void on(short op, Handler h) { HANDLERS.put(op, h); }
 
 	// ops that are not plain Valheim event ids
-	public static final short OP_CHEST_DEPOSIT = 1001, OP_HOE_WEAR = 1002, OP_ATTACK = 1003, OP_TELEPORT = 1004, OP_DIMS = 1005, OP_VMOB_CLEAR = 1006;
+	public static final short OP_CHEST_DEPOSIT = 1001, OP_HOE_WEAR = 1002, OP_ATTACK = 1003, OP_TELEPORT = 1004, OP_DIMS = 1005, OP_VMOB_CLEAR = 1006, OP_SLEEP = 1007, OP_SPAWN = 1008;
 
 	public record Op(short op, byte[] data) implements CustomPacketPayload {
 		public static final Type<Op> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(ValCraft.MOD_ID, "op"));

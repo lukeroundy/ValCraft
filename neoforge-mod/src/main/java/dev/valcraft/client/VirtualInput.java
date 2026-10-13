@@ -33,6 +33,8 @@ public final class VirtualInput {
 				if (key < 0 || key > GLFW.GLFW_KEY_LAST) return;
 				if (action == GLFW.GLFW_RELEASE) { if (!keys.get(key)) return; keys.clear(key); } else keys.set(key);
 				mc.keyboardHandler.keyPress(win, key, scan, action, mods);
+				// 0.13.2: Left Alt while building with a Valheim piece cycles Valheim's snap point
+				if (key == GLFW.GLFW_KEY_LEFT_ALT && action == GLFW.GLFW_PRESS && BuildLink.building(mc)) ValCraftClient.sendToValheim(ValCraftLink.EV_BUILD_ACTION, new byte[] { 4 });
 			}
 			case ValCraftLink.EV_CHAR -> ((KeyboardHandlerAccessor) mc.keyboardHandler).valcraft$charTyped(win, b.getInt(0), b.getInt(4));
 			case ValCraftLink.EV_MOUSE_MOVE -> {

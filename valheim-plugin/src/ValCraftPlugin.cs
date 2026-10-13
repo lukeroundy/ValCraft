@@ -67,6 +67,8 @@ namespace ValCraft
             PlayerSync.Apply(_harmony);
             ItemBridge.Apply(_harmony);
             HealthLink.Apply(_harmony);
+            try { SleepLink.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[sleep] hook failed: " + e.Message); }
+            try { FireLink.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[fire] hook failed: " + e.Message); }
             // 0.12.1: HudWanted was never assigned, so HideValheimHud hid the HUD every frame (build menu, large map)
             Refl.Prewarm();
             PlayerSync.HudWanted = () => ItemBridge.MenuWanted() || MapToggle.Open();
@@ -284,6 +286,8 @@ namespace ValCraft
                         else if (ev.Type == ValCraftLink.EvLevelGround) TerrainEdit.LevelGround();
                         else if (ev.Type == ValCraftLink.EvMapToggle) MapToggle.Toggle();
                         else if (ev.Type == ValCraftLink.EvNetReady) NetTunnel.Ready(ev.Payload);
+                        else if (ev.Type == ValCraftLink.EvSleep) SleepLink.Receive(Link, ev.Payload);
+                        else if (ev.Type == ValCraftLink.EvMcFires) FireLink.Receive(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvReach) InteractBridge.SetReach(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvBuildAction) { if (ev.Payload != null && ev.Payload.Length > 0) ItemBridge.BuildAction(ev.Payload[0]); }
                         else if (!ItemBridge.Handle(ev)) BlockRender.Handle(ev);
@@ -351,6 +355,10 @@ namespace ValCraft
             Part("MobBridge");
             try { HealthLink.Update(Link); } catch (Exception e) { Diag.Warn("health", "[health] update error: " + e.GetBaseException().Message); }
             Part("HealthLink");
+            try { if (_connected) SleepLink.Update(Link); else SleepLink.Reset(); } catch (Exception e) { Diag.Warn("sleep", "[sleep] update error: " + e.GetBaseException().Message); }
+            Part("SleepLink");
+            try { FireLink.Update(_connected); } catch (Exception e) { Diag.Warn("fire", "[fire] update error: " + e.GetBaseException().Message); }
+            Part("FireLink");
             try { Logo.Tick(PlayerSync.HasLocalPlayer); } catch { }
             Part("Logo");
             try { MapToggle.Update(); } catch { }

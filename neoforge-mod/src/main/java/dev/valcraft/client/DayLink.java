@@ -30,6 +30,7 @@ public final class DayLink {
 			if (savedCycle == null) {
 				savedCycle = rules.getBoolean(GameRules.RULE_DAYLIGHT);
 				rules.getRule(GameRules.RULE_DAYLIGHT).set(false, server);
+				dev.valcraft.net.SleepState.valheimTime = true;
 				ValCraft.LOG.info("[time] Valheim drives the time of day; doDaylightCycle off (was {})", savedCycle);
 			}
 			if (!checkedSpawning) {
@@ -53,6 +54,7 @@ public final class DayLink {
 			server.overworld().getGameRules().getRule(GameRules.RULE_DAYLIGHT).set(savedCycle, server);
 			ValCraft.LOG.info("[time] unlinked; doDaylightCycle restored to {}", savedCycle);
 			savedCycle = null;
+			dev.valcraft.net.SleepState.valheimTime = false;
 		});
 	}
 }

@@ -77,6 +77,9 @@ static unsafe class FakeValheim
                 else if (ev.Type == ValCraftLink.EvAttack) Console.WriteLine($"[host] MC ATTACK kind {BitConverter.ToInt32(ev.Payload, 0)} tier {BitConverter.ToInt32(ev.Payload, 4)} at {sw.Elapsed.TotalSeconds:F1}s");
                 else if (ev.Type == ValCraftLink.EvNetReady) { int pt = ev.Payload[1] | (ev.Payload[2] << 8); if (pt != mcPort) Console.WriteLine($"[host] MC NET READY: host world published on 127.0.0.1:{pt} at {sw.Elapsed.TotalSeconds:F1}s"); mcPort = pt; }
                 else if (ev.Type == ValCraftLink.EvHealth) { float hp = BitConverter.ToSingle(ev.Payload, 0); if (hp != lastHp) Console.WriteLine($"[host] MC health {hp} at {sw.Elapsed.TotalSeconds:F1}s"); lastHp = hp; }
+                else if (ev.Type == ValCraftLink.EvSleep) Console.WriteLine($"[host] MC sleep {ev.Payload[0]}" + (ev.Payload.Length >= 13 ? $" bed ({BitConverter.ToSingle(ev.Payload, 1):F2},{BitConverter.ToSingle(ev.Payload, 5):F2},{BitConverter.ToSingle(ev.Payload, 9):F2})" : "") + $" at {sw.Elapsed.TotalSeconds:F1}s");
+                else if (ev.Type == ValCraftLink.EvMcFires) { int fn = BitConverter.ToUInt16(ev.Payload, 0); var fs = new System.Text.StringBuilder(); for (int fi = 0; fi < fn; fi++) fs.Append($" ({BitConverter.ToInt32(ev.Payload, 2 + fi * 12)},{BitConverter.ToInt32(ev.Payload, 6 + fi * 12)},{BitConverter.ToInt32(ev.Payload, 10 + fi * 12)})"); Console.WriteLine($"[host] MC fires {fn}:{fs} at {sw.Elapsed.TotalSeconds:F1}s"); }
+                else if (ev.Type == ValCraftLink.EvBuildAction) Console.WriteLine($"[host] MC build action {ev.Payload[0]} at {sw.Elapsed.TotalSeconds:F1}s");
                 else if (ev.Type == ValCraftLink.EvHeldItem) { string h = System.Text.Encoding.UTF8.GetString(ev.Payload, 2, ev.Payload.Length - 2) + " x" + BitConverter.ToUInt16(ev.Payload, 0); if (h != lastHeld) Console.WriteLine($"[host] MC held item {h} at {sw.Elapsed.TotalSeconds:F1}s"); lastHeld = h; }
                 else if (ev.Type == ValCraftLink.EvMapToggle) Console.WriteLine($"[host] MC MAP TOGGLE at {sw.Elapsed.TotalSeconds:F1}s");
                 else if (ev.Type == ValCraftLink.EvInteract) Console.WriteLine($"[host] MC asked Valheim to INTERACT at {sw.Elapsed.TotalSeconds:F1}s");
@@ -198,6 +201,11 @@ static unsafe class FakeValheim
                     case "netstat": Console.WriteLine($"[host] tunnel: {(net == null ? "none" : $"{net.StreamCount} connection(s), {net.BytesUp / 1024} KB up, {net.BytesDown / 1024} KB down")}"); break;
                     case "give": { var nb = System.Text.Encoding.UTF8.GetBytes(a[1]); var gp = new byte[8 + nb.Length]; BitConverter.GetBytes(7u).CopyTo(gp, 0); BitConverter.GetBytes((ushort)int.Parse(a[0])).CopyTo(gp, 4); BitConverter.GetBytes((ushort)0xFFFF).CopyTo(gp, 6); nb.CopyTo(gp, 8); Console.WriteLine($"[host] give {a[0]} {a[1]} sent={link.TrySend(ValCraftLink.EvGiveItem, gp)}"); break; }
                     case "damage": { var dp = new byte[17]; BitConverter.GetBytes(F(0)).CopyTo(dp, 0); dp[4] = 0; Console.WriteLine($"[host] damage {a[0]} sent={link.TrySend(ValCraftLink.EvDamage, dp)}"); break; }
+                    case "sleep": { var sp = new byte[1 + (a.Length > 1 ? 1 + c[1].Length * 3 : 0)]; sp[0] = (byte)int.Parse(a[0]); int sl = 1; if (a.Length > 1) sl += System.Text.Encoding.UTF8.GetBytes(string.Join(" ", a, 1, a.Length - 1), 0, string.Join(" ", a, 1, a.Length - 1).Length, sp, 1); Console.WriteLine($"[host] sleep {a[0]} sent={link.TrySend(ValCraftLink.EvSleep, sp.AsSpan(0, sl).ToArray())}"); break; }
+                    case "spawn": Console.WriteLine($"[host] spawn sent={link.TrySend(ValCraftLink.EvSpawn, Payload.F32(F(0), F(1), F(2)))}"); break;
+                    case "day": link.TrySend(ValCraftLink.EvDayTime, Payload.F32(F(0))); break;
+                    case "buildstate": link.TrySend(ValCraftLink.EvBuildState, new[] { (byte)int.Parse(a[0]) }); break;
+                    case "keydown": link.TrySend(ValCraftLink.EvKey, Payload.I32((int)F(0), 0, 1, 0)); break;
                     case "quit": goto done;
                 }
                 Console.WriteLine($"[host] {string.Join(" ", c)}");

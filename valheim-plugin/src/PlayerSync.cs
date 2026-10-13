@@ -187,6 +187,10 @@ namespace ValCraft
             MovePlayer(); // also done in FixedUpdate postfix; moving here keeps the transform in step with rendering
         }
 
+        static bool _alignPending; static Component _deadPlayer;
+        internal static bool AlignPending => _alignPending;
+        /// <summary>HealthLink: the Valheim player is being killed for an MC death; align the respawn instead of re-anchoring.</summary>
+        internal static void ExpectRespawn() { if (_anchored) { _alignPending = true; _deadPlayer = _player; } }
         public static void ReAnchor() { _anchored = false; _haveY = false; ValCraftPlugin.Log.LogInfo("[sync] re-anchoring at the current Valheim position"); }
 
         static void Start(Component player)
@@ -194,7 +198,14 @@ namespace ValCraft
             _player = player;
             _body = _bodyField?.GetValue(player) as Rigidbody ?? player.GetComponent<Rigidbody>();
             if (_body != null) { _bodyWasKinematic = _body.isKinematic; _bodyWasGravity = _body.useGravity; _body.useGravity = false; _body.isKinematic = true; }
-            if (_anchorPlayer != player) { _anchored = false; _anchorPlayer = player; } // keep the anchor across brief stops/reconnects
+            if (_anchorPlayer != player)
+            {
+                // 0.13.2: after a death keep the mapping (MC builds stay where they are in Valheim) and move the MC player to where
+                // Valheim respawned us (bed / spawn point) instead of re-anchoring Valheim's respawn point onto MC's.
+                if (_alignPending && _anchored) ValCraftPlugin.Log.LogInfo("[sync] respawned Valheim player: keeping the anchor");
+                else { _anchored = false; _alignPending = false; }
+                _anchorPlayer = player;
+            }
             _haveY = false;
             ResendDims();
             Following = true;
@@ -236,6 +247,15 @@ namespace ValCraft
                 _lastGroundFeetY = s.FeetY;
                 _anchored = true;
                 ValCraftPlugin.Log.LogInfo($"[sync] anchor {_anchor} (Valheim {p} = MC feet {s.FeetX:F2},{s.FeetY:F2},{s.FeetZ:F2})");
+            }
+            if (_alignPending)
+            {
+                var p = _player.transform.position;
+                if (ReferenceEquals(_player, _deadPlayer) || HealthLink.McDead) { _targetPos = p; _targetRot = _player.transform.rotation; return; } // wait for both respawns
+                _alignPending = false; _deadPlayer = null;
+                _teleportX = p.x - _anchor.x; _teleportY = p.y - _anchor.y; _teleportZ = -(p.z - _anchor.z);
+                _teleportUntil = Time.unscaledTime + 10f; _holdPos = p; _lastGroundFeetY = _teleportY; _haveY = false; _nextTeleportSend = 0;
+                ValCraftPlugin.Log.LogInfo($"[sync] respawn: MC player -> Valheim respawn point {p} (MC {_teleportX:F1} {_teleportY:F1} {_teleportZ:F1}), anchor kept");
             }
             if (TeleportPending)
             {

@@ -18,6 +18,8 @@ public final class OpsInit {
 		ServerOps.on(ServerOps.OP_HOE_WEAR, HoeLink::wearOn);
 		ServerOps.on(ServerOps.OP_ATTACK, ValheimAttack::attackOn);
 		ServerOps.on(ServerOps.OP_DIMS, (sp, p) -> sp.refreshDimensions());
+		ServerOps.on(ServerOps.OP_SLEEP, dev.valcraft.net.SleepState::sleepOn);
+		ServerOps.on(ServerOps.OP_SPAWN, dev.valcraft.net.SleepState::spawnOn);
 		ServerOps.on(ServerOps.OP_TELEPORT, (sp, p) -> {
 			var b = java.nio.ByteBuffer.wrap(p).order(java.nio.ByteOrder.LITTLE_ENDIAN);
 			sp.connection.teleport(b.getFloat(0), b.getFloat(4), b.getFloat(8), sp.getYRot(), sp.getXRot());

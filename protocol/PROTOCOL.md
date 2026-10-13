@@ -305,3 +305,16 @@ player on the host (op = the Valheim event id for EV_DAMAGE, EV_GIVE_ITEM, EV_CO
 Authority: multiplayer uses a fixed shared anchor (MC x = Valheim x, MC z = −Valheim z, Y as before); each Valheim monster / MC-mob stand-in is mirrored only by the
 nearest Valheim player (4 m hysteresis); MC terrain edits go to the editing (or nearest) player's Valheim only; time/weather come from the host only.
 - 0.13.0 (same build): "Loading terrain..." no longer waits 30 s for a section compile that never happens while linked (ready once the player chunk is loaded); tunnel clients are teleported by the server only (no "moved too quickly").
+- 0.13.1 (no wire change): collider raster uses 0.25 m cells for small colliders (stairs); MC blocks can be placed against Valheim surfaces (virtual face support); MC waits for a linked Valheim world instead of opening the default world after 20 s.
+
+## v22 (0.13.2) — sleep, spawn points, MC campfires
+| Event | Dir | Payload |
+|---|---|---|
+| 70 EvSleep | MC→V | u8 state (1 MC player went to sleep in an MC bed, 0 woke up), f32 x,y,z (MC bed position, state 1). Valheim checks EnvMan.CanSleep / enemies, then marks its player in bed (ZDO inBed) so Game.UpdateSleeping skips the night; the MC bed also becomes Valheim's custom spawn point. |
+| 70 EvSleep | V→MC | u8 state (1 Valheim player is in bed → MC player sleeps where it stands, 0 woke → MC wakes, 2 Valheim refused → MC wakes), state 2: utf8 reason. |
+| 71 EvSpawn | V→MC | f32 x,y,z MC coordinates of the Valheim custom spawn point (a Valheim bed was used) → MC respawn position (forced). |
+| 72 EvMcFires | MC→V | u16 n, n × i32 x,y,z: lit MC campfires / soul campfires within 32 blocks (on change, every 5 s). Valheim keeps an invisible EffectArea Heat+Fire (radius 3 m, never Burning) and a Fire comfort piece at each. |
+EvBuildAction 4: cycle the Valheim placement snap point (Player.m_manualSnapPoint: 0..n−1, then −1 = automatic); MC sends it on Left Alt while building.
+MC ops 1007 sleep {u8 on} (server: start sleeping at the player position / wake), 1008 respawn position {f32 x,y,z}.
+While Valheim drives the time, MC's own "everyone asleep" skip/wake-up is disabled; MC wakes when Valheim's morning reaches it.
+On a death the anchor is kept: the MC player is teleported to where Valheim respawned it (previously the mapping was re-anchored, shifting MC builds).

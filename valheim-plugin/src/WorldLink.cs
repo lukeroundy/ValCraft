@@ -15,7 +15,7 @@ namespace ValCraft
     internal static class Hazards
     {
         internal static bool Fire = true, Water = true;
-        static float _nextFire, _nextWater;
+        static float _nextFire, _nextWater, _nextWaterBg;
         static bool _init;
         static Type _aoeT, _effT, _charT;
         static FieldInfo _aoeDmg, _effType; static MethodInfo _inLava, _liquid, _hmFind, _hmIsLava, _hmHeight;
@@ -48,7 +48,9 @@ namespace ValCraft
             if (!_init) Init();
             float t = Time.unscaledTime;
             try { if (Fire && t >= _nextFire) { _nextFire = t + 0.5f; FireCheck(link); } } catch (Exception e) { Diag.Warn("fire", "[hazard] fire check: " + e.GetBaseException().Message); }
-            try { if (Water && t >= _nextWater) { _nextWater = t + 0.2f; WaterGrid(link); } } catch (Exception e) { Diag.Warn("water", "[hazard] water grid: " + e.GetBaseException().Message); }
+            // 0.13.2 log: Hazards was the top [perf] part (12-18 ms): 6 water tiles of liquid probes every 0.2 s in one frame.
+            // Now the player's tile every 0.2 s and the surrounding tiles one per frame (same 25 tiles/s), with reused arg arrays.
+            try { if (Water) { if (t >= _nextWater) { _nextWater = t + 0.2f; WaterGrid(link, true); } else if (t >= _nextWaterBg) { _nextWaterBg = t + 0.04f; WaterGrid(link, false); } } } catch (Exception e) { Diag.Warn("water", "[hazard] water grid: " + e.GetBaseException().Message); }
         }
 
         static float FireDamage(Component c)
@@ -141,17 +143,17 @@ namespace ValCraft
         // round-robin (~1 s for all 25 tiles). Tiles without any liquid are sent once (as "none") then skipped.
         const int Step = MobCodec.TileStep, N = MobCodec.TileCells, TS = MobCodec.TileSize, R = 2;
         static readonly float[] _surf = new float[N * N]; static readonly bool[] _tar = new bool[N * N];
-        static bool _wasWet; static int _rr;
+        static bool _wasWet; static int _rr; static object _water, _tarT; static object[] _argW, _argT;
         static readonly Dictionary<long, bool> _dryTiles = new Dictionary<long, bool>();
-        static void WaterGrid(ValCraftLink link)
+        static void WaterGrid(ValCraftLink link, bool player)
         {
             if (_liquid == null || !PlayerSync.Anchored) return;
             var a = PlayerSync.Anchor; var p = PlayerSync.Player.transform.position;
             float mx = p.x - a.x, mz = -(p.z - a.z);
             int ptx = Mathf.FloorToInt(mx / TS), ptz = Mathf.FloorToInt(mz / TS);
-            WaterTile(link, ptx, ptz, true);
+            if (player) { WaterTile(link, ptx, ptz, true); return; }
             int side = 2 * R + 1;
-            for (int k = 0; k < 5; k++) { int idx = _rr++ % (side * side); int tx = ptx - R + idx % side, tz = ptz - R + idx / side; if (tx != ptx || tz != ptz) WaterTile(link, tx, tz, false); }
+            for (int k = 0; k < 2; k++) { int idx = _rr++ % (side * side); int tx = ptx - R + idx % side, tz = ptz - R + idx / side; if (tx != ptx || tz != ptz) { WaterTile(link, tx, tz, false); break; } }
             if (_dryTiles.Count > 4000) _dryTiles.Clear();
         }
 
@@ -159,14 +161,15 @@ namespace ValCraft
         {
             var a = PlayerSync.Anchor; var p = PlayerSync.Player.transform.position;
             float x0 = tx * TS + 1, z0 = tz * TS + 1;
-            object water = Enum.ToObject(_liquidType, 0), tar = Enum.ToObject(_liquidType, 1);
+            if (_water == null) { _water = Enum.ToObject(_liquidType, 0); _tarT = Enum.ToObject(_liquidType, 1); _argW = new object[] { null, 1f, _water }; _argT = new object[] { null, 1f, _tarT }; }
             bool any = false;
             for (int j = 0; j < N; j++) for (int i = 0; i < N; i++)
             {
                 float cx = x0 + i * Step, cz = z0 + j * Step;
                 var u = new Vector3(a.x + cx, p.y, a.z - cz);
-                float w = (float)_liquid.Invoke(null, new object[] { u, 1f, water });
-                float tr = (float)_liquid.Invoke(null, new object[] { u, 1f, tar });
+                _argW[0] = u; _argT[0] = u;
+                float w = (float)_liquid.Invoke(null, _argW);
+                float tr = (float)_liquid.Invoke(null, _argT);
                 int k = j * N + i;
                 bool isTar = tr > -1000f && tr >= w;
                 float s = isTar ? tr : w;

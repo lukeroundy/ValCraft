@@ -111,11 +111,12 @@ namespace ValCraft
         {
             var (hp, max, food, dead) = HealthCodec.ReadHealth(p);
             if (dead && !_mcDead) ValCraftPlugin.Log.LogInfo("[health] Minecraft player died");
-            if (!dead && _mcDead) { ValCraftPlugin.Log.LogInfo("[health] Minecraft player respawned"); _killedForMc = false; PlayerSync.ReAnchor(); }
+            if (!dead && _mcDead) { ValCraftPlugin.Log.LogInfo("[health] Minecraft player respawned"); _killedForMc = false; if (!PlayerSync.AlignPending) PlayerSync.ReAnchor(); }
             _hp = hp; _max = Mathf.Max(1f, max); _food = food; _mcDead = dead;
         }
 
         static System.Reflection.MethodInfo _getAttacker;
+        internal static bool McDead => _mcDead;
         internal static void Reset() { _hp = -1; _mcDead = false; _killedForMc = false; }
 
         internal static void Update(ValCraftLink link)
@@ -136,6 +137,7 @@ namespace ValCraft
                         _killedForMc = true;
                         _setHealth.Invoke(pl, new object[] { 0f });
                         ValCraftPlugin.Log.LogInfo("[health] killing the Valheim player (Minecraft death): tombstone + respawn");
+                        PlayerSync.ExpectRespawn();
                         _onDeath.Invoke(pl, null);
                     }
                     return;

@@ -128,6 +128,8 @@ public final class ValCraftClient {
 				case ValCraftLink.EV_BUILD_PIECES -> BuildLink.pieces(mc, ev.payload());
 				case ValCraftLink.EV_WATER -> ValheimWater.receive(ev.payload());
 				case ValCraftLink.EV_DAY_TIME -> DayLink.receive(mc, ev.payload());
+				case ValCraftLink.EV_SLEEP -> SleepLink.receive(mc, ev.payload());
+				case ValCraftLink.EV_SPAWN -> SleepLink.spawn(mc, ev.payload());
 				case ValCraftLink.EV_WEATHER -> WeatherLink.receive(mc, ev.payload());
 				case ValCraftLink.EV_WORLD_INFO -> AutoWorld.worldInfo(ev.payload());
 				case ValCraftLink.EV_NET_ROLE -> NetLink.receive(ev.payload());
@@ -199,6 +201,7 @@ public final class ValCraftClient {
 			ItemLink.tick(mc);
 			HealthLink.tick(mc);
 			BuildLink.tick(mc);
+			SleepLink.tick(mc);
 			ValheimWater.tick(mc);
 			dev.valcraft.mobs.MobSync.tick(mc);
 			CollisionWorld.poll(link);
@@ -236,7 +239,7 @@ public final class ValCraftClient {
 		FrameExporter.reset();
 		CollisionWorld.clear();
 		ValheimInteract.hoverText = "";
-		TerrainSync.clearClient(); HeightField.clear(); BlockSync.disconnected(); ItemLink.reset(); HealthLink.reset(); BuildLink.reset(); ValheimWater.clear(); DayLink.unlink(mc); WeatherLink.unlink(mc); ChestLink.reset(mc); dev.valcraft.mobs.MobSync.clear(mc); ValheimAttack.clear();
+		TerrainSync.clearClient(); HeightField.clear(); BlockSync.disconnected(); ItemLink.reset(); HealthLink.reset(); BuildLink.reset(); SleepLink.reset(); ValheimWater.clear(); DayLink.unlink(mc); WeatherLink.unlink(mc); ChestLink.reset(mc); dev.valcraft.mobs.MobSync.clear(mc); ValheimAttack.clear();
 		PlayerDims.set(mc, 0, 0);
 		AutoWorld.reset();
 		loggedBoxes = -1;

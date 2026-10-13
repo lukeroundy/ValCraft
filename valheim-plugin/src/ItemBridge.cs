@@ -612,7 +612,23 @@ namespace ValCraft
 
         internal static void ResetBuild() { if (_building) { CloseMenu("disconnect"); _building = false; _virtualHammer = null; } }
 
-        /// <summary>EvBuildAction: 1 place, 2 remove, 3 rotate.</summary>
+        static FieldInfo _manualSnap, _ghost;
+        /// <summary>0.13.2: Left Alt in MC -> next snap point of the placement ghost (Player.m_manualSnapPoint 0..n-1, then -1 = automatic).</summary>
+        static void CycleSnap(Component pl)
+        {
+            _manualSnap = _manualSnap ?? AccessTools.Field(_playerT, "m_manualSnapPoint");
+            _ghost = _ghost ?? AccessTools.Field(_playerT, "m_placementGhost");
+            if (_manualSnap == null) { Diag.Warn("snap", "[build] Player.m_manualSnapPoint not found: snap cycling unavailable"); return; }
+            var g = _ghost?.GetValue(pl) as GameObject;
+            int n = 0;
+            if (g != null) foreach (Transform c in g.transform) { try { if (c.CompareTag("snappoint")) n++; } catch { } }
+            int cur = (int)_manualSnap.GetValue(pl), next = cur + 1;
+            if (n > 0 && next >= n) next = -1;
+            _manualSnap.SetValue(pl, next);
+            ValCraftPlugin.Log.LogInfo($"[build] snap point {(next < 0 ? "automatic" : (next + 1) + "/" + n)} ({g?.name})");
+        }
+
+        /// <summary>EvBuildAction: 1 place, 2 remove, 3 rotate, 4 cycle snap point.</summary>
         internal static void BuildAction(byte a)
         {
             if (!_building || PlayerSync.Player == null) return;
@@ -638,6 +654,7 @@ namespace ValCraft
                 }
                 else if (a == 2) { bool ok = (bool)_removePiece.Invoke(pl, null); ValCraftPlugin.Log.LogInfo($"[build] remove: {(ok ? "removed" : "nothing removable aimed at")}"); }
                 else if (a == 3 && _rot != null) _rot.SetValue(pl, (int)_rot.GetValue(pl) + 1);
+                else if (a == 4) CycleSnap(pl);
             }
             catch (Exception e) { Diag.Warn("buildact", "[build] action failed: " + e.GetBaseException().Message); }
         }
