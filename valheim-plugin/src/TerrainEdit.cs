@@ -56,10 +56,10 @@ namespace ValCraft
         static void Init()
         {
             _init = true;
-            _opType = AccessTools.TypeByName("TerrainOp");
+            _opType = Refl.T("TerrainOp");
             _settingsType = _opType == null ? null : AccessTools.Inner(_opType, "Settings");
             _settingsField = _opType == null ? null : AccessTools.Field(_opType, "m_settings");
-            var pa = AccessTools.TypeByName("PrivateArea");
+            var pa = Refl.T("PrivateArea");
             _checkAccess = pa == null ? null : AccessTools.Method(pa, "CheckAccess", new[] { typeof(Vector3), typeof(float), typeof(bool), typeof(bool) });
             _ok = _settingsType != null;
             ValCraftPlugin.Log.LogInfo($"[terrain-edit] TerrainOp={_opType != null}, Settings={_settingsType != null}, m_settings={_settingsField != null}, PrivateArea.CheckAccess={_checkAccess != null}");
@@ -160,8 +160,8 @@ namespace ValCraft
         {
             if (_apiChecked) return _apiOk;
             _apiChecked = true;
-            _hmType = AccessTools.TypeByName("Heightmap");
-            _tcType = AccessTools.TypeByName("TerrainComp");
+            _hmType = Refl.T("Heightmap");
+            _tcType = Refl.T("TerrainComp");
             if (_hmType == null || _tcType == null) { ValCraftPlugin.Log.LogWarning("[terrain-edit] Heightmap/TerrainComp types not found"); return false; }
             var listT = typeof(List<>).MakeGenericType(_hmType);
             _findHms = AccessTools.Method(_hmType, "FindHeightmap", new[] { typeof(Vector3), typeof(float), listT });
@@ -170,9 +170,9 @@ namespace ValCraft
             // Confirmed on Valheim 1.0.17 (0.6.4 log): TerrainComp.Save(Boolean), Heightmap.Poke(Int32,Boolean). Scan is the fallback.
             _poke = AccessTools.DeclaredMethod(_hmType, "Poke", new[] { typeof(int), typeof(bool) }) ?? FindMethod(_hmType, new[] { "Poke", "Regenerate", "RequestRebuild", "Rebuild" }, false);
             _save = AccessTools.DeclaredMethod(_tcType, "Save", new[] { typeof(bool) }) ?? FindMethod(_tcType, new[] { "Save", "SaveData", "SaveTerrain", "Store", "Serialize" }, true);
-            var znv = AccessTools.TypeByName("ZNetView");
+            var znv = Refl.T("ZNetView");
             _claim = znv == null ? null : AccessTools.Method(znv, "ClaimOwnership");
-            var cs = AccessTools.TypeByName("ClutterSystem");
+            var cs = Refl.T("ClutterSystem");
             _resetGrass = cs == null ? null : AccessTools.Method(cs, "ResetGrass", new[] { typeof(Vector3), typeof(float) });
             _fWidth = AccessTools.Field(_tcType, "m_width"); _fOps = AccessTools.Field(_tcType, "m_operations");
             _fModH = AccessTools.Field(_tcType, "m_modifiedHeight"); _fLevel = AccessTools.Field(_tcType, "m_levelDelta");
@@ -246,7 +246,7 @@ namespace ValCraft
                             n++;
                         }
                     if (n == 0) continue;
-                    var nv = tc.GetComponent(AccessTools.TypeByName("ZNetView"));
+                    var nv = tc.GetComponent(Refl.T("ZNetView"));
                     if (nv != null && _claim != null) _claim.Invoke(nv, null);
                     if (_fOps != null) _fOps.SetValue(tc, (int)_fOps.GetValue(tc) + 1);
                     _fLastPt?.SetValue(tc, Vector3.zero); _fLastR?.SetValue(tc, 0f);
@@ -254,7 +254,7 @@ namespace ValCraft
                     _pendingSave[tc] = hm;
                     verts += n; comps++;
                 }
-                try { var csT = AccessTools.TypeByName("ClutterSystem"); var inst = csT == null ? null : (AccessTools.Field(csT, "m_instance")?.GetValue(null) ?? AccessTools.Property(csT, "instance")?.GetValue(null, null)); if (inst != null) _resetGrass?.Invoke(inst, new object[] { pos, Radius + 0.5f }); } catch { }
+                try { var csT = Refl.T("ClutterSystem"); var inst = csT == null ? null : (AccessTools.Field(csT, "m_instance")?.GetValue(null) ?? AccessTools.Property(csT, "instance")?.GetValue(null, null)); if (inst != null) _resetGrass?.Invoke(inst, new object[] { pos, Radius + 0.5f }); } catch { }
                 ValCraftPlugin.Log.LogInfo($"[terrain-edit] wrote {verts} vertices on {comps}/{list.Count} TerrainComp(s) to y={pos.y:F2}");
                 _edits.Add(new KeyValuePair<float, Vector3>(Time.unscaledTime, pos));
                 if (_edits.Count > 64) _edits.RemoveAt(0);

@@ -213,7 +213,16 @@ namespace ValCraft
             catch (Exception e) { Log.LogError($"[launch] failed: {e.Message}"); }
         }
 
+        // 0.12.4: frame watchdog: a ValCraft Update over 15 ms is logged (rate-limited) to find hitches
+        float _nextSlowLog;
         void Update()
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            UpdateInner();
+            double ms = sw.Elapsed.TotalMilliseconds;
+            if (ms > 15 && Time.unscaledTime >= _nextSlowLog) { _nextSlowLog = Time.unscaledTime + 5f; Log.LogWarning($"[perf] ValCraft frame update took {ms:F1} ms"); }
+        }
+        void UpdateInner()
         {
             if (Link == null) return;
             float t = Time.unscaledTime;

@@ -38,10 +38,10 @@ namespace ValCraft
         static void Init()
         {
             _init = true;
-            _destructibleI = AccessTools.TypeByName("IDestructible");
-            _hitDataT = AccessTools.TypeByName("HitData");
+            _destructibleI = Refl.T("IDestructible");
+            _hitDataT = Refl.T("HitData");
             _damage = _destructibleI == null || _hitDataT == null ? null : AccessTools.Method(_destructibleI, "Damage", new[] { _hitDataT });
-            var ch = AccessTools.TypeByName("Character");
+            var ch = Refl.T("Character");
             _getZdoid = ch == null ? null : AccessTools.Method(ch, "GetZDOID");
             _characterT = ch;
             _mask = ~LayerMask.GetMask("character_ghost", "UI", "Water", "smoke", "viewblock", "skybox");

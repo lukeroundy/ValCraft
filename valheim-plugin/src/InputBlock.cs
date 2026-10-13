@@ -20,7 +20,7 @@ namespace ValCraft
         public static void Apply(Harmony h)
         {
             int n = 0;
-            var zinput = AccessTools.TypeByName("ZInput");
+            var zinput = Refl.T("ZInput");
             if (zinput != null)
             {
                 foreach (var m in zinput.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly))
@@ -39,7 +39,7 @@ namespace ValCraft
             n += PatchByName(h, "Player:TakeInput", nameof(FalseBool), postfix: true);
             n += PatchByName(h, "GameCamera:UpdateMouseCapture", nameof(SkipWhenActive), postfix: false);
             ValCraftPlugin.Log.LogInfo($"[block] {n} Valheim input methods patched");
-            _localPlayer = AccessTools.Field(AccessTools.TypeByName("Player"), "m_localPlayer");
+            _localPlayer = AccessTools.Field(Refl.T("Player"), "m_localPlayer");
         }
 
         static int PatchByName(Harmony h, string target, string patch, bool postfix)

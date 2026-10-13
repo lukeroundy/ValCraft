@@ -44,7 +44,7 @@ namespace ValCraft
             }
             void Instance(string type, string method)
             {
-                var t = AccessTools.TypeByName(type);
+                var t = Refl.T(type);
                 var m = t == null ? null : AccessTools.Method(t, method, Type.EmptyTypes);
                 var inst = t == null ? null : PlayerSync.FindSingleton(t);
                 if (m == null || inst == null || m.ReturnType != typeof(bool)) return;

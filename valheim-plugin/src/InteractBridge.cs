@@ -36,7 +36,7 @@ namespace ValCraft
         /// <summary>Valheim build placement distance capped at the interact reach (restored values per player kept).</summary>
         static void CapPlace(Component player)
         {
-            if (_maxPlace == null) _maxPlace = AccessTools.Field(AccessTools.TypeByName("Player"), "m_maxPlaceDistance");
+            if (_maxPlace == null) _maxPlace = AccessTools.Field(Refl.T("Player"), "m_maxPlaceDistance");
             if (_maxPlace == null || player == null) return;
             if (!ReferenceEquals(player, _placeFor)) { _placeFor = player; _origPlace = (float)_maxPlace.GetValue(player); }
             float want = Math.Min(_origPlace, Range);
@@ -52,13 +52,13 @@ namespace ValCraft
 
         static void Init()
         {
-            _effectArea = AccessTools.TypeByName("EffectArea");
+            _effectArea = Refl.T("EffectArea");
             _init = true;
-            _hoverable = AccessTools.TypeByName("Hoverable");
-            _interactable = AccessTools.TypeByName("Interactable");
+            _hoverable = Refl.T("Hoverable");
+            _interactable = Refl.T("Interactable");
             _getHoverText = _hoverable == null ? null : AccessTools.Method(_hoverable, "GetHoverText");
             _interactI = _interactable == null ? null : AccessTools.Method(_interactable, "Interact");
-            var playerT = AccessTools.TypeByName("Player");
+            var playerT = Refl.T("Player");
             _playerInteract = playerT == null ? null : AccessTools.Method(playerT, "Interact", new[] { typeof(GameObject), typeof(bool), typeof(bool) });
             _mask = ~LayerMask.GetMask("character", "character_net", "character_ghost", "character_noenv", "UI", "Water", "smoke", "viewblock", "skybox", "terrain_nocollide" /* may not exist */);
             ValCraftPlugin.Log.LogInfo($"[interact] Hoverable={_hoverable != null}, Interactable={_interactable != null}, GetHoverText={_getHoverText != null}, Player.Interact(go,hold,alt)={_playerInteract != null}");
@@ -107,12 +107,15 @@ namespace ValCraft
             var player = PlayerSync.Player;
             var go = _target;
             if (player == null || go == null) return;
-            if (ItemBridge.TryUseHeld(go)) return; // 0.8.0: holding a mapped MC item on a Valheim station
-            if (ItemBridge.TryOpenChest(go)) return; // 0.10.0: chests open as a Minecraft screen
-            if (StoneBridge.TryInteract(go, player)) return; // 0.11.0: vegvisir / rune stone text in MC, map pin without opening the map
+            // 0.12.4: per-stage timing; slow stages (> 5 ms) are logged
+            var sw = System.Diagnostics.Stopwatch.StartNew(); long last = 0;
+            void Stage(string what) { long now = sw.ElapsedTicks; double ms = (now - last) * 1000.0 / System.Diagnostics.Stopwatch.Frequency; last = now; if (ms > 5) ValCraftPlugin.Log.LogWarning($"[interact] slow stage '{what}' on {go.name}: {ms:F1} ms"); }
+            bool done = ItemBridge.TryUseHeld(go); Stage("held item on station"); if (done) return; // 0.8.0: holding a mapped MC item on a Valheim station
+            done = ItemBridge.TryOpenChest(go); Stage("chest"); if (done) return; // 0.10.0: chests open as a Minecraft screen
+            done = StoneBridge.TryInteract(go, player); Stage("lore stone"); if (done) return; // 0.11.0: vegvisir / rune stone text in MC
             try
             {
-                if (_playerInteract != null) { _playerInteract.Invoke(player, new object[] { go, false, false }); ValCraftPlugin.Log.LogInfo($"[interact] {go.name}"); return; }
+                if (_playerInteract != null) { _playerInteract.Invoke(player, new object[] { go, false, false }); Stage("Player.Interact"); ValCraftPlugin.Log.LogInfo($"[interact] {go.name}"); return; }
                 var it = _interactable == null ? null : go.GetComponentInParent(_interactable);
                 if (it != null && _interactI != null) { _interactI.Invoke(it, new object[] { player, false, false }); ValCraftPlugin.Log.LogInfo($"[interact] {go.name} (Interactable)"); }
             }

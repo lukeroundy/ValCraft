@@ -50,10 +50,10 @@ namespace ValCraft
         static void Init()
         {
             _init = true;
-            _humanoid = AccessTools.TypeByName("Humanoid"); _itemDrop = AccessTools.TypeByName("ItemDrop"); _inventory = AccessTools.TypeByName("Inventory");
+            _humanoid = Refl.T("Humanoid"); _itemDrop = Refl.T("ItemDrop"); _inventory = Refl.T("Inventory");
             _itemData = _itemDrop == null ? null : AccessTools.Inner(_itemDrop, "ItemData");
-            _objectDb = AccessTools.TypeByName("ObjectDB"); _invGui = AccessTools.TypeByName("InventoryGui"); _znetScene = AccessTools.TypeByName("ZNetScene"); _znv = AccessTools.TypeByName("ZNetView");
-            var playerT = AccessTools.TypeByName("Player");
+            _objectDb = Refl.T("ObjectDB"); _invGui = Refl.T("InventoryGui"); _znetScene = Refl.T("ZNetScene"); _znv = Refl.T("ZNetView");
+            var playerT = Refl.T("Player");
             _getInventory = AccessTools.Method(_humanoid, "GetInventory");
             _getAllItems = AccessTools.Method(_inventory, "GetAllItems", Type.EmptyTypes);
             _removeItem = AccessTools.Method(_inventory, "RemoveItem", new[] { _itemData });
@@ -88,11 +88,11 @@ namespace ValCraft
 
         internal static void Apply(Harmony h)
         {
-            var t = AccessTools.TypeByName("ItemDrop");
+            var t = Refl.T("ItemDrop");
             var awake = t == null ? null : AccessTools.Method(t, "Awake");
             if (awake != null) h.Patch(awake, postfix: new HarmonyMethod(typeof(ItemBridge), nameof(DropAwakePost)));
             ValCraftPlugin.Log.LogInfo($"[items] ItemDrop.Awake hook {(awake != null ? "on" : "missing")}");
-            var gui = AccessTools.TypeByName("InventoryGui");
+            var gui = Refl.T("InventoryGui");
             var craft = gui == null ? null : AccessTools.Method(gui, "DoCrafting");
             if (craft != null) h.Patch(craft, prefix: new HarmonyMethod(typeof(ItemBridge), nameof(CraftPre)), postfix: new HarmonyMethod(typeof(ItemBridge), nameof(CraftPost)));
             ValCraftPlugin.Log.LogInfo($"[items] InventoryGui.DoCrafting hook {(craft != null ? "on" : "missing")}");
@@ -240,7 +240,7 @@ namespace ValCraft
             string valheim = Map.ValheimFor(_heldId);
             if (valheim == null) return false;
             bool station = false;
-            foreach (var n in StationTypes) { var ty = AccessTools.TypeByName(n); if (ty != null && target.GetComponentInParent(ty) != null) { station = true; break; } }
+            foreach (var n in StationTypes) { var ty = Refl.T(n); if (ty != null && target.GetComponentInParent(ty) != null) { station = true; break; } }
             if (!station) return false;
             uint req = _nextReq++;
             if (!_link.TrySend(ValCraftLink.EvConsumeReq, ItemMap.Consume(req, 1, 0, _heldId))) return false;
@@ -372,7 +372,7 @@ namespace ValCraft
         static void BuildInit()
         {
             _buildInit = true;
-            _hudT = AccessTools.TypeByName("Hud"); _playerT = AccessTools.TypeByName("Player");
+            _hudT = Refl.T("Hud"); _playerT = Refl.T("Player");
             _toggleSel = AccessTools.Method(_hudT, "TogglePieceSelection"); _hideSel = AccessTools.Method(_hudT, "HidePieceSelection"); _selVisible = AccessTools.Method(_hudT, "IsPieceSelectionVisible");
             _hudInst = AccessTools.Property(_hudT, "instance"); _hudInstF = AccessTools.Field(_hudT, "m_instance");
             _tryPlace = AccessTools.Method(_playerT, "TryPlacePiece"); _removePiece = AccessTools.Method(_playerT, "RemovePiece", Type.EmptyTypes); _getSel = AccessTools.Method(_playerT, "GetSelectedPiece", Type.EmptyTypes);
@@ -403,7 +403,7 @@ namespace ValCraft
         {
             try
             {
-                if (_localize == null) { var lt = AccessTools.TypeByName("Localization"); _localize = AccessTools.Method(lt, "Localize", new[] { typeof(string) }); _locInst = AccessTools.Property(lt, "instance"); }
+                if (_localize == null) { var lt = Refl.T("Localization"); _localize = AccessTools.Method(lt, "Localize", new[] { typeof(string) }); _locInst = AccessTools.Property(lt, "instance"); }
                 var inst = _locInst?.GetValue(null);
                 return inst == null || _localize == null ? s : (string)_localize.Invoke(inst, new object[] { s });
             }
@@ -418,7 +418,7 @@ namespace ValCraft
             {
                 _updAvail = _updAvail ?? AccessTools.Method(_playerT, "UpdateAvailablePiecesList");
                 _reqModeT = _reqModeT ?? AccessTools.Inner(_playerT, "RequirementMode");
-                _haveReq = _haveReq ?? AccessTools.Method(_playerT, "HaveRequirements", new[] { AccessTools.TypeByName("Piece"), _reqModeT });
+                _haveReq = _haveReq ?? AccessTools.Method(_playerT, "HaveRequirements", new[] { Refl.T("Piece"), _reqModeT });
                 try { _updAvail?.Invoke(pl, null); } catch { }
                 var table = AccessTools.Field(_playerT, "m_buildPieces")?.GetValue(pl);
                 if (table == null) { ValCraftPlugin.Log.LogWarning("[build] player has no build piece table (hammer not equipped?)"); return; }
@@ -480,7 +480,7 @@ namespace ValCraft
             if (i >= _menuPieces.Count || _menuPieces[i] == null) { ValCraftPlugin.Log.LogWarning($"[build] picker index {i} out of range"); return; }
             try
             {
-                _setSel = _setSel ?? AccessTools.Method(_playerT, "SetSelectedPiece", new[] { AccessTools.TypeByName("Piece") });
+                _setSel = _setSel ?? AccessTools.Method(_playerT, "SetSelectedPiece", new[] { Refl.T("Piece") });
                 bool ok = _setSel != null && (bool)_setSel.Invoke(PlayerSync.Player, new object[] { _menuPieces[i] });
                 ValCraftPlugin.Log.LogInfo($"[build] selected {_menuPieces[i].name}: {(ok ? "ok (aim + left-click to place)" : "Valheim refused")}");
             }
@@ -584,7 +584,7 @@ namespace ValCraft
             {
                 if (pl != null)
                 {
-                    var spm = AccessTools.Method(_playerT, "SetPlaceMode", new[] { AccessTools.TypeByName("PieceTable") });
+                    var spm = AccessTools.Method(_playerT, "SetPlaceMode", new[] { Refl.T("PieceTable") });
                     spm?.Invoke(pl, new object[] { null });
                     foreach (var fn in new[] { "m_placementGhost", "m_placementMarkerInstance" })
                     {

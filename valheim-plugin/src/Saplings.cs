@@ -13,7 +13,7 @@ namespace ValCraft
 
         internal static void Apply(Harmony h)
         {
-            var t = AccessTools.TypeByName("TreeBase");
+            var t = Refl.T("TreeBase");
             var m = t == null ? null : AccessTools.Method(t, "SpawnLog");
             if (m != null) h.Patch(m, postfix: new HarmonyMethod(typeof(Saplings), nameof(SpawnLogPost)));
             ValCraftPlugin.Log.LogInfo($"[sapling] TreeBase.SpawnLog hook {(m != null ? "on" : "missing")} (chance {Chance:P0})");

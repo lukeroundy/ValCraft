@@ -33,7 +33,7 @@ namespace ValCraft
         static void Init()
         {
             _init = true;
-            _charT = AccessTools.TypeByName("Character"); _hitT = AccessTools.TypeByName("HitData");
+            _charT = Refl.T("Character"); _hitT = Refl.T("HitData");
             _setHealth = AccessTools.Method(_charT, "SetHealth", new[] { typeof(float) });
             _getMax = AccessTools.Method(_charT, "GetMaxHealth", Type.EmptyTypes);
             _isDead = AccessTools.Method(_charT, "IsDead", Type.EmptyTypes);
@@ -45,10 +45,10 @@ namespace ValCraft
 
         internal static void Apply(Harmony h)
         {
-            var ch = AccessTools.TypeByName("Character");
+            var ch = Refl.T("Character");
             var apply = ch == null ? null : AccessTools.Method(ch, "ApplyDamage");
             if (apply != null) h.Patch(apply, prefix: new HarmonyMethod(typeof(HealthLink), nameof(ApplyDamagePre)));
-            var zs = AccessTools.TypeByName("ZNetScene");
+            var zs = Refl.T("ZNetScene");
             var rm = zs == null ? null : AccessTools.Method(zs, "RemoveObjects");
             if (rm != null) h.Patch(rm, prefix: new HarmonyMethod(typeof(HealthLink), nameof(RemoveObjectsPre)));
             ValCraftPlugin.Log.LogInfo($"[health] ApplyDamage hook {(apply != null ? "on" : "missing")}, ZNetScene self-heal {(rm != null ? "on" : "missing")}");

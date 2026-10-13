@@ -26,16 +26,16 @@ namespace ValCraft
         static void Init()
         {
             _init = true;
-            _aoeT = AccessTools.TypeByName("Aoe"); _effT = AccessTools.TypeByName("EffectArea"); _charT = AccessTools.TypeByName("Character");
+            _aoeT = Refl.T("Aoe"); _effT = Refl.T("EffectArea"); _charT = Refl.T("Character");
             _aoeDmg = AccessTools.Field(_aoeT, "m_damage"); _effType = AccessTools.Field(_effT, "m_type");
             _inLava = AccessTools.Method(_charT, "InLava", Type.EmptyTypes);
-            var hmT = AccessTools.TypeByName("Heightmap"); const BindingFlags BF = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+            var hmT = Refl.T("Heightmap"); const BindingFlags BF = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
             _inArea = _effT?.GetMethod("IsPointInsideArea", BindingFlags.Public | BindingFlags.Static);
-            _fpT = AccessTools.TypeByName("Fireplace"); _isBurning = _fpT?.GetMethod("IsBurning", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+            _fpT = Refl.T("Fireplace"); _isBurning = _fpT?.GetMethod("IsBurning", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
             _hmFind = hmT?.GetMethod("FindHeightmap", BF, null, new[] { typeof(Vector3) }, null);
             _hmIsLava = hmT?.GetMethod("IsLava", BF, null, new[] { typeof(Vector3), typeof(float) }, null);
             _hmHeight = hmT?.GetMethod("GetHeight", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(Vector3), typeof(float).MakeByRefType() }, null);
-            var fl = AccessTools.TypeByName("Floating"); var lt = AccessTools.TypeByName("LiquidType");
+            var fl = Refl.T("Floating"); var lt = Refl.T("LiquidType");
             _liquid = fl == null || lt == null ? null : AccessTools.Method(fl, "GetLiquidLevel", new[] { typeof(Vector3), typeof(float), lt });
             _liquidType = lt;
             ValCraftPlugin.Log.LogInfo($"[hazard] Aoe={_aoeT != null} EffectArea={_effT != null} InLava={_inLava != null} Heightmap.IsLava(pos,r)={_hmIsLava != null} Floating.GetLiquidLevel={_liquid != null} (fire={Fire}, water={Water})");
@@ -65,7 +65,7 @@ namespace ValCraft
         static MethodInfo _findBiome;
         static bool IsAshlands(Vector3 p)
         {
-            if (_findBiome == null) _findBiome = AccessTools.TypeByName("Heightmap")?.GetMethod("FindBiome", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(Vector3) }, null);
+            if (_findBiome == null) _findBiome = Refl.T("Heightmap")?.GetMethod("FindBiome", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(Vector3) }, null);
             try { return _findBiome != null && Convert.ToInt32(_findBiome.Invoke(null, new object[] { p })) == 32; } catch { return false; }
         }
 
@@ -202,7 +202,7 @@ namespace ValCraft
         {
             if (!Enabled || link == null || Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + 1f;
-            if (!_init) { _init = true; var t = AccessTools.TypeByName("EnvMan"); _inst = AccessTools.Property(t, "instance"); _frac = AccessTools.Method(t, "GetDayFraction", Type.EmptyTypes); ValCraftPlugin.Log.LogInfo($"[time] EnvMan.GetDayFraction={_frac != null}"); }
+            if (!_init) { _init = true; var t = Refl.T("EnvMan"); _inst = AccessTools.Property(t, "instance"); _frac = AccessTools.Method(t, "GetDayFraction", Type.EmptyTypes); ValCraftPlugin.Log.LogInfo($"[time] EnvMan.GetDayFraction={_frac != null}"); }
             try
             {
                 var env = _inst?.GetValue(null); if (env == null || _frac == null) return;
@@ -221,7 +221,7 @@ namespace ValCraft
         {
             if (link == null || Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + 2f;
-            if (_world == null) { _world = AccessTools.Field(AccessTools.TypeByName("ZNet"), "m_world"); var wt = AccessTools.TypeByName("World"); _uid = AccessTools.Field(wt, "m_uid"); _name = AccessTools.Field(wt, "m_name"); }
+            if (_world == null) { _world = AccessTools.Field(Refl.T("ZNet"), "m_world"); var wt = Refl.T("World"); _uid = AccessTools.Field(wt, "m_uid"); _name = AccessTools.Field(wt, "m_name"); }
             try
             {
                 var w = _world?.GetValue(null); if (w == null || !PlayerSync.HasLocalPlayer) { if (!_loggedWait) { _loggedWait = true; ValCraftPlugin.Log.LogInfo($"[world] no Valheim world yet (ZNet.m_world {(w == null ? "null" : "set")}, local player {PlayerSync.HasLocalPlayer})"); } return; } // 0.9.5: not Player (only set while following = chicken-and-egg)
@@ -252,15 +252,15 @@ namespace ValCraft
         static void Init()
         {
             _init = true;
-            _charT = AccessTools.TypeByName("Character"); _znvT = AccessTools.TypeByName("ZNetView"); _zdoT = AccessTools.TypeByName("ZDO"); _hitT = AccessTools.TypeByName("HitData");
-            _baseAIT = AccessTools.TypeByName("BaseAI"); _playerT = AccessTools.TypeByName("Player");
+            _charT = Refl.T("Character"); _znvT = Refl.T("ZNetView"); _zdoT = Refl.T("ZDO"); _hitT = Refl.T("HitData");
+            _baseAIT = Refl.T("BaseAI"); _playerT = Refl.T("Player");
             _factionT = AccessTools.Inner(_charT, "Faction");
             _getAll = AccessTools.Method(_charT, "GetAllCharacters"); _getHealth = AccessTools.Method(_charT, "GetHealth"); _getMax = AccessTools.Method(_charT, "GetMaxHealth", Type.EmptyTypes);
             _setHealth = AccessTools.Method(_charT, "SetHealth"); _isDead = AccessTools.Method(_charT, "IsDead"); _isTamed = AccessTools.Method(_charT, "IsTamed", Type.EmptyTypes);
             _damage = AccessTools.Method(_charT, "Damage", new[] { _hitT }); _getZdo = AccessTools.Method(_znvT, "GetZDO");
             _setAttacker = AccessTools.Method(_hitT, "SetAttacker"); _attackerF = AccessTools.Field(_hitT, "m_attacker");
-            var zs = AccessTools.TypeByName("ZNetScene"); _znsInst = AccessTools.Property(zs, "instance");
-            _findInst = AccessTools.Method(zs, "FindInstance", new[] { AccessTools.TypeByName("ZDOID") }); _sceneDestroy = AccessTools.Method(zs, "Destroy", new[] { typeof(GameObject) });
+            var zs = Refl.T("ZNetScene"); _znsInst = AccessTools.Property(zs, "instance");
+            _findInst = AccessTools.Method(zs, "FindInstance", new[] { Refl.T("ZDOID") }); _sceneDestroy = AccessTools.Method(zs, "Destroy", new[] { typeof(GameObject) });
             _getPrefab = AccessTools.Method(zs, "GetPrefab", new[] { typeof(string) });
             _setMax = AccessTools.Method(_charT, "SetMaxHealth", new[] { typeof(float) }); _hoverName = AccessTools.Method(_charT, "GetHoverName", Type.EmptyTypes);
             _faction = AccessTools.Field(_charT, "m_faction"); _name = AccessTools.Field(_charT, "m_name");

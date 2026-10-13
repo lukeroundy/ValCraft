@@ -16,7 +16,7 @@ namespace ValCraft
             int n = 0;
             void P(string type, string method, string post)
             {
-                var t = AccessTools.TypeByName(type); var m = t == null ? null : AccessTools.Method(t, method);
+                var t = Refl.T(type); var m = t == null ? null : AccessTools.Method(t, method);
                 if (m == null) { ValCraftPlugin.Log.LogInfo($"[emerald] {type}.{method} missing"); return; }
                 h.Patch(m, postfix: new HarmonyMethod(typeof(Emeralds), post)); n++;
             }
@@ -64,7 +64,7 @@ namespace ValCraft
         static void Init()
         {
             if (_init) return; _init = true;
-            _t = AccessTools.TypeByName("Minimap");
+            _t = Refl.T("Minimap");
             if (_t == null) { ValCraftPlugin.Log.LogWarning("[map] type Minimap not found"); return; }
             _instP = AccessTools.Property(_t, "instance");
             if (_instP == null) foreach (var f in AccessTools.GetDeclaredFields(_t)) if (f.IsStatic && f.FieldType == _t) { _instF = f; break; }
@@ -149,7 +149,7 @@ namespace ValCraft
             _next = Time.unscaledTime + 2f;
             try
             {
-                var t = AccessTools.TypeByName("EnvMan");
+                var t = Refl.T("EnvMan");
                 var inst = AccessTools.Property(t, "instance")?.GetValue(null, null); if (inst == null) return;
                 var env = AccessTools.Method(t, "GetCurrentEnvironment")?.Invoke(inst, null) ?? AccessTools.Field(t, "m_currentEnv")?.GetValue(inst);
                 if (env == null) { Diag.Warn("weather", "[weather] EnvMan has no current environment"); return; }

@@ -26,14 +26,14 @@ namespace ValCraft
         static void Init()
         {
             _init = true;
-            _vegT = AccessTools.TypeByName("Vegvisir"); _runeT = AccessTools.TypeByName("RuneStone"); _gameT = AccessTools.TypeByName("Game");
-            _locT = AccessTools.TypeByName("Localization"); _textViewerT = AccessTools.TypeByName("TextViewer"); _minimapT = AccessTools.TypeByName("Minimap");
+            _vegT = Refl.T("Vegvisir"); _runeT = Refl.T("RuneStone"); _gameT = Refl.T("Game");
+            _locT = Refl.T("Localization"); _textViewerT = Refl.T("TextViewer"); _minimapT = Refl.T("Minimap");
             _discover = _gameT == null ? null : AccessTools.Method(_gameT, "DiscoverClosestLocation", new[] { typeof(string), typeof(Vector3), typeof(string), typeof(int), typeof(bool), typeof(bool) });
             _localize = _locT == null ? null : AccessTools.Method(_locT, "Localize", new[] { typeof(string) });
-            var playerT = AccessTools.TypeByName("Player");
+            var playerT = Refl.T("Player");
             _addKnown = playerT == null ? null : AccessTools.Method(playerT, "AddKnownText", new[] { typeof(string), typeof(string) });
             _addUnique = playerT == null ? null : AccessTools.Method(playerT, "AddUniqueKey", new[] { typeof(string) });
-            var zs = AccessTools.TypeByName("ZoneSystem");
+            var zs = Refl.T("ZoneSystem");
             _setGlobal = zs == null ? null : AccessTools.Method(zs, "SetGlobalKey", new[] { typeof(string) });
             _randomText = _runeT == null ? null : AccessTools.Method(_runeT, "GetRandomText");
             _tvHide = _textViewerT == null ? null : AccessTools.Method(_textViewerT, "Hide");
@@ -102,7 +102,7 @@ namespace ValCraft
                         Discover(name, v.transform.position, pin, type, F<bool>(l, "m_discoverAll"));
                         if (!string.IsNullOrEmpty(pin)) sb.Append(L(pin)).Append('\n');
                     }
-                var gk = F<string>(v, "m_setsGlobalKey"); if (!string.IsNullOrEmpty(gk)) { var zs = Inst(AccessTools.TypeByName("ZoneSystem")); if (zs != null) _setGlobal?.Invoke(zs, new object[] { gk }); }
+                var gk = F<string>(v, "m_setsGlobalKey"); if (!string.IsNullOrEmpty(gk)) { var zs = Inst(Refl.T("ZoneSystem")); if (zs != null) _setGlobal?.Invoke(zs, new object[] { gk }); }
                 var pk = F<string>(v, "m_setsPlayerKey"); if (!string.IsNullOrEmpty(pk) && player != null) _addUnique?.Invoke(player, new object[] { pk });
             }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[lore] vegvisir: {e.GetBaseException().Message}"); }

@@ -71,11 +71,11 @@ namespace ValCraft
 
         public static void Apply(Harmony h)
         {
-            var playerT = AccessTools.TypeByName("Player");
-            var charT = AccessTools.TypeByName("Character");
-            var gcT = AccessTools.TypeByName("GameCamera");
-            var hudT = AccessTools.TypeByName("Hud");
-            var zoneT = AccessTools.TypeByName("ZoneSystem");
+            var playerT = Refl.T("Player");
+            var charT = Refl.T("Character");
+            var gcT = Refl.T("GameCamera");
+            var hudT = Refl.T("Hud");
+            var zoneT = Refl.T("ZoneSystem");
             _localPlayerField = playerT != null ? AccessTools.Field(playerT, "m_localPlayer") : null;
             _bodyField = charT != null ? AccessTools.Field(charT, "m_body") : null;
             _gcInstanceField = gcT != null ? AccessTools.Field(gcT, "m_instance") ?? AccessTools.Field(gcT, "instance") : null;

@@ -34,13 +34,13 @@ namespace ValCraft
         {
             _init = true;
             _terrainMask = LayerMask.GetMask("terrain");
-            var wg = AccessTools.TypeByName("WorldGenerator");
+            var wg = Refl.T("WorldGenerator");
             _worldGen = wg == null ? null : PlayerSync.FindSingleton(wg);
             _getBiome = wg == null ? null : AccessTools.Method(wg, "GetBiome", new[] { typeof(Vector3) });
-            var zs = AccessTools.TypeByName("ZoneSystem");
+            var zs = Refl.T("ZoneSystem");
             _zone = zs == null ? null : PlayerSync.FindSingleton(zs);
             _groundHeight = zs == null ? null : AccessTools.Method(zs, "GetGroundHeight", new[] { typeof(Vector3) });
-            var hm = AccessTools.TypeByName("Heightmap");
+            var hm = Refl.T("Heightmap");
             _findHm = hm == null ? null : AccessTools.Method(hm, "FindHeightmap", new[] { typeof(Vector3) });
             _isCultivated = hm == null ? null : AccessTools.Method(hm, "IsCultivated", new[] { typeof(Vector3) });
             _isCleared = hm == null ? null : AccessTools.Method(hm, "IsCleared", new[] { typeof(Vector3) });

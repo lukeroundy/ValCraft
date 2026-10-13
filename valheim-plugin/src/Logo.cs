@@ -56,11 +56,11 @@ namespace ValCraft
 
         static void Scan()
         {
-            _imageT = _imageT ?? AccessTools.TypeByName("UnityEngine.UI.Image");
-            _rawT = _rawT ?? AccessTools.TypeByName("UnityEngine.UI.RawImage");
-            _graphicT = _graphicT ?? AccessTools.TypeByName("UnityEngine.UI.Graphic");
-            _tmpT = _tmpT ?? AccessTools.TypeByName("TMPro.TextMeshProUGUI");
-            _fontT = _fontT ?? AccessTools.TypeByName("TMPro.TMP_FontAsset");
+            _imageT = _imageT ?? Refl.T("UnityEngine.UI.Image");
+            _rawT = _rawT ?? Refl.T("UnityEngine.UI.RawImage");
+            _graphicT = _graphicT ?? Refl.T("UnityEngine.UI.Graphic");
+            _tmpT = _tmpT ?? Refl.T("TMPro.TextMeshProUGUI");
+            _fontT = _fontT ?? Refl.T("TMPro.TMP_FontAsset");
             var found = new List<(Component c, string desc, float area)>();
             var big = new List<string>();
             void Consider(Component c, string asset, string kind)
@@ -74,6 +74,8 @@ namespace ValCraft
                 if (!_dumped && w * h > 200 * 60) big.Add(desc);
                 // the small "title" texts of panels are TMP, not images; buttons/icons are small: require some size for UI images
                 // match the sprite/texture name and the object + parent names only (a root named "Valheim..." must not match everything)
+                // 0.12.4: never in-game UI (the radial menu "ValheimRadial" matched while the world was loading)
+                if (path.Contains("/IngameGui/") || path.Contains("hudroot")) return;
                 if (!Match(asset + "|" + c.gameObject.name + "|" + (c.transform.parent != null ? c.transform.parent.name : ""))) return;
                 if (rt != null && w * h < 120 * 40) return;
                 found.Add((c, desc, w * h));
@@ -130,9 +132,9 @@ namespace ValCraft
             if (font != null) P("font", font);
             P("text", text);
             P("enableAutoSizing", true); P("fontSizeMin", 12f); P("fontSizeMax", 900f); P("richText", true); P("enableWordWrapping", false);
-            var align = AccessTools.TypeByName("TMPro.TextAlignmentOptions"); if (align != null) P("alignment", Enum.ToObject(align, 514));
+            var align = Refl.T("TMPro.TextAlignmentOptions"); if (align != null) P("alignment", Enum.ToObject(align, 514));
             P("color", Color.white); P("characterSpacing", 6f); P("raycastTarget", false);
-            var grad = AccessTools.TypeByName("TMPro.VertexGradient");
+            var grad = Refl.T("TMPro.VertexGradient");
             if (grad != null) { P("enableVertexGradient", true); P("colorGradient", Activator.CreateInstance(grad, new object[] { top, top, Color.Lerp(mid, bottom, 0.6f), bottom })); }
             // material instance: outline + outer glow + soft underlay (TMP SDF shader)
             try

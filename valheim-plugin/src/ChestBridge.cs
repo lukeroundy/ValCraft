@@ -22,7 +22,7 @@ namespace ValCraft
         static void ChestInit()
         {
             if (_containerT != null) return;
-            _containerT = AccessTools.TypeByName("Container");
+            _containerT = Refl.T("Container");
             _cGetInv = AccessTools.Method(_containerT, "GetInventory", Type.EmptyTypes);
             _cCheckAccess = AccessTools.Method(_containerT, "CheckAccess", new[] { typeof(long) });
             _cSave = AccessTools.Method(_containerT, "Save", Type.EmptyTypes);
@@ -31,7 +31,7 @@ namespace ValCraft
             _iChanged = _inventory.GetMethod("Changed", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, Type.EmptyTypes, null); // 1.0.17: may be gone -> m_onChanged
             _iOnChanged = _inventory.GetField("m_onChanged", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             _gridPos = AccessTools.Field(_itemData, "m_gridPos");
-            _getPlayerId = AccessTools.Method(AccessTools.TypeByName("Player"), "GetPlayerID", Type.EmptyTypes);
+            _getPlayerId = AccessTools.Method(Refl.T("Player"), "GetPlayerID", Type.EmptyTypes);
             ValCraftPlugin.Log.LogInfo($"[chest] Container.GetInventory={_cGetInv != null} CheckAccess={_cCheckAccess != null} Inventory size={_iW != null && _iH != null} gridPos={_gridPos != null}");
         }
 
@@ -47,7 +47,7 @@ namespace ValCraft
             {
                 if (_cCheckAccess != null && _getPlayerId != null && PlayerSync.Player != null && !(bool)_cCheckAccess.Invoke(c, new object[] { _getPlayerId.Invoke(PlayerSync.Player, null) }))
                 { ValCraftPlugin.Log.LogInfo($"[chest] {go.name}: no access (private chest)"); return true; }
-                var nv = c.GetComponent(AccessTools.TypeByName("ZNetView")); var claim = nv == null ? null : AccessTools.Method(nv.GetType(), "ClaimOwnership");
+                var nv = c.GetComponent(Refl.T("ZNetView")); var claim = nv == null ? null : AccessTools.Method(nv.GetType(), "ClaimOwnership");
                 try { claim?.Invoke(nv, null); } catch { }
                 _chest = c; _chestInv = _cGetInv.Invoke(c, null); _chestSerial++; _chestHash = 0; _chestNextPoll = 0;
                 ValCraftPlugin.Log.LogInfo($"[chest] opened {go.name} in Minecraft");
