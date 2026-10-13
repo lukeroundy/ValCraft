@@ -11,7 +11,7 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft(IEventBus modBus) {
-		LOG.info("ValCraft loaded (0.13.2: sleep/spawn points across both games, MC campfires warm in Valheim, Left Alt snap cycling; 0.13.1: place on Valheim surfaces, stairs; 0.13.0: multiplayer through the Valheim server; 0.12.3: off-thread collision index; 0.12.1: Valheim map visible; 0.12.0: M = Valheim map, 24 fps animation, weather sync, fluids vs Valheim buildings, stuck arrows, emeralds)");
+		LOG.info("ValCraft loaded (0.13.4: respawn waits for Valheim; 0.13.2: sleep/spawn points across both games, MC campfires warm in Valheim, Left Alt snap cycling; 0.13.1: place on Valheim surfaces, stairs; 0.13.0: multiplayer through the Valheim server; 0.12.3: off-thread collision index; 0.12.1: Valheim map visible; 0.12.0: M = Valheim map, 24 fps animation, weather sync, fluids vs Valheim buildings, stuck arrows, emeralds)");
 		dev.valcraft.mobs.MobSync.register(modBus);
 		dev.valcraft.content.ModContent.register(modBus);
 		dev.valcraft.net.ServerOps.register(modBus);

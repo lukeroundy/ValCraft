@@ -129,6 +129,7 @@ public final class ValCraftClient {
 				case ValCraftLink.EV_WATER -> ValheimWater.receive(ev.payload());
 				case ValCraftLink.EV_DAY_TIME -> DayLink.receive(mc, ev.payload());
 				case ValCraftLink.EV_SLEEP -> SleepLink.receive(mc, ev.payload());
+				case ValCraftLink.EV_RESPAWN_READY -> DeathGate.receive(ev.payload());
 				case ValCraftLink.EV_SPAWN -> SleepLink.spawn(mc, ev.payload());
 				case ValCraftLink.EV_WEATHER -> WeatherLink.receive(mc, ev.payload());
 				case ValCraftLink.EV_WORLD_INFO -> AutoWorld.worldInfo(ev.payload());
@@ -202,6 +203,7 @@ public final class ValCraftClient {
 			HealthLink.tick(mc);
 			BuildLink.tick(mc);
 			SleepLink.tick(mc);
+			DeathGate.tick(mc);
 			ValheimWater.tick(mc);
 			dev.valcraft.mobs.MobSync.tick(mc);
 			CollisionWorld.poll(link);

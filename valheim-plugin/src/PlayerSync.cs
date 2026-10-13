@@ -159,6 +159,7 @@ namespace ValCraft
         }
         internal static void ResendDims() { _sentW = _sentH = -1; _nextDims = 0; }
 
+        internal static Component LocalPlayerNow() => LocalPlayer();
         static Component LocalPlayer() { try { return _localPlayerField?.GetValue(null) as Component; } catch { return null; } }
 
         /// <summary>Called from the plugin's Update every frame.</summary>

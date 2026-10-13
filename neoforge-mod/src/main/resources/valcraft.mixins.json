@@ -28,7 +28,7 @@
     "WindowMixin",
     "LocalPlayerPushMixin",
     "MinecraftAttackMixin",
-    "FlywheelFallbackMixin"
+    "FlywheelFallbackMixin", "DeathScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

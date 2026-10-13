@@ -319,3 +319,7 @@ MC ops 1007 sleep {u8 on} (server: start sleeping at the player position / wake)
 While Valheim drives the time, MC's own "everyone asleep" skip/wake-up is disabled; MC wakes when Valheim's morning reaches it.
 On a death the anchor is kept: the MC player is teleported to where Valheim respawned it (previously the mapping was re-anchored, shifting MC builds).
 - 0.13.3 (no wire change, Valheim DLL only): an MC campfire within 1 m of a CookingStation fire check point counts as lit (IsFireLit postfix); CraftingStation.CheckFire (cauldron) accepts one within 1.5 m; a placement status about fire is overridden over an MC campfire. Areas stay non-Burning.
+
+## v23 (0.13.4) — respawn order
+| 73 EvRespawnReady | V→MC | u8 (0 Valheim still respawning: keep MC's respawn button disabled, "Waiting for Valheim..."; 1 Valheim's new player is alive, not teleporting/intro → MC respawns itself). Every 0.5 s while MC is dead after a linked kill. No 0 seen → no gate; 60 s timeout re-enables the button. |
+Valheim kill: m_lastHit is given a HitData before Player.OnDeath (0.13.3 log: OnDeath NullReferenceException, no tombstone/respawn); fallback lethal ApplyDamage; if both fail MC is released at once. After MC respawns Valheim moves it to the Valheim respawn point (anchor kept, 0.13.2).

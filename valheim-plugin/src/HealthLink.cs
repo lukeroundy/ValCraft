@@ -22,7 +22,7 @@ namespace ValCraft
     {
         internal static bool Enabled = true;
         internal static float LastBurnForward = -100f;
-        static float _hp = -1, _max = 20; static int _food; static bool _mcDead, _killedForMc;
+        static float _hp = -1, _max = 20; static int _food; static bool _mcDead, _killedForMc, _killFailed, _bypass; static Component _killedPlayer; static float _nextReady;
         static bool _init;
         static Type _charT, _hitT;
         static MethodInfo _setHealth, _getMax, _isDead, _onDeath, _total;
@@ -56,8 +56,58 @@ namespace ValCraft
 
         static bool Linked(object c) => Enabled && PlayerSync.Following && _hp >= 0 && PlayerSync.Player != null && ReferenceEquals(c, PlayerSync.Player);
 
+        /// <summary>0.13.4: the 0.13.3 log showed Player.OnDeath throwing a NullReferenceException (m_lastHit is null when nothing hit
+        /// us in Valheim) -> no tombstone, no Valheim respawn. Give it a last hit first; if it still fails, die through ApplyDamage.</summary>
+        static void Kill(Component pl)
+        {
+            _killedPlayer = pl; _killFailed = false;
+            object hit = null;
+            try { hit = Activator.CreateInstance(_hitT); _lastHitF = _lastHitF ?? AccessTools.Field(_charT, "m_lastHit"); if (_lastHitF != null && _lastHitF.GetValue(pl) == null) _lastHitF.SetValue(pl, hit); } catch { }
+            try { _onDeath.Invoke(pl, null); ValCraftPlugin.Log.LogInfo("[health] Valheim player died (OnDeath)"); return; }
+            catch (Exception e) { var b = e.GetBaseException(); ValCraftPlugin.Log.LogWarning($"[health] OnDeath failed: {b.GetType().Name}: {b.Message} {b.StackTrace?.Split('\n')[0]}"); }
+            try
+            {
+                var apply = AccessTools.Method(_charT, "ApplyDamage");
+                var dmgF = AccessTools.Field(_hitT, "m_damage"); var dmg = dmgF.GetValue(hit); AccessTools.Field(dmg.GetType(), "m_damage").SetValue(dmg, 1e7f); dmgF.SetValue(hit, dmg);
+                var args = new object[apply.GetParameters().Length]; args[0] = hit; for (int i = 1; i < args.Length; i++) { var pt = apply.GetParameters()[i]; args[i] = pt.HasDefaultValue ? pt.DefaultValue : (pt.ParameterType == typeof(bool) ? (object)false : Activator.CreateInstance(pt.ParameterType)); }
+                _setHealth.Invoke(pl, new object[] { 1f });
+                _bypass = true; try { apply.Invoke(pl, args); } finally { _bypass = false; }
+                bool dead = _isDead != null && (bool)_isDead.Invoke(pl, null);
+                ValCraftPlugin.Log.LogInfo($"[health] lethal ApplyDamage fallback: dead={dead}");
+                if (!dead) _killFailed = true;
+            }
+            catch (Exception e) { _killFailed = true; ValCraftPlugin.Log.LogWarning("[health] lethal damage fallback failed: " + e.GetBaseException().Message); }
+            if (_killFailed) ValCraftPlugin.Log.LogWarning("[health] Valheim player could not be killed: letting Minecraft respawn now");
+        }
+        static FieldInfo _lastHitF; static MethodInfo _isTeleporting; static FieldInfo _introF;
+
+        /// <summary>0.13.4: EvRespawnReady (every 0.5 s while MC is dead) once Valheim's new player is alive and placed.</summary>
+        internal static void RespawnGate(ValCraftLink link)
+        {
+            if (!_mcDead || !_killedForMc || link == null || Time.unscaledTime < _nextReady) return;
+            _nextReady = Time.unscaledTime + 0.5f;
+            bool ready = _killFailed;
+            if (!ready)
+            {
+                var lp = PlayerSync.LocalPlayerNow();
+                if (lp != null && !ReferenceEquals(lp, _killedPlayer))
+                {
+                    var pt = lp.GetType();
+                    _isTeleporting = _isTeleporting ?? AccessTools.Method(pt, "IsTeleporting", Type.EmptyTypes); _introF = _introF ?? AccessTools.Field(pt, "m_intro");
+                    bool dead = false, tp = false, intro = false;
+                    try { dead = _isDead != null && (bool)_isDead.Invoke(lp, null); } catch { }
+                    try { tp = _isTeleporting != null && (bool)_isTeleporting.Invoke(lp, null); } catch { }
+                    try { intro = _introF != null && (bool)_introF.GetValue(lp); } catch { }
+                    ready = !dead && !tp && !intro;
+                }
+            }
+            if (!ready) { link.TrySend(ValCraftLink.EvRespawnReady, new byte[] { 0 }); return; } // MC: keep the respawn button disabled
+            if (link.TrySend(ValCraftLink.EvRespawnReady, new byte[] { 1 })) Diag.Info("respready", "[health] Valheim player respawned: telling Minecraft to respawn");
+        }
+
         static bool ApplyDamagePre(object __instance, object hit)
         {
+            if (_bypass) return true;
             try
             {
                 if (hit == null) return true;
@@ -111,7 +161,7 @@ namespace ValCraft
         {
             var (hp, max, food, dead) = HealthCodec.ReadHealth(p);
             if (dead && !_mcDead) ValCraftPlugin.Log.LogInfo("[health] Minecraft player died");
-            if (!dead && _mcDead) { ValCraftPlugin.Log.LogInfo("[health] Minecraft player respawned"); _killedForMc = false; if (!PlayerSync.AlignPending) PlayerSync.ReAnchor(); }
+            if (!dead && _mcDead) { ValCraftPlugin.Log.LogInfo("[health] Minecraft player respawned"); _killedForMc = false; _killFailed = false; _killedPlayer = null; if (!PlayerSync.AlignPending) PlayerSync.ReAnchor(); }
             _hp = hp; _max = Mathf.Max(1f, max); _food = food; _mcDead = dead;
         }
 
@@ -122,6 +172,7 @@ namespace ValCraft
         internal static void Update(ValCraftLink link)
         {
             _link = link;
+            try { RespawnGate(link); } catch (Exception e) { Diag.Warn("respgate", "[health] respawn gate: " + e.GetBaseException().Message); }
             if (!Enabled || _hp < 0) return;
             if (!_init) Init();
             var pl = PlayerSync.Player;
@@ -138,7 +189,7 @@ namespace ValCraft
                         _setHealth.Invoke(pl, new object[] { 0f });
                         ValCraftPlugin.Log.LogInfo("[health] killing the Valheim player (Minecraft death): tombstone + respawn");
                         PlayerSync.ExpectRespawn();
-                        _onDeath.Invoke(pl, null);
+                        Kill(pl);
                     }
                     return;
                 }

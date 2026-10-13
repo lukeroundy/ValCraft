@@ -18,7 +18,7 @@ import java.nio.file.StandardOpenOption;
  * standalone IPC test compiles this exact file.
  */
 public final class ValCraftLink implements AutoCloseable {
-	public static final int MAGIC = 0x434C4156, VERSION = 22;
+	public static final int MAGIC = 0x434C4156, VERSION = 23;
 	static final int OFF_MAGIC = 0x0, OFF_VERSION = 0x4, OFF_VALHEIM_PID = 0x10, OFF_MC_PID = 0x14;
 	static final int OFF_VALHEIM_HB = 0x18, OFF_MC_HB = 0x20, OFF_VALHEIM_FLAGS = 0x28, OFF_MC_FLAGS = 0x2C;
 	static final int OFF_SESSION = 0x30, OFF_MC_ACKED_SESSION = 0x34;
@@ -70,7 +70,7 @@ public final class ValCraftLink implements AutoCloseable {
 	public static final short EV_BUILD_MENU = 49, EV_BUILD_ACTION = 50, EV_BUILD_STATE = 51, EV_BUILD_PIECES = 52, EV_BUILD_SELECT = 53;
 	public static final short EV_MOB_LIST = 54, EV_MOB_HURT = 55, EV_VMOB_LIST = 56, EV_VMOB_HURT = 57, EV_WATER = 58;
 	public static final short EV_LEVEL_GROUND = 59, EV_DAY_TIME = 60, EV_WORLD_INFO = 61, EV_REACH = 62, EV_CHEST_CONTENTS = 63, EV_CHEST_OP = 64, EV_LORE_TEXT = 65, EV_MAP_TOGGLE = 66, EV_WEATHER = 67, EV_NET_ROLE = 68, EV_NET_READY = 69;
-	public static final short EV_SLEEP = 70, EV_SPAWN = 71, EV_MC_FIRES = 72;
+	public static final short EV_SLEEP = 70, EV_SPAWN = 71, EV_MC_FIRES = 72, EV_RESPAWN_READY = 73;
 	public static final int HEIGHT_CELL = 4, HEIGHT_RES = 9;
 	public static final int TERRAIN_TILE = 8, VFLAG_TERRAIN_BLOCKS = 32;
 
