@@ -310,6 +310,7 @@ namespace ValCraft
                     _proxies[m.Id] = px; _proxyToMc[px.Ch] = m.Id;
                 }
                 px.Target = ToUnity(m.X, m.Y, m.Z); px.Seen = t;
+                if (Math.Abs(m.W - px.W) > 0.01f || Math.Abs(m.H - px.H) > 0.01f) { px.W = m.W; px.H = m.H; ProxyHitbox.Resize(px.Go, m.W, m.H); } // pose / sneak / slime size / baby growth
                 try
                 {
                     // 0.9.1: name + health bar of the MC mob (custom name tag or type name; MC hp / max hp)
@@ -345,8 +346,7 @@ namespace ValCraft
                 if (ProxyAudio.SwapFor(m.Name)) ProxyAudio.Silence(go); // 0.15.0: no Valheim sounds from MC-mob stand-ins (0.15.1: per family)
                 // 0.9.2: not kinematic (Character code sets velocity every FixedUpdate -> 20k Unity warnings); frozen dynamic body, moved by position
                 var rb = go.GetComponent<Rigidbody>(); if (rb != null) { rb.isKinematic = false; rb.useGravity = false; rb.constraints = RigidbodyConstraints.FreezeAll; rb.interpolation = RigidbodyInterpolation.None; }
-                var cap = go.GetComponent<CapsuleCollider>();
-                if (cap != null && m.W > 0 && m.H > 0) { cap.radius = Math.Max(0.2f, m.W / 2); cap.height = Math.Max(cap.radius * 2, m.H); cap.center = new Vector3(0, cap.height / 2, 0); }
+                ProxyHitbox.Setup(go, m.W, m.H); // 0.15.2: MC bounding box, body-centred, own hit collider
                 var ch = go.GetComponent(_charT);
                 if (ch == null) { _sceneDestroy.Invoke(Zns(), new object[] { go }); return null; }
                 string fac = m.Kind == MobCodec.Hostile ? HostileFaction : "AnimalsVeg";
@@ -362,7 +362,7 @@ namespace ValCraft
         {
             if (!_proxies.TryGetValue(id, out var px)) return;
             _proxies.Remove(id); if (px.Ch != null) _proxyToMc.Remove(px.Ch);
-            try { ProxyAudio.Forget(px.Go); if (px.Go != null) _sceneDestroy.Invoke(Zns(), new object[] { px.Go }); } catch { }
+            try { ProxyAudio.Forget(px.Go); ProxyHitbox.Forget(px.Go); if (px.Go != null) _sceneDestroy.Invoke(Zns(), new object[] { px.Go }); } catch { }
         }
 
         internal static void Clear(string why)
@@ -380,6 +380,7 @@ namespace ValCraft
             if (!_init) Init();
             if (!_ok) return;
             // keep proxies on their MC mobs
+            ProxyHitbox.Tick();
             foreach (var px in _proxies.Values)
             {
                 if (px.Go == null) continue;

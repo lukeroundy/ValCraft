@@ -1,5 +1,13 @@
 # Changelog
 
+
+## 0.15.2
+- **Fix: Minecraft mob hitboxes in Valheim were too small and short** (you had to aim at their legs). Each stand-in now has a dedicated hit capsule sized to the MC entity's bounding box (width × height in blocks, 1 block = 1 m, already including baby size, pose/sneaking, slime size and scale) and centred on the body instead of the feet.
+- The hit capsule resizes live when the MC dimensions change (EvMobList, every 0.2 s), so no protocol change is needed (still v26).
+- The placeholder prefab's own child colliders are removed so they can't steal hits; the movement collider stays small (radius ≤ 0.4 m, height ≤ 1.8 m), and the hit capsule ignores the local player's collider so big mobs can't push or trap you.
+- New debug option `[Mobs] DrawHitboxes` (default off, live) draws the hit capsules as red wireframes.
+- ipc-test checks the MC box → capsule mapping (zombie, baby, spider, enderman, slimes, ravager, sneaking, dragon) after wire rounding.
+
 ## 0.15.1 (not released yet)
 - **Item art:** all ~350 Valheim items in the Minecraft mod, and the tin and bronze items, were redrawn as crisp 16x16 pixel art (`tools/pixelart.py`). Each uses a limited hue-shifted palette with a coloured dark outline, light from the top-left, no blur, and nearest-neighbour scaling only. Templates exist per category (swords, greatswords, knives, axes, battleaxes, maces, sledges, pickaxes, spears, atgeirs, bows, crossbows, arrows/bolts, round/kite/tower shields and bucklers, ores, ingots, logs, hides, food, bowls, meads, gems, materials). The trophies are hand-tuned (boar, deer, Eikthyr, skeleton, The Elder, Bonemass, Moder, Yagluth, The Queen, Fader).
 - **Norse armour:** the worn armour layers (layer_1/layer_2) and the armour icons now match the Valheim sets:

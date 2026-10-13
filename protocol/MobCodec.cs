@@ -10,6 +10,20 @@ namespace ValCraft.Protocol
         public const byte Hostile = 1, Passive = 2;
         const int Fixed = 23;
 
+        /// <summary>Valheim meters per MC block (ValCraft maps 1:1).</summary>
+        public const float BlockToMeter = 1f;
+        /// <summary>0.15.2: hit capsule for an MC bounding box (W x H blocks, already including baby/pose/scale, as sent by MC):
+        /// radius = half the width (min 0.15 m), height = full box height (at least 2 r), centred on the body (centerY = h/2).
+        /// The movement collider stays small: radius min(r, 0.4), height min(h, 1.8), also body-centred.</summary>
+        public struct Box { public float Radius, Height, CenterY, MoveRadius, MoveHeight, MoveCenterY; }
+        public static Box Hitbox(float w, float h, float scale = BlockToMeter)
+        {
+            if (!(w > 0)) w = 0.6f; if (!(h > 0)) h = 1.8f;
+            float r = Math.Max(0.15f, w * scale / 2f), hh = Math.Max(2 * r, h * scale);
+            float mr = Math.Min(r, 0.4f), mh = Math.Max(2 * mr, Math.Min(hh, 1.8f));
+            return new Box { Radius = r, Height = hh, CenterY = hh / 2f, MoveRadius = mr, MoveHeight = mh, MoveCenterY = mh / 2f };
+        }
+
         static byte U8(float v) => (byte)Math.Max(0, Math.Min(255, (int)Math.Round(v)));
 
         /// <summary>

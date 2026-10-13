@@ -96,7 +96,7 @@ static unsafe class Program
         if (args.Length == 2 && args[0] == "items") return ItemsTest(args[1]);
         if (args.Length == 2 && args[0] == "chest") return ChestTest(args[1]);
         if (args.Length == 2 && args[0] == "chestop") return ChestOpTest(args[1]);
-        if (args.Length == 3 && args[0] == "mobs") return MobsTest(args[1], args[2]);
+        if (args.Length == 3 && args[0] == "mobs") { int hb = HitboxTest(); return hb != 0 ? hb : MobsTest(args[1], args[2]); }
         if (args.Length == 1 && args[0] == "tunnel") return TunnelTest.Run();
         if (args.Length > 0 && args[0] == "host") return FakeValheim.Run(args.Length > 1 ? args[1] : ValCraftLink.DefaultPath(), args.Length > 2 ? int.Parse(args[2]) : 300, args.Length > 3 ? args[3] : "cmd.txt");
         path = args.Length > 0 ? args[0] : ValCraftLink.DefaultPath();
@@ -322,6 +322,32 @@ static unsafe class Program
         bool ok = serial == 4242 && op == ValCraft.Protocol.ChestCodec.OpDeposit && slot == 31 && count == 64 && dur == 0xFFFF && id == "valcraft:bronze_ingot";
         Console.WriteLine("[cs] chest op " + (ok ? "OK" : "FAIL"));
         return ok ? 0 : 1;
+    }
+
+    /// <summary>0.15.2: MC bounding box -> Valheim hit capsule (sizes as MC 1.21 reports them, after the u8 x10 wire rounding).</summary>
+    static int HitboxTest()
+    {
+        int bad = 0;
+        void C(string what, bool ok) { Console.WriteLine((ok ? "[cs] hitbox ok: " : "[cs] hitbox FAIL: ") + what); if (!ok) bad++; }
+        bool Near(float a, float b) => Math.Abs(a - b) < 0.051f;
+        MobCodec.Box Wire(float w, float h)
+        {
+            var enc = MobCodec.EncodeList(new[] { new MobCodec.Mob { Id = 1, Kind = 1, W = w, H = h, Name = "x" } })[0];
+            var m = MobCodec.DecodeList(enc)[0]; return MobCodec.Hitbox(m.W, m.H);
+        }
+        var z = Wire(0.6f, 1.95f); C($"zombie 0.6x1.95 -> r {z.Radius} h {z.Height} c {z.CenterY}", Near(z.Radius, 0.3f) && Near(z.Height, 1.95f) && Near(z.CenterY, 0.975f));
+        var bz = Wire(0.3f, 0.975f); C($"baby zombie 0.3x0.975 -> r {bz.Radius} h {bz.Height}", Near(bz.Radius, 0.15f) && Near(bz.Height, 1.0f) && Near(bz.CenterY, 0.5f));
+        var cr = Wire(0.6f, 1.7f); C("creeper 0.6x1.7", Near(cr.Height, 1.7f));
+        var sp = Wire(1.4f, 0.9f); C($"spider 1.4x0.9 -> r {sp.Radius} h {sp.Height} (h >= 2r)", Near(sp.Radius, 0.7f) && Near(sp.Height, 1.4f) && Near(sp.CenterY, 0.7f));
+        var en = Wire(0.6f, 2.9f); C("enderman 0.6x2.9", Near(en.Height, 2.9f) && Near(en.CenterY, 1.45f) && en.MoveHeight <= 1.8f);
+        var sl = Wire(2.08f, 2.08f); C($"big slime 2.08 -> r {sl.Radius} move r {sl.MoveRadius}", Near(sl.Radius, 1.05f) && sl.MoveRadius <= 0.4f);
+        var ss = Wire(0.52f, 0.52f); C("small slime 0.52", Near(ss.Radius, 0.25f) && Near(ss.Height, 0.5f));
+        var rv = Wire(1.95f, 2.2f); C("ravager 1.95x2.2", Near(rv.Radius, 0.95f) && Near(rv.Height, 2.2f) && rv.MoveRadius <= 0.4f && rv.MoveHeight <= 1.8f);
+        var sn = Wire(0.6f, 1.5f); C("sneaking pose 0.6x1.5", Near(sn.Height, 1.5f));
+        var dr = Wire(16f, 8f); C("ender dragon 16x8", Near(dr.Radius, 8f) && Near(dr.Height, 16f));
+        var zero = MobCodec.Hitbox(0, 0); C("unknown size -> player-sized default", Near(zero.Radius, 0.3f) && Near(zero.Height, 1.8f));
+        var sc = MobCodec.Hitbox(0.6f, 1.95f, 2f); C("block scale 2 m", Near(sc.Radius, 0.6f) && Near(sc.Height, 3.9f));
+        return bad == 0 ? 0 : 7;
     }
 
     static int MobsTest(string javaFile, string outFile)

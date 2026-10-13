@@ -133,6 +133,8 @@ namespace ValCraft
             Hazards.Water = Config.Bind("Hazards", "Water", true, "Valheim water and tar act as water for the Minecraft player (swimming, air, drowning; tar slows).").Value;
             foreach (var fam in ProxyAudio.Families) ProxyAudio.Swap[fam] = Config.Bind("MobAudio", "Swap_" + fam, true, $"Minecraft {fam} mobs: true = their Valheim stand-ins are silent and you hear the Minecraft sounds; false = Valheim sounds, Minecraft muted for this family (set from the ValCraft Launcher settings).").Value;
             MobBridge.Enabled = Config.Bind("Mobs", "CrossGameCombat", true, "Minecraft hostiles and Valheim monsters see and fight each other (invisible proxies on both sides).").Value;
+            var cfgHb = Config.Bind("Mobs", "DrawHitboxes", false, "Debug: draw the hit capsules of the Minecraft-mob stand-ins (red wireframe). Can be changed while playing.");
+            ProxyHitbox.Draw = cfgHb.Value; cfgHb.SettingChanged += (a, b) => ProxyHitbox.Draw = cfgHb.Value;
             MobBridge.MaxProxies = Config.Bind("Mobs", "MaxProxies", 24, "Max proxies per side.").Value;
             MobBridge.ProxyPrefab = Config.Bind("Mobs", "ProxyPrefab", "Greyling", "Valheim creature prefab used (invisible, AI off) as the stand-in for Minecraft mobs.").Value;
             MobBridge.HostileFaction = Config.Bind("Mobs", "HostileMcFaction", "Players", "Valheim faction for hostile Minecraft mobs (Players = every Valheim monster attacks them).").Value;
