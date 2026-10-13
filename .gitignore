@@ -6,3 +6,20 @@ run/
 *.shm
 .idea/
 dist/release-*/
+
+# public repo hygiene
+dist/
+*.exe
+*.pdb
+# game/proprietary references (never commit): decompiled sources, game or publicized assemblies
+dec_*.cs
+*_publicized.dll
+assembly_*.dll
+publicized_assemblies/
+Managed/
+# dev runtime data
+*.log
+logs/
+saves/
+crash-reports/
+run/

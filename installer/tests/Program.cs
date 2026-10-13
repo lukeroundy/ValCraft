@@ -32,7 +32,7 @@ static class T
         }
 
         // plugin install / update / uninstall
-        Directory.CreateDirectory(Path.Combine(vh, "BepInEx", "plugins")); File.WriteAllText(Path.Combine(vh, "BepInEx", "plugins", "ValCraft.Valheim.dll"), "stray");
+        Directory.CreateDirectory(Path.Combine(vh, "BepInEx", "plugins")); Directory.CreateDirectory(Path.Combine(vh, "BepInEx", "config")); File.WriteAllText(Path.Combine(vh, "BepInEx", "plugins", "ValCraft.Valheim.dll"), "stray");
         File.WriteAllText(Path.Combine(vh, "BepInEx", "config", "valcraft-items.json"), "{\"map\":1}");
         Plugin.Install(vh, new byte[] { 1 }, null); Plugin.Install(vh, new byte[] { 2 }, null);
         Ok(File.ReadAllBytes(Plugin.Dll(vh))[0] == 2 && File.ReadAllBytes(Plugin.Dll(vh) + ".bak")[0] == 1 && !File.Exists(Path.Combine(vh, "BepInEx", "plugins", "ValCraft.Valheim.dll")), "plugin installed to plugins/ValCraft, old -> .bak, stray root copy moved");

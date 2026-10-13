@@ -16,7 +16,7 @@ namespace ValCraft.Installer
         public const string PluginGuid = "dev.valcraft.valheim";
         public const string ValheimAppId = "892970";
         /// <summary>GitHub repo for updates ("owner/name"). TBD: the repo does not exist yet; update checks are skipped while this is a placeholder.</summary>
-        public const string GitHubRepo = "OWNER/ValCraft";
+        public const string GitHubRepo = "lukeroundy/ValCraft";
         public const string ThunderstoreBepInEx = "https://thunderstore.io/api/experimental/package/denikson/BepInExPack_Valheim/";
         public const string PrismReleases = "https://api.github.com/repos/PrismLauncher/PrismLauncher/releases/latest";
         public const string InstanceName = "ValCraft";
