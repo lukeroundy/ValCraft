@@ -27,6 +27,11 @@ namespace ValCraft
             Init();
             var m = AccessTools.Method(Refl.T("SE_Rested"), "GetNearbyComfortPieces", new[] { typeof(Vector3) });
             if (m != null) { try { h.Patch(m, postfix: new HarmonyMethod(typeof(FireLink), nameof(ComfortPost))); } catch (Exception e) { ValCraftPlugin.Log.LogWarning("[fire] comfort hook: " + e.Message); m = null; } }
+            int n = 0;
+            n += Hook(h, Refl.T("CookingStation"), "IsFireLit", nameof(CookFirePost));
+            n += Hook(h, Refl.T("CraftingStation"), "CheckFire", nameof(CraftFirePost));
+            n += Hook(h, Refl.T("Player"), "UpdatePlacementGhost", nameof(GhostPost));
+            ValCraftPlugin.Log.LogInfo($"[fire] cooking/crafting fire hooks: {n}/3");
             ValCraftPlugin.Log.LogInfo($"[fire] EffectArea={_eaT != null} m_type={_eaType != null} Piece.m_comfortGroup Fire={_fireGroup != null} comfort hook={m != null}");
         }
 
@@ -107,6 +112,78 @@ namespace ValCraft
 
         internal static int Count => _fires.Count;
         internal static bool Near(Vector3 p, float r) { foreach (var go in _fires.Values) if (go != null && (go.transform.position - p).sqrMagnitude < r * r) return true; return false; }
+
+        static int Hook(Harmony h, Type t, string name, string post)
+        {
+            var m = t == null ? null : AccessTools.Method(t, name);
+            if (m == null) { ValCraftPlugin.Log.LogWarning($"[fire] {t?.Name}.{name} not found"); return 0; }
+            try { h.Patch(m, postfix: new HarmonyMethod(typeof(FireLink), post)); return 1; }
+            catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[fire] {t.Name}.{name}: {e.Message}"); return 0; }
+        }
+
+        /// <summary>An MC campfire within <paramref name="r"/> m horizontally and -0.5..+2 m vertically (station above the fire).</summary>
+        internal static bool FireAt(Vector3 p, float r)
+        {
+            foreach (var go in _fires.Values)
+            {
+                if (go == null) continue;
+                var f = go.transform.position; float dx = f.x - p.x, dz = f.z - p.z, dy = p.y - f.y;
+                if (dx * dx + dz * dz <= r * r && dy > -1f && dy < 2.5f) return true;
+            }
+            return false;
+        }
+
+        static FieldInfo _cpPoints, _cpReq, _csReq, _csHave, _csHaveObj, _cpHaveObj, _status, _ghostF;
+        static float _nextCookLog;
+
+        /// <summary>CookingStation.IsFireLit: Valheim looks for a Burning area / fireplace at m_fireCheckPoints; our MC fire area is never Burning.</summary>
+        static void CookFirePost(Component __instance, ref bool __result)
+        {
+            if (__result || _fires.Count == 0 || __instance == null) return;
+            try
+            {
+                var t = __instance.GetType();
+                _cpPoints = _cpPoints ?? AccessTools.Field(t, "m_fireCheckPoints");
+                bool hit = false;
+                if (_cpPoints?.GetValue(__instance) is Transform[] pts && pts.Length > 0) { foreach (var pt in pts) if (pt != null && FireAt(pt.position, 1f)) { hit = true; break; } }
+                else hit = FireAt(__instance.transform.position, 1f);
+                if (!hit) return;
+                __result = true;
+                if (Time.unscaledTime >= _nextCookLog) { _nextCookLog = Time.unscaledTime + 30f; ValCraftPlugin.Log.LogInfo($"[fire] {__instance.name}: lit by an MC campfire"); }
+            }
+            catch { }
+        }
+
+        /// <summary>CraftingStation.CheckFire (cauldron etc. with m_craftRequireFire): also accept an MC campfire under/near the station.</summary>
+        static void CraftFirePost(Component __instance)
+        {
+            if (_fires.Count == 0 || __instance == null) return;
+            try
+            {
+                var t = __instance.GetType();
+                _csReq = _csReq ?? AccessTools.Field(t, "m_craftRequireFire"); _csHave = _csHave ?? AccessTools.Field(t, "m_haveFire"); _csHaveObj = _csHaveObj ?? AccessTools.Field(t, "m_haveFireObject");
+                if (_csReq == null || _csHave == null || !(bool)_csReq.GetValue(__instance) || (bool)_csHave.GetValue(__instance)) return;
+                if (!FireAt(__instance.transform.position, 1.5f)) return;
+                _csHave.SetValue(__instance, true);
+                (_csHaveObj?.GetValue(__instance) as GameObject)?.SetActive(true);
+            }
+            catch { }
+        }
+
+        /// <summary>Placement: if this Valheim version refuses a fire-needing station for lack of fire, accept an MC campfire there.</summary>
+        static void GhostPost(Component __instance)
+        {
+            if (_fires.Count == 0 || __instance == null || !ReferenceEquals(__instance, PlayerSync.Player)) return;
+            try
+            {
+                var t = __instance.GetType();
+                _status = _status ?? AccessTools.Field(t, "m_placementStatus"); _ghostF = _ghostF ?? AccessTools.Field(t, "m_placementGhost");
+                var st = _status?.GetValue(__instance); if (st == null || st.ToString().IndexOf("Fire", StringComparison.OrdinalIgnoreCase) < 0) return;
+                var g = _ghostF?.GetValue(__instance) as GameObject; if (g == null || !FireAt(g.transform.position, 1.5f)) return;
+                _status.SetValue(__instance, Enum.ToObject(_status.FieldType, 0)); // Valid
+            }
+            catch { }
+        }
 
         static void ComfortPost(Vector3 point, object __result)
         {

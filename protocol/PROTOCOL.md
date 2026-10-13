@@ -318,3 +318,4 @@ EvBuildAction 4: cycle the Valheim placement snap point (Player.m_manualSnapPoin
 MC ops 1007 sleep {u8 on} (server: start sleeping at the player position / wake), 1008 respawn position {f32 x,y,z}.
 While Valheim drives the time, MC's own "everyone asleep" skip/wake-up is disabled; MC wakes when Valheim's morning reaches it.
 On a death the anchor is kept: the MC player is teleported to where Valheim respawned it (previously the mapping was re-anchored, shifting MC builds).
+- 0.13.3 (no wire change, Valheim DLL only): an MC campfire within 1 m of a CookingStation fire check point counts as lit (IsFireLit postfix); CraftingStation.CheckFire (cauldron) accepts one within 1.5 m; a placement status about fire is overridden over an MC campfire. Areas stay non-Burning.
