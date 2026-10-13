@@ -60,7 +60,7 @@ public final class SelfTest {
 			if (mc.player == null) return;
 			t++;
 			var sp = mc.getSingleplayerServer() == null ? null : mc.getSingleplayerServer().getPlayerList().getPlayer(mc.player.getUUID());
-			if (t == 40) { checkTextures(mc); if (sp != null) mc.getSingleplayerServer().execute(() -> { sp.serverLevel().setDayTime(6000); fillInventory(sp); }); }
+			if (t == 40) { checkTextures(mc); if (sp != null) mc.getSingleplayerServer().execute(() -> { checkRecipes(sp); sp.serverLevel().setDayTime(6000); fillInventory(sp); }); }
 			int look = (t - 80) / 60;
 			if (t >= 80 && look < LOOKS.length && (t - 80) % 60 == 0 && sp != null) {
 				final int li = look;
@@ -118,6 +118,23 @@ public final class SelfTest {
 		if (slot.contents().name().equals(missingLoc)) { texMissing++; tm.add("empty_slot_cape sprite"); }
 		report.add("armor layer files: " + tex + "; armor/cape/slot textures missing: " + texMissing + (tm.isEmpty() ? "" : " " + tm));
 		ValCraft.LOG.info("[selftest] {}", String.join(" | ", report));
+	}
+
+	/** 0.15.4: every valcraft recipe loaded, none still asks for leather scraps, leather recipes use minecraft:leather. */
+	static void checkRecipes(ServerPlayer sp) {
+		var rm = sp.server.getRecipeManager(); var reg = sp.server.registryAccess();
+		int vc = 0, scraps = 0, leather = 0;
+		var scrapIt = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse("valcraft:leather_scraps"));
+		for (var h : rm.getRecipes()) {
+			if (!h.id().getNamespace().equals("valcraft")) continue; vc++;
+			boolean s = false, l = false;
+			for (var ing : h.value().getIngredients()) for (var st : ing.getItems()) { if (st.is(scrapIt)) s = true; if (st.is(net.minecraft.world.item.Items.LEATHER)) l = true; }
+			if (s) { scraps++; ValCraft.LOG.warn("[selftest] recipe {} still uses leather scraps", h.id()); }
+			if (l) leather++;
+		}
+		int adv = 0; for (var a : sp.server.getAdvancements().getAllAdvancements()) if (a.id().getNamespace().equals("valcraft") && a.id().getPath().startsWith("recipes/")) adv++;
+		String r = "recipes valcraft=" + vc + " leather=" + leather + " scraps=" + scraps + " recipeAdvancements=" + adv + " scrapsItem=" + (scrapIt != net.minecraft.world.item.Items.AIR);
+		report.add(r); ValCraft.LOG.info("[selftest] {}", r);
 	}
 
 	static void fillInventory(ServerPlayer sp) {

@@ -2,6 +2,11 @@
 
 
 
+
+## 0.15.4
+- Recipes: every ValCraft crafting recipe that used Valheim leather scraps now uses vanilla `minecraft:leather` instead, with the same counts. That is 42 recipes (rag and leather armour, capes, shields, the hammer, knives and maces...), and their recipe-book unlock advancements now trigger on picking up leather. The leather scraps item is still in the game. The generator (`tools/gen_valheim.py`) was changed to match.
+- The client self-test checks that all 240 ValCraft recipes and recipe advancements load and that none still asks for leather scraps.
+
 ## 0.15.3
 - **Fix (for real): Minecraft mob hitboxes and name tags in Valheim.** In 0.15.2, name tags and health bars still floated at the zombies' waists. Three things were wrong:
   - The capsule Valheim actually reads (`Character.m_collider`, used by `GetTopPoint` for the name tag and by `GetCenterPoint`/`GetHeight` for aim and projectiles) was deliberately capped at 1.8 m.

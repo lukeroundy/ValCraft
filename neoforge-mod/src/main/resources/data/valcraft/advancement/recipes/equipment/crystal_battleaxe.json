@@ -11,12 +11,12 @@
         ]
       }
     },
-    "has_leather_scraps": {
+    "has_leather": {
       "trigger": "minecraft:inventory_changed",
       "conditions": {
         "items": [
           {
-            "items": "valcraft:leather_scraps"
+            "items": "minecraft:leather"
           }
         ]
       }
@@ -31,7 +31,7 @@
   "requirements": [
     [
       "has_crystal",
-      "has_leather_scraps",
+      "has_leather",
       "has_the_recipe"
     ]
   ],

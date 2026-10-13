@@ -126,7 +126,7 @@ def armor_layer(pal, rnd, legs=False):
 
 KIND_MODEL = {'sword': 'handheld', 'greatsword': 'handheld', 'knife': 'handheld', 'mace': 'handheld', 'club': 'handheld', 'sledge': 'handheld', 'axe': 'handheld',
               'battleaxe': 'handheld', 'pickaxe': 'handheld', 'hoe': 'handheld', 'spear': 'handheld', 'atgeir': 'handheld', 'staff': 'handheld', 'fist': 'generated'}
-MAT = {'rag': 'valcraft:leather_scraps', 'leather': 'valcraft:deer_hide', 'troll': 'valcraft:troll_hide', 'iron': 'minecraft:iron_ingot', 'root': 'valcraft:ancient_bark',
+MAT = {'rag': 'minecraft:leather', 'leather': 'valcraft:deer_hide', 'troll': 'valcraft:troll_hide', 'iron': 'minecraft:iron_ingot', 'root': 'valcraft:ancient_bark',
        'wolf': 'valcraft:wolf_pelt', 'fenris': 'valcraft:fenris_hair', 'padded': 'valcraft:linen_thread', 'carapace': 'valcraft:carapace', 'eitr_weave': 'valcraft:refined_eitr',
        'eitr': 'valcraft:refined_eitr', 'flametal': 'valcraft:flametal', 'embla': 'valcraft:refined_eitr', 'ask': 'valcraft:asksvin_hide', 'bronze': 'valcraft:bronze_ingot',
        'silver': 'valcraft:silver_ingot', 'blackmetal': 'valcraft:black_metal', 'flint': 'minecraft:flint', 'stone': 'minecraft:cobblestone', 'wood': 'minecraft:oak_planks',
@@ -154,8 +154,8 @@ PAT2 = {'sword': [' M ', ' M ', 'BWB'], 'greatsword': [' MM', 'MMM', 'WB '], 'kn
         'crossbow': ['MWM', 'SBS', ' W '], 'shield': ['MBM', 'MMM', ' M '], 'helmet': ['MMM', 'MBM'], 'chestplate': ['MBM', 'MMM', 'MMM'], 'leggings': ['MMM', 'MBM', 'M M'],
         'boots': ['MBM', 'M M'], 'cape': ['MBM', 'MMM', 'M M'], 'helmet_misc': ['MMM', 'MBM']}
 WOODT = ['minecraft:stick', 'minecraft:stick', 'minecraft:stick', 'minecraft:stick', 'valcraft:fine_wood', 'valcraft:yggdrasil_wood', 'valcraft:ashwood']
-BIND = ['valcraft:leather_scraps', 'valcraft:leather_scraps', 'valcraft:leather_scraps', 'valcraft:leather_scraps', 'valcraft:linen_thread', 'valcraft:refined_eitr', 'valcraft:asksvin_hide']
-SET2 = {'rag': ('valcraft:leather_scraps', 'minecraft:string'), 'leather': ('valcraft:deer_hide', 'valcraft:leather_scraps'), 'troll': ('valcraft:troll_hide', 'valcraft:bone_fragments'),
+BIND = ['minecraft:leather', 'minecraft:leather', 'minecraft:leather', 'minecraft:leather', 'valcraft:linen_thread', 'valcraft:refined_eitr', 'valcraft:asksvin_hide']
+SET2 = {'rag': ('minecraft:leather', 'minecraft:string'), 'leather': ('valcraft:deer_hide', 'minecraft:leather'), 'troll': ('valcraft:troll_hide', 'valcraft:bone_fragments'),
         'iron': ('minecraft:iron_ingot', 'valcraft:deer_hide'), 'root': ('valcraft:ancient_bark', 'minecraft:iron_ingot'), 'wolf': ('valcraft:wolf_pelt', 'valcraft:silver_ingot'),
         'fenris': ('valcraft:fenris_hair', 'valcraft:linen_thread'), 'padded': ('minecraft:iron_ingot', 'valcraft:linen_thread'), 'carapace': ('valcraft:carapace', 'valcraft:refined_eitr'),
         'eitr_weave': ('valcraft:linen_thread', 'valcraft:refined_eitr'), 'flametal': ('valcraft:flametal', 'valcraft:asksvin_hide'), 'embla': ('valcraft:linen_thread', 'valcraft:morgen_sinew'),
