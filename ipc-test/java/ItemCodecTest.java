@@ -16,6 +16,9 @@ public class ItemCodecTest {
                 w(o, s);
             }
             var h = bb(10); h.putFloat(13.5f).putFloat(20f).put((byte)17).put((byte)1); w(o, h); // EV_HEALTH (HealthLink.java layout)
+            // v27 EV_CONSUME_ACK_Q (ItemLink.qBytes layout): req 91, removed 1, dur 7500, quality 3, crafter "Ragnhild Ø", valcraft:bronze_axe
+            byte[] cr = "Ragnhild \u00d8".getBytes(StandardCharsets.UTF_8), qi = "valcraft:bronze_axe".getBytes(StandardCharsets.UTF_8);
+            var q = bb(64); q.putInt(91).putShort((short)1).putShort((short)7500).put((byte)3).put((byte)cr.length).put(cr).put(qi); w(o, q);
         }
         System.out.println("java items ok");
     }

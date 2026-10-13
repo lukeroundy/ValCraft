@@ -428,7 +428,7 @@ namespace ValCraft.Launcher
     {
         public static readonly string[] Families = { "zombie", "skeleton", "creeper", "spider", "enderman", "slime", "illager", "animal", "villager", "other" };
         public Dictionary<string, bool> Swap = Families.ToDictionary(f => f, f => true);
-        public bool MuteMusic = true, StartWithValheim = true, CrossGameCombat = true; public int MaxMobs = 24; public double EmeraldChance = 0.005;
+        public bool MuteMusic = true, StartWithValheim = true, CrossGameCombat = true, PreferMinecraftItems = true; public int MaxMobs = 24; public double EmeraldChance = 0.005;
         public static string PluginCfg(InstallState st) => st?.Valheim == null ? null : Path.Combine(st.Valheim, "BepInEx", "config", "dev.valcraft.valheim.cfg");
         public static string ModCfg(InstallState st) => st?.ModsDir == null ? null : Path.Combine(Path.GetDirectoryName(st.ModsDir.TrimEnd('\\', '/')), "config", "valcraft.properties");
         static bool B(string s, bool d) => s == null ? d : s.Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
@@ -440,6 +440,7 @@ namespace ValCraft.Launcher
                 foreach (var f in Families) s.Swap[f] = B(CfgFile.GetBep(pluginCfg, "MobAudio", "Swap_" + f), B(modCfg == null ? null : CfgFile.GetProp(modCfg, "swapSounds." + f), true));
                 s.StartWithValheim = B(CfgFile.GetBep(pluginCfg, "Minecraft", "StartWithValheim"), true);
                 s.CrossGameCombat = B(CfgFile.GetBep(pluginCfg, "Mobs", "CrossGameCombat"), true);
+                s.PreferMinecraftItems = B(CfgFile.GetBep(pluginCfg, "Items", "PreferMinecraftItems"), true);
                 int mm; if (int.TryParse(CfgFile.GetBep(pluginCfg, "Blocks", "MaxMobs"), out mm)) s.MaxMobs = mm;
             }
             if (modCfg != null)
@@ -457,6 +458,7 @@ namespace ValCraft.Launcher
                 foreach (var f in Families) CfgFile.SetBep(pluginCfg, "MobAudio", "Swap_" + f, L(Swap[f]));
                 CfgFile.SetBep(pluginCfg, "Minecraft", "StartWithValheim", L(StartWithValheim));
                 CfgFile.SetBep(pluginCfg, "Mobs", "CrossGameCombat", L(CrossGameCombat));
+                CfgFile.SetBep(pluginCfg, "Items", "PreferMinecraftItems", L(PreferMinecraftItems));
                 CfgFile.SetBep(pluginCfg, "Blocks", "MaxMobs", MaxMobs.ToString());
             }
             if (modCfg != null)

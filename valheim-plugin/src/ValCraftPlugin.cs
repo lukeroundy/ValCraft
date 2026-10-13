@@ -127,6 +127,8 @@ namespace ValCraft
             Config.SettingChanged += (_, __) => ApplyBlocks();
             var cfgItems = Config.Bind("Items", "Enabled", true, "Phase C item bridge: Valheim resources you gather go to your Minecraft inventory (mapping: valcraft-items.json in the config folder); Minecraft items work in Valheim fires, smelters, cooking stations and crafting.");
             ItemBridge.Enabled = cfgItems.Value;
+            var cfgPref = Config.Bind("Items", "PreferMinecraftItems", true, "0.15.2: items you craft or upgrade at Valheim stations (or by hand) go to your Minecraft inventory as the ValCraft item, keeping quality and crafter; Minecraft gear is lent to Valheim while a station is open so it can be upgraded. Off: crafted items stay Valheim items. Unmapped items always stay in Valheim; a full Minecraft inventory drops the item at your feet.");
+            ItemBridge.PreferMc = cfgPref.Value; cfgPref.SettingChanged += (a, b) => ItemBridge.PreferMc = cfgPref.Value;
             HealthLink.Enabled = Config.Bind("Health", "LinkHealth", true, "Minecraft health drives the Valheim player: Valheim damage (mobs, fire, drowning...) goes to Minecraft instead, Valheim fall damage is off, and a Minecraft death kills the Valheim player (tombstone + respawn).").Value;
             DayLink.Enabled = Config.Bind("Time", "SyncDayNight", true, "Valheim's time of day drives Minecraft (MC daylight cycle paused while linked).").Value;
             Hazards.Fire = Config.Bind("Hazards", "Fire", true, "Valheim fire (campfires, burning areas, fire AoE, lava) damages and ignites the Minecraft player.").Value;

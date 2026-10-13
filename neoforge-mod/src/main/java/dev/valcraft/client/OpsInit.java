@@ -10,6 +10,7 @@ public final class OpsInit {
 		ServerOps.on(ValCraftLink.EV_DAMAGE, HealthLink::damageOn);
 		ServerOps.on(ValCraftLink.EV_GIVE_ITEM, ItemLink::giveOn);
 		ServerOps.on(ValCraftLink.EV_CONSUME_REQ, ItemLink::consumeOn);
+		ServerOps.on(ValCraftLink.EV_GIVE_ITEM_Q, ItemLink::giveQOn);
 		ServerOps.on(ValCraftLink.EV_TERRAIN_TILE, TerrainSync::tileOn);
 		ServerOps.on(ValCraftLink.EV_VMOB_LIST, dev.valcraft.mobs.MobSync::vlistOn);
 		ServerOps.on(ValCraftLink.EV_MOB_HURT, dev.valcraft.mobs.MobSync::hurtMobOn);

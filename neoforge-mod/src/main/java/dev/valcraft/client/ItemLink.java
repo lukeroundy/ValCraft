@@ -65,6 +65,19 @@ final class ItemLink {
 				if (mode == 0) {
 					ItemStack h = pl.getMainHandItem();
 					if (!h.isEmpty() && (want.isEmpty() || id(h).equals(want))) { got = id(h); removed = Math.min(count, h.getCount()); if (h.isDamageableItem()) dur = Math.round((1f - (float) h.getDamageValue() / h.getMaxDamage()) * 10000f); if (!pl.getAbilities().instabuild) h.shrink(removed); }
+				} else if (mode == 2) { // v27: one gear item (main inventory only) with its quality + crafter -> EV_CONSUME_ACK_Q
+					Item it = item(want); int q = 1; String crafter = "";
+					for (int i = 0; i < inv.items.size(); i++) {
+						ItemStack s = inv.items.get(i);
+						if (s.isEmpty() || s.getItem() != it) continue;
+						if (s.isDamageableItem()) dur = Math.round((1f - (float) s.getDamageValue() / s.getMaxDamage()) * 10000f);
+						q = quality(s); crafter = crafter(s);
+						s.shrink(1); removed = 1; break;
+					}
+					pl.inventoryMenu.broadcastChanges();
+					dev.valcraft.net.ServerOps.toValheim(pl, ValCraftLink.EV_CONSUME_ACK_Q, qBytes(req, removed, dur, q, crafter, want));
+					ValCraft.LOG.info("[items] Valheim took {} x {} (quality {}) for crafting", removed, want, q);
+					return;
 				} else {
 					Item it = item(want);
 					for (int i = 0; i < inv.getContainerSize() && removed < count; i++) {
@@ -79,6 +92,64 @@ final class ItemLink {
 			dev.valcraft.net.ServerOps.toValheim(pl, ValCraftLink.EV_CONSUME_ACK, ackBytes(req, removed, dur, got));
 			ValCraft.LOG.info("[items] Valheim used {} x {} (asked {})", removed, got, count);
 		}
+	}
+
+	// ---------------- v27 (0.15.2): crafted Valheim items with quality + crafter ----------------
+	static final String Q_KEY = "valcraft_quality", C_KEY = "valcraft_crafter";
+	static int quality(ItemStack s) { var cd = s.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA); if (cd == null) return 1; var t = cd.copyTag(); return t.contains(Q_KEY) ? Math.max(1, t.getInt(Q_KEY)) : 1; }
+	static String crafter(ItemStack s) { var cd = s.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA); return cd == null ? "" : cd.copyTag().getString(C_KEY); }
+
+	static byte[] qBytes(int req, int count, int dur, int q, String crafter, String id) {
+		byte[] c = crafter.getBytes(StandardCharsets.UTF_8); if (c.length > 32) c = java.util.Arrays.copyOf(c, 32);
+		byte[] n = id.getBytes(StandardCharsets.UTF_8);
+		ByteBuffer b = ByteBuffer.allocate(10 + c.length + n.length).order(ByteOrder.LITTLE_ENDIAN);
+		b.putInt(req).putShort((short) count).putShort((short) dur).put((byte) Math.max(1, Math.min(255, q))).put((byte) c.length).put(c).put(n);
+		return b.array();
+	}
+
+	/** Quality q (Valheim upgrade level): custom_data + lore, attack/armour +20 %/level, max durability +50 %/level. Single-stack items only. */
+	static void applyQuality(ItemStack st, int q, String crafter) {
+		if (st.getMaxStackSize() != 1 || (q <= 1 && crafter.isEmpty())) return;
+		var tag = new net.minecraft.nbt.CompoundTag(); tag.putInt(Q_KEY, q); if (!crafter.isEmpty()) tag.putString(C_KEY, crafter);
+		st.set(net.minecraft.core.component.DataComponents.CUSTOM_DATA, net.minecraft.world.item.component.CustomData.of(tag));
+		var lore = new ArrayList<net.minecraft.network.chat.Component>();
+		lore.add(net.minecraft.network.chat.Component.literal("Quality " + q).withStyle(net.minecraft.ChatFormatting.GOLD));
+		if (!crafter.isEmpty()) lore.add(net.minecraft.network.chat.Component.literal("Crafted by " + crafter).withStyle(net.minecraft.ChatFormatting.GRAY));
+		st.set(net.minecraft.core.component.DataComponents.LORE, new net.minecraft.world.item.component.ItemLore(lore));
+		if (q <= 1) return;
+		if (st.isDamageableItem()) st.set(net.minecraft.core.component.DataComponents.MAX_DAMAGE, Math.round(st.getMaxDamage() * (1f + 0.5f * (q - 1))));
+		var mods = st.getAttributeModifiers();
+		if (mods != null && !mods.modifiers().isEmpty()) {
+			float f = 1f + 0.2f * (q - 1);
+			var bld = net.minecraft.world.item.component.ItemAttributeModifiers.builder();
+			for (var e : mods.modifiers()) {
+				var a = e.attribute(); var m = e.modifier();
+				boolean scale = m.operation() == net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE && m.amount() > 0
+					&& (a.equals(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE) || a.equals(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR) || a.equals(net.minecraft.world.entity.ai.attributes.Attributes.ARMOR_TOUGHNESS));
+				bld.add(a, scale ? new net.minecraft.world.entity.ai.attributes.AttributeModifier(m.id(), m.amount() * f, m.operation()) : m, e.slot());
+			}
+			st.set(net.minecraft.core.component.DataComponents.ATTRIBUTE_MODIFIERS, bld.build());
+		}
+	}
+
+	/** EV_GIVE_ITEM_Q (server thread). Overflow drops at the player's feet, like EV_GIVE_ITEM. */
+	public static void giveQOn(ServerPlayer pl, byte[] p) {
+		ByteBuffer b = ByteBuffer.wrap(p).order(ByteOrder.LITTLE_ENDIAN);
+		int count = b.getShort(4) & 0xFFFF, dur = b.getShort(6) & 0xFFFF, q = Math.max(1, b.get(8) & 0xFF), cl = b.get(9) & 0xFF;
+		byte[] c = new byte[cl]; b.get(10, c); String crafter = new String(c, StandardCharsets.UTF_8); String id = str(b, 10 + cl);
+		Item it = item(id);
+		if (it == Items.AIR || count <= 0) { ValCraft.LOG.warn("[items] give: unknown item {}", id); return; }
+		int left = count, dropped = 0;
+		while (left > 0) {
+			int n = Math.min(left, it.getDefaultMaxStackSize());
+			ItemStack st = new ItemStack(it, n);
+			applyQuality(st, q, crafter);
+			if (dur != 0xFFFF && st.isDamageableItem()) st.setDamageValue(Math.min(st.getMaxDamage() - 1, Math.round((1f - dur / 10000f) * st.getMaxDamage())));
+			if (!pl.getInventory().add(st) && !st.isEmpty()) { dropped += st.getCount(); pl.drop(st, false); }
+			left -= n;
+		}
+		pl.inventoryMenu.broadcastChanges();
+		ValCraft.LOG.info("[items] {} got {} x {} (quality {}, crafter '{}') from Valheim{}", pl.getName().getString(), count, id, q, crafter, dropped > 0 ? " (" + dropped + " dropped: inventory full)" : "");
 	}
 
 	private static byte[] ackBytes(int req, int removed, int dur, String id) {

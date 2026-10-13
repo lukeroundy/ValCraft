@@ -9,13 +9,13 @@ namespace ValCraft.Launcher
     sealed class SettingsForm : Form
     {
         public Settings Result;
-        readonly CheckBox[] _swap; readonly CheckBox _music, _start, _combat; readonly NumericUpDown _maxMobs, _emerald;
+        readonly CheckBox[] _swap; readonly CheckBox _music, _start, _combat, _prefMc; readonly NumericUpDown _maxMobs, _emerald;
         static readonly Color Bg = Color.FromArgb(24, 26, 30), Gold = Color.FromArgb(242, 183, 5);
 
         public SettingsForm(Settings s)
         {
             Text = "ValCraft Settings"; FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = MinimizeBox = false; StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(560, 470); BackColor = Bg; ForeColor = Color.White; Font = new Font("Segoe UI", 9f);
+            ClientSize = new Size(560, 500); BackColor = Bg; ForeColor = Color.White; Font = new Font("Segoe UI", 9f);
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             int y = 14;
             Label H(string t) { var l = new Label { Text = t, Left = 16, Top = y, Width = 520, Height = 22, ForeColor = Gold, Font = new Font(Font, FontStyle.Bold) }; Controls.Add(l); y += 24; return l; }
@@ -34,6 +34,7 @@ namespace ValCraft.Launcher
             H("Valheim");
             _start = new CheckBox { Text = "Start Minecraft automatically with Valheim", Checked = s.StartWithValheim, Left = 24, Top = y, Width = 500, ForeColor = Color.White }; Controls.Add(_start); y += 28;
             _combat = new CheckBox { Text = "Cross-game combat (Valheim monsters and Minecraft mobs fight each other)", Checked = s.CrossGameCombat, Left = 24, Top = y, Width = 520, ForeColor = Color.White }; Controls.Add(_combat); y += 28;
+            _prefMc = new CheckBox { Text = "Crafting in Valheim gives the Minecraft item (keeps quality and crafter)", Checked = s.PreferMinecraftItems, Left = 24, Top = y, Width = 520, ForeColor = Color.White }; Controls.Add(_prefMc); y += 28;
             Controls.Add(new Label { Text = "Max Minecraft mobs drawn in Valheim:", Left = 24, Top = y + 3, Width = 260 });
             _maxMobs = new NumericUpDown { Left = 290, Top = y, Width = 90, Minimum = 0, Maximum = 128, Value = Math.Max(0, Math.Min(128, s.MaxMobs)) }; Controls.Add(_maxMobs); y += 44;
             var ok = new Button { Text = "Save", Left = 330, Top = ClientSize.Height - 48, Width = 100, Height = 32, BackColor = Gold, ForeColor = Color.Black, FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.OK };
@@ -42,7 +43,7 @@ namespace ValCraft.Launcher
             FormClosing += (a, e) =>
             {
                 if (DialogResult != DialogResult.OK) return;
-                Result = new Settings { MuteMusic = _music.Checked, StartWithValheim = _start.Checked, CrossGameCombat = _combat.Checked, MaxMobs = (int)_maxMobs.Value, EmeraldChance = (double)_emerald.Value };
+                Result = new Settings { MuteMusic = _music.Checked, StartWithValheim = _start.Checked, CrossGameCombat = _combat.Checked, PreferMinecraftItems = _prefMc.Checked, MaxMobs = (int)_maxMobs.Value, EmeraldChance = (double)_emerald.Value };
                 foreach (var c in _swap) Result.Swap[(string)c.Tag] = c.Checked;
             };
         }

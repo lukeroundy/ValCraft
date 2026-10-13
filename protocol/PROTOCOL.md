@@ -346,3 +346,12 @@ MC-side classification is property-driven for any mod (BlockProps): render layer
 - **EvNpcSay 76** (V→MC): UTF-8 `topic\ntext`, with tags stripped and at most one slot long. Sent when a raven (Hugin/Munin) talks by itself (Chat.SetNpcText). MC shows a chat line plus an action-bar hint. Repeats of the same text are suppressed for 30 s.
 - A right-click on a raven (picked by its distance from the view ray, because the interact ray misses it) runs the vanilla Raven.Interact. The text it shows (Chat.SetNpcText or TextViewer.ShowText within 1.5 s) is sent as **EvLoreText 65** (the lore screen). Valheim's own text viewer is closed by the lore guard for 2 s.
 - **EvCape 77** (MC→V, 0.15.1): UTF-8 ValCraft item id of the cape in the Minecraft cape slot (`wolf_fur_cape`, ...), empty = none. Sent on change and every 5 s. Valheim shows the matching Valheim cape on the player while no Valheim cape is equipped. Additive: older peers ignore it, so the protocol version stays 26.
+
+
+### v27 (0.15.2): crafted items keep quality and crafter
+
+| Event | Dir | Payload |
+|---|---|---|
+| 78 EvGiveItemQ | V→MC | u32 reqId, u16 count, u16 durability, u8 quality (Valheim upgrade level, 1 = base), u8 crafterLen, utf8 crafter, utf8 id. Like EvGiveItem; single-stack items get `custom_data {valcraft_quality, valcraft_crafter}`, a lore line, and attack/armour (+20 %/level) and max durability (+50 %/level) scaled by quality. Overflow is dropped at the player's feet. |
+| 42 EvConsumeReq mode 2 | V→MC | Take ONE item with that id from the main inventory (slots 0-35, not armour/offhand); answered with EvConsumeAckQ instead of EvConsumeAck. |
+| 79 EvConsumeAckQ | MC→V | Same layout as EvGiveItemQ; count = removed (0 = none). |

@@ -560,6 +560,14 @@ namespace ValCraft.Protocol
         }
 
         public string McFor(string valheimPrefab) => valheimPrefab != null && ToMc.TryGetValue(valheimPrefab, out var l) ? l[0] : null;
+        /// <summary>0.15.2: Minecraft item for a crafted / gear Valheim item: the first valcraft: id in the list (the ValCraft
+        /// item), else the first listed id.</summary>
+        public string CraftedMcFor(string valheimPrefab)
+        {
+            if (valheimPrefab == null || !ToMc.TryGetValue(valheimPrefab, out var l)) return null;
+            foreach (var id in l) if (id.StartsWith("valcraft:", StringComparison.Ordinal)) return id;
+            return l[0];
+        }
         public string ValheimFor(string mcId) => mcId != null && ToValheim.TryGetValue(mcId, out var v) ? v : null;
 
         // ---- payloads ----
@@ -577,6 +585,26 @@ namespace ValCraft.Protocol
             BitConverter.GetBytes(req).CopyTo(b, 0); BitConverter.GetBytes((ushort)Math.Min(65535, count)).CopyTo(b, 4); b[6] = mode; n.CopyTo(b, 7); return b;
         }
         public static (uint req, int removed, ushort dur, string id) Ack(byte[] p) => (BitConverter.ToUInt32(p, 0), BitConverter.ToUInt16(p, 4), BitConverter.ToUInt16(p, 6), Encoding.UTF8.GetString(p, 8, p.Length - 8));
+        /// <summary>v27 EvGiveItemQ (V→MC) and EvConsumeAckQ (MC→V): u32 req, u16 count, u16 durability, u8 quality (Valheim
+        /// upgrade level, 1 = base), u8 crafterLen, utf8 crafter (≤ 32 B), utf8 id.</summary>
+        public struct Q { public uint Req; public int Count; public ushort Dur; public int Quality; public string Crafter, Id; }
+        public static byte[] EncodeQ(Q q)
+        {
+            var c = Encoding.UTF8.GetBytes(q.Crafter ?? "");
+            if (c.Length > 32) { int k = 32; while (k > 0 && (c[k] & 0xC0) == 0x80) k--; Array.Resize(ref c, k); }
+            var n = Encoding.UTF8.GetBytes(q.Id ?? ""); var b = new byte[10 + c.Length + n.Length];
+            BitConverter.GetBytes(q.Req).CopyTo(b, 0); BitConverter.GetBytes((ushort)Math.Max(0, Math.Min(65535, q.Count))).CopyTo(b, 4); BitConverter.GetBytes(q.Dur).CopyTo(b, 6);
+            b[8] = (byte)Math.Max(1, Math.Min(255, q.Quality)); b[9] = (byte)c.Length; c.CopyTo(b, 10); n.CopyTo(b, 10 + c.Length); return b;
+        }
+        public static Q DecodeQ(byte[] p)
+        {
+            int cl = p[9];
+            return new Q { Req = BitConverter.ToUInt32(p, 0), Count = BitConverter.ToUInt16(p, 4), Dur = BitConverter.ToUInt16(p, 6), Quality = Math.Max(1, (int)p[8]),
+                Crafter = Encoding.UTF8.GetString(p, 10, cl), Id = Encoding.UTF8.GetString(p, 10 + cl, p.Length - 10 - cl) };
+        }
+        /// <summary>EvConsumeReq mode 2 (v27): take ONE non-stackable item by id from the MC main inventory (not armour/offhand), answered with EvConsumeAckQ.</summary>
+        public const byte ConsumeGear = 2;
+
         public static (int count, string id) Held(byte[] p) => (BitConverter.ToUInt16(p, 0), Encoding.UTF8.GetString(p, 2, p.Length - 2));
 
         /// <summary>Accumulates EvInvSnapshot messages; returns true when the last one arrived (Result holds totals).</summary>

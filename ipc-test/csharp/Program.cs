@@ -277,6 +277,22 @@ static unsafe class Program
             Check(!snap.Add(Next()), "snapshot part1 not final");
             Check(snap.Add(Next()) && snap.Result.Count == 3 && snap.Result["minecraft:iron_ingot"] == 300 && snap.Result["minecraft:oak_log"] == 64, "snapshot");
             var (hp, mx, food, dead) = ValCraft.Protocol.HealthCodec.ReadHealth(Next());
+            { // 0.15.2 / v27: quality + crafter payload from Java, and the C# encoder round trip
+                var q = ValCraft.Protocol.ItemMap.DecodeQ(Next());
+                Check(q.Req == 91 && q.Count == 1 && q.Dur == 7500 && q.Quality == 3 && q.Crafter == "Ragnhild \u00d8" && q.Id == "valcraft:bronze_axe", $"java ack-q {q.Req} {q.Count} {q.Dur} {q.Quality} '{q.Crafter}' {q.Id}");
+                var e = ValCraft.Protocol.ItemMap.EncodeQ(new ValCraft.Protocol.ItemMap.Q { Req = 7, Count = 1, Dur = 10000, Quality = 4, Crafter = new string('x', 40), Id = "valcraft:iron_sword" });
+                var d = ValCraft.Protocol.ItemMap.DecodeQ(e);
+                Check(d.Req == 7 && d.Quality == 4 && d.Crafter.Length == 32 && d.Id == "valcraft:iron_sword" && d.Dur == 10000, "give-q round trip (crafter capped at 32 B)");
+                var d0 = ValCraft.Protocol.ItemMap.DecodeQ(ValCraft.Protocol.ItemMap.EncodeQ(new ValCraft.Protocol.ItemMap.Q { Count = 2, Quality = 0, Id = "valcraft:bronze_ingot" }));
+                Check(d0.Quality == 1 && d0.Crafter == "" && d0.Count == 2, "give-q defaults");
+                var cm = new ValCraft.Protocol.ItemMap(); cm.Load(ValCraft.Protocol.ItemMap.DefaultJson);
+                Check(cm.CraftedMcFor("SwordIron") == "valcraft:iron_sword" && cm.CraftedMcFor("KnifeFlint") == "valcraft:flint_knife" && cm.CraftedMcFor("AxeBronze") == "valcraft:bronze_axe", "crafted -> ValCraft item");
+                Check(cm.CraftedMcFor("CapeDeerHide") == "valcraft:deer_hide_cape" && cm.CraftedMcFor("Wood") == "minecraft:oak_log" && cm.CraftedMcFor("NotAThing") == null, "crafted fallback / unmapped");
+                Check(cm.ValheimFor(cm.CraftedMcFor("ArmorBronzeChest")) == "ArmorBronzeChest", "crafted id maps back");
+                int vc = 0; foreach (var kv in cm.ToMc) if (cm.CraftedMcFor(kv.Key).StartsWith("valcraft:")) vc++;
+                Console.WriteLine($"[cs] crafted items with a ValCraft MC item: {vc}");
+                Check(vc >= 300, "valcraft crafted count " + vc);
+            }
             Check(hp == 13.5f && mx == 20f && food == 17 && dead, "health");
             var dm = ValCraft.Protocol.HealthCodec.Damage(2.5f, 1, 0.6f, -0.8f, 30f, 0xDEADBEEF);
             Check(dm.Length == 21 && BitConverter.ToUInt32(dm, 17) == 0xDEADBEEF && BitConverter.ToSingle(dm, 0) == 2.5f && dm[4] == 1 && BitConverter.ToSingle(dm, 9) == -0.8f && BitConverter.ToSingle(dm, 13) == 30f, "damage");

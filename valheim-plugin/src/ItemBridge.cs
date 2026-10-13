@@ -27,6 +27,12 @@ namespace ValCraft
     internal static partial class ItemBridge
     {
         internal static bool Enabled = true;
+        /// 0.15.2 [Items] PreferMinecraftItems: crafted / upgraded Valheim items go to the MC inventory as the ValCraft item
+        /// (quality + crafter kept); MC gear is lent to the Valheim inventory while a station is open so it can be upgraded.
+        internal static bool PreferMc = true;
+        static readonly Dictionary<uint, string> PendingGear = new Dictionary<uint, string>();
+        static readonly HashSet<object> _keepValheim = new HashSet<object>();
+        static FieldInfo _qualityF, _crafterF;
         static readonly ItemMap Map = new ItemMap();
         static string _path; static DateTime _mtime; static float _nextFileCheck, _nextSweep;
         static uint _nextReq = 1;
@@ -67,6 +73,7 @@ namespace ValCraft
             _isOwner = AccessTools.Method(_znv, "IsOwner");
             _dropPrefab = AccessTools.Field(_itemData, "m_dropPrefab"); _stack = AccessTools.Field(_itemData, "m_stack"); _equipped = AccessTools.Field(_itemData, "m_equipped");
             _itemDataF = AccessTools.Field(_itemDrop, "m_itemData");
+            _qualityF = AccessTools.Field(_itemData, "m_quality"); _crafterF = AccessTools.Field(_itemData, "m_crafterName");
             _durF = AccessTools.Field(_itemData, "m_durability"); _sharedF = AccessTools.Field(_itemData, "m_shared");
             _getMaxDur = AccessTools.Method(_itemData, "GetMaxDurability", Type.EmptyTypes);
             _removeAmt = AccessTools.Method(_inventory, "RemoveItem", new[] { _itemData, typeof(int) });
@@ -149,6 +156,20 @@ namespace ValCraft
             if (dur == ItemMap.NoDur || _getMaxDur == null || _durF == null) return;
             try { _durF.SetValue(it, (float)_getMaxDur.Invoke(it, null) * dur / 10000f); } catch { }
         }
+        static int QualityOf(object it) { try { return _qualityF == null ? 1 : Math.Max(1, (int)_qualityF.GetValue(it)); } catch { return 1; } }
+        static string CrafterOf(object it) { try { return _crafterF?.GetValue(it) as string ?? ""; } catch { return ""; } }
+        static bool IsGear(object it) => MaxStack(it) <= 1;
+        static string McForItem(object it, string prefab) => IsGear(it) ? Map.CraftedMcFor(prefab) : Map.McFor(prefab);
+        /// Gear (single-stack) goes over EvGiveItemQ with quality + crafter; materials over the plain EvGiveItem.
+        static bool GiveItem(object it, string mc, int n, string prefab, string why)
+        {
+            if (!IsGear(it)) return Give(mc, n, prefab, why, DurOf(it));
+            if (n <= 0 || _link == null) return false;
+            var q = new ItemMap.Q { Req = _nextReq++, Count = n, Dur = DurOf(it), Quality = QualityOf(it), Crafter = CrafterOf(it), Id = mc };
+            bool ok = _link.TrySend(ValCraftLink.EvGiveItemQ, ItemMap.EncodeQ(q));
+            ValCraftPlugin.Log.LogInfo($"[items] {(ok ? "gave" : "could not give (ring full)")} {n} x {prefab} -> {mc} (quality {q.Quality}{(q.Crafter.Length > 0 ? ", crafted by " + q.Crafter : "")}) ({why})");
+            return ok;
+        }
         static object Inv() => PlayerSync.Player == null ? null : _getInventory.Invoke(PlayerSync.Player, null);
         static string PrefabOf(object itemData) => (_dropPrefab.GetValue(itemData) as GameObject)?.name;
 
@@ -158,6 +179,7 @@ namespace ValCraft
             {
                 case ValCraftLink.EvHeldItem: { var (c, id) = ItemMap.Held(ev.Payload); _heldCount = c; _heldId = id; return true; }
                 case ValCraftLink.EvConsumeAck: OnAck(ev.Payload); return true;
+                case ValCraftLink.EvConsumeAckQ: OnAckQ(ev.Payload); return true;
                 case ValCraftLink.EvChestOp: ChestOp(ev.Payload); return true;
                 case ValCraftLink.EvInvSnapshot: if (Snap.Add(ev.Payload)) OnSnapshot(Snap.Result); return true;
             }
@@ -215,9 +237,11 @@ namespace ValCraft
                     {
                         if (_equipped != null && (bool)_equipped.GetValue(it)) continue;
                         if (ReferenceEquals(it, _virtualHammer)) continue;
-                        string prefab = PrefabOf(it), mc = Map.McFor(prefab);
+                        if (_keepValheim.Contains(it)) continue;
+                        if (!PreferMc && IsGear(it)) continue; // 0.15.2: with PreferMinecraftItems off, Valheim gear stays in Valheim
+                        string prefab = PrefabOf(it), mc = McForItem(it, prefab);
                         if (mc == null) continue;
-                        if (Give(mc, (int)_stack.GetValue(it), prefab, "inventory", DurOf(it))) _removeItem.Invoke(inv, new[] { it });
+                        if (GiveItem(it, mc, (int)_stack.GetValue(it), prefab, "inventory")) _removeItem.Invoke(inv, new[] { it });
                     }
             }
         }
@@ -257,7 +281,15 @@ namespace ValCraft
             foreach (var kv in inv)
             {
                 var v = Map.ValheimFor(kv.Key);
-                if (v == null || kv.Value <= 0 || !Stackable(v)) continue; // materials only; tools/armour stay in MC
+                if (v == null || kv.Value <= 0) continue;
+                if (!Stackable(v))
+                {
+                    // 0.15.2: lend MC gear (main inventory) to Valheim while a station is open so Valheim can upgrade it;
+                    // only ids that come back as themselves (no lossy conversion), at most 8 per id
+                    if (!PreferMc || !_crafting || Map.CraftedMcFor(v) != kv.Key) continue;
+                    for (int i = 0; i < Math.Min(8, kv.Value); i++) { uint rq = _nextReq++; if (_link.TrySend(ValCraftLink.EvConsumeReq, ItemMap.Consume(rq, 1, ItemMap.ConsumeGear, kv.Key))) PendingGear[rq] = v; }
+                    continue;
+                }
                 uint req = _nextReq++;
                 if (_link.TrySend(ValCraftLink.EvConsumeReq, ItemMap.Consume(req, kv.Value, 1, kv.Key))) PendingDeposit[req] = v;
             }
@@ -275,9 +307,27 @@ namespace ValCraft
             catch { return false; }
         }
 
+        static void OnAckQ(byte[] p)
+        {
+            var q = ItemMap.DecodeQ(p);
+            if (!PendingGear.TryGetValue(q.Req, out var v)) return;
+            PendingGear.Remove(q.Req);
+            if (q.Count <= 0) return;
+            var data = AddValheim(v, 1);
+            if (data == null)
+            {
+                _link?.TrySend(ValCraftLink.EvGiveItemQ, ItemMap.EncodeQ(new ItemMap.Q { Req = _nextReq++, Count = 1, Dur = q.Dur, Quality = q.Quality, Crafter = q.Crafter, Id = q.Id }));
+                ValCraftPlugin.Log.LogWarning($"[items] returned {q.Id} to Minecraft (could not add the Valheim item)"); return;
+            }
+            try { _qualityF?.SetValue(data, q.Quality); if (!string.IsNullOrEmpty(q.Crafter)) _crafterF?.SetValue(data, q.Crafter); } catch { }
+            SetDur(data, q.Dur);
+            ValCraftPlugin.Log.LogInfo($"[items] lent {q.Id} (quality {q.Quality}) -> {v} to the Valheim inventory for upgrading");
+        }
+
         static void OnAck(byte[] p)
         {
             var (req, removed, dur, id) = ItemMap.Ack(p);
+            if (PendingGear.Remove(req)) return; // mode-2 request answered by an older/no-player path: nothing was removed
             if (PendingDeposit.TryGetValue(req, out var dv))
             {
                 PendingDeposit.Remove(req);
@@ -322,15 +372,16 @@ namespace ValCraft
         // ---------------- 0.8.3: crafted items go straight to MC ----------------
         static Dictionary<string, int> _preCraft;
         static HashSet<object> _preItems;
+        static Dictionary<object, int> _preQuality;
         static void CraftPre(object player)
         {
-            _preCraft = null; _preItems = null;
+            _preCraft = null; _preItems = null; _preQuality = null;
             try
             {
                 if (!Enabled || !_ok || !PlayerSync.Following || PlayerSync.Player == null || !ReferenceEquals(player, PlayerSync.Player)) return;
                 var inv = Inv(); if (inv == null) return;
-                _preCraft = new Dictionary<string, int>(); _preItems = new HashSet<object>();
-                foreach (var it in (IList)_getAllItems.Invoke(inv, null)) { var pf = PrefabOf(it); if (pf == null) continue; _preItems.Add(it); _preCraft[pf] = (_preCraft.TryGetValue(pf, out var c) ? c : 0) + (int)_stack.GetValue(it); }
+                _preCraft = new Dictionary<string, int>(); _preItems = new HashSet<object>(); _preQuality = new Dictionary<object, int>();
+                foreach (var it in (IList)_getAllItems.Invoke(inv, null)) { var pf = PrefabOf(it); if (pf == null) continue; _preItems.Add(it); _preQuality[it] = QualityOf(it); _preCraft[pf] = (_preCraft.TryGetValue(pf, out var c) ? c : 0) + (int)_stack.GetValue(it); }
             }
             catch (Exception e) { Diag.Warn("craftpre", "[items] craft snapshot failed: " + e.GetBaseException().Message); }
         }
@@ -340,11 +391,26 @@ namespace ValCraft
             try
             {
                 var inv = Inv(); if (inv == null) return;
+                if (!PreferMc)
+                {
+                    // 0.15.2: PreferMinecraftItems off -> the crafted item stays a Valheim item (the sweep leaves it alone)
+                    foreach (var it in (IList)_getAllItems.Invoke(inv, null)) if (!_preItems.Contains(it)) _keepValheim.Add(it);
+                    _preCraft = null; _preItems = null; _preQuality = null; return;
+                }
+                // 0.15.2: upgrades (same ItemData, higher quality) go back to MC right away as the upgraded MC item
+                foreach (var it in new ArrayList((IList)_getAllItems.Invoke(inv, null)))
+                {
+                    if (!_preQuality.TryGetValue(it, out var q0) || QualityOf(it) <= q0) continue;
+                    if (_equipped != null && (bool)_equipped.GetValue(it)) continue;
+                    string pf = PrefabOf(it), mc = pf == null ? null : McForItem(it, pf);
+                    if (mc == null) continue;
+                    if (GiveItem(it, mc, (int)_stack.GetValue(it), pf, $"upgraded {q0}->{QualityOf(it)}")) _removeItem.Invoke(inv, new[] { it });
+                }
                 var now = new Dictionary<string, List<object>>();
                 foreach (var it in (IList)_getAllItems.Invoke(inv, null)) { var pf = PrefabOf(it); if (pf == null) continue; if (!now.TryGetValue(pf, out var l)) now[pf] = l = new List<object>(); l.Add(it); }
                 foreach (var kv in now)
                 {
-                    string mc = Map.McFor(kv.Key); if (mc == null) continue;
+                    string mc = Map.CraftedMcFor(kv.Key); if (mc == null) continue; // 0.15.2: the ValCraft item
                     int total = 0; foreach (var it in kv.Value) total += (int)_stack.GetValue(it);
                     int delta = total - (_preCraft.TryGetValue(kv.Key, out var b) ? b : 0);
                     if (delta <= 0) continue;
@@ -354,14 +420,14 @@ namespace ValCraft
                     {
                         if (delta <= 0) break;
                         int st = (int)_stack.GetValue(it), n = Math.Min(st, delta);
-                        if (!Give(mc, n, kv.Key, "crafted", DurOf(it))) break;
+                        if (!GiveItem(it, mc, n, kv.Key, "crafted")) break; // not sent -> stays a Valheim item (fallback)
                         if (n >= st) _removeItem.Invoke(inv, new[] { it }); else if (_removeAmt != null) _removeAmt.Invoke(inv, new object[] { it, n });
                         delta -= n;
                     }
                 }
             }
             catch (Exception e) { Diag.Warn("craftpost", "[items] crafted item transfer failed: " + e.GetBaseException().Message); }
-            _preCraft = null; _preItems = null;
+            _preCraft = null; _preItems = null; _preQuality = null;
         }
 
         // ---------------- 0.8.3: mace = Valheim hammer (build mode) ----------------

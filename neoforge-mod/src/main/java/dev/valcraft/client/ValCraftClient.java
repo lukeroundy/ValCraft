@@ -134,6 +134,7 @@ public final class ValCraftClient {
 				}
 				case ValCraftLink.EV_TERRAIN_TILE -> TerrainSync.receive(ev.payload());
 				case ValCraftLink.EV_GIVE_ITEM -> ItemLink.give(mc, ev.payload());
+				case ValCraftLink.EV_GIVE_ITEM_Q -> Ops.run(mc, ValCraftLink.EV_GIVE_ITEM_Q, ev.payload());
 				case ValCraftLink.EV_CONSUME_REQ -> ItemLink.consume(mc, ev.payload());
 				case ValCraftLink.EV_INV_REQ -> ItemLink.snapshot(mc);
 				case ValCraftLink.EV_DAMAGE -> HealthLink.damage(mc, ev.payload());

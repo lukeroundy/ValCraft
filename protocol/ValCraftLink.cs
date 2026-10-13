@@ -49,7 +49,7 @@ namespace ValCraft.Protocol
     public sealed unsafe class ValCraftLink : IDisposable
     {
         public const uint Magic = 0x434C4156; // "VALC"
-        public const uint Version = 26;
+        public const uint Version = 27;
         // header
         public const int OffMagic = 0x0, OffVersion = 0x4, OffSize = 0x8, OffValheimPid = 0x10, OffMcPid = 0x14;
         public const int OffValheimHeartbeat = 0x18, OffMcHeartbeat = 0x20, OffValheimFlags = 0x28, OffMcFlags = 0x2C;
@@ -118,6 +118,8 @@ namespace ValCraft.Protocol
         public const ushort EvNetRole = 68, EvNetReady = 69;
         /// <summary>v22 (0.13.2): sleep, spawn points, MC campfires (PROTOCOL.md).</summary>
         public const ushort EvSleep = 70, EvSpawn = 71, EvMcFires = 72, EvRespawnReady = 73, EvOffset = 74, EvKinetic = 75, EvNpcSay = 76, EvCape = 77;
+        /// <summary>v27 (0.15.2): crafted Valheim items as Minecraft items with quality + crafter (see ItemMap.EncodeQ).</summary>
+        public const ushort EvGiveItemQ = 78, EvConsumeAckQ = 79;
         public const int TerrainTile = 8;
         public const uint VFlagTerrainBlocks = 32;
 
