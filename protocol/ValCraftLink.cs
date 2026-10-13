@@ -49,7 +49,7 @@ namespace ValCraft.Protocol
     public sealed unsafe class ValCraftLink : IDisposable
     {
         public const uint Magic = 0x434C4156; // "VALC"
-        public const uint Version = 20;
+        public const uint Version = 21;
         // header
         public const int OffMagic = 0x0, OffVersion = 0x4, OffSize = 0x8, OffValheimPid = 0x10, OffMcPid = 0x14;
         public const int OffValheimHeartbeat = 0x18, OffMcHeartbeat = 0x20, OffValheimFlags = 0x28, OffMcFlags = 0x2C;
@@ -114,6 +114,8 @@ namespace ValCraft.Protocol
         public const ushort EvLevelGround = 59, EvDayTime = 60, EvWorldInfo = 61, EvReach = 62, EvChestContents = 63, EvChestOp = 64;
         /// <summary>0.11.0 (v19): rune stone / vegvisir text -> MC screen: u8 flags (1 first, 2 last) + utf8 chunk of "title\ntext".</summary>
         public const ushort EvLoreText = 65, EvMapToggle = 66, EvWeather = 67;
+        /// <summary>v21 (0.13.0) multiplayer: V->MC EvNetRole {u8 role 0 single 1 host 2 client, u16 port (client: tunnel port), u8 len, utf8 player name}; MC->V EvNetReady {u8 role, u16 published LAN port}.</summary>
+        public const ushort EvNetRole = 68, EvNetReady = 69;
         public const int TerrainTile = 8;
         public const uint VFlagTerrainBlocks = 32;
 

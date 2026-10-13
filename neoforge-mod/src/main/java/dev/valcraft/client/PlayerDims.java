@@ -17,11 +17,7 @@ public final class PlayerDims {
 		sw = nw; sh = nh;
 		ValCraft.LOG.info("[dims] player hitbox {} x {} (eye {})", VANILLA_W * sw, VANILLA_H * sh, 1.62f * sh);
 		if (mc.player != null) mc.player.refreshDimensions();
-		var server = mc.getSingleplayerServer();
-		if (server != null && mc.player != null) {
-			var id = mc.player.getUUID();
-			server.execute(() -> { var sp = server.getPlayerList().getPlayer(id); if (sp != null) sp.refreshDimensions(); });
-		}
+		if (mc.player != null) Ops.run(mc, dev.valcraft.net.ServerOps.OP_DIMS, new byte[0]);
 	}
 
 	private static Object lastPlayer;
@@ -31,9 +27,7 @@ public final class PlayerDims {
 		lastPlayer = mc.player;
 		if (sw != 1f || sh != 1f) {
 			mc.player.refreshDimensions();
-			var server = mc.getSingleplayerServer();
-			var id = mc.player.getUUID();
-			if (server != null) server.execute(() -> { var sp = server.getPlayerList().getPlayer(id); if (sp != null) sp.refreshDimensions(); });
+			Ops.run(mc, dev.valcraft.net.ServerOps.OP_DIMS, new byte[0]);
 		}
 	}
 

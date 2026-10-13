@@ -51,17 +51,42 @@ public final class TerrainSync {
 
 	public static boolean enabled() { return ValCraftClient.active() && ValCraftClient.terrainMode(); }
 
-	static void clearClient() { clientTiles.clear(); pending.clear(); var s = net.minecraft.client.Minecraft.getInstance().getSingleplayerServer(); if (s != null) s.execute(BiomeSync::clear); }
+	static void clearClient() { clientTiles.clear(); pending.clear(); if (Ops.remote(Minecraft.getInstance())) colTop.clear(); var s = net.minecraft.client.Minecraft.getInstance().getSingleplayerServer(); if (s != null) s.execute(BiomeSync::clear); }
 
 	/** Render thread: EV_TERRAIN_TILE payload. */
 	static void receive(byte[] p) {
+		Tile t = parse(p);
+		clientTiles.add(key(t.tx, t.tz));
+		var mc = Minecraft.getInstance();
+		if (Ops.remote(mc)) {
+			// 0.13.0: joined through the tunnel: the host's server writes the blocks; we keep the column tops ourselves
+			// (BlockSync runs on this client and must know which blocks are mirrored terrain)
+			Ops.run(mc, ValCraftLink.EV_TERRAIN_TILE, p);
+			int n = ValCraftLink.TERRAIN_TILE; var lvl = mc.level;
+			for (int i = 0; i < n * n; i++) {
+				int top = t.top[i]; if (top == Short.MIN_VALUE) continue;
+				if (lvl != null) top = Math.max(lvl.getMinBuildHeight() + DEPTH, Math.min(lvl.getMaxBuildHeight() - 1, top));
+				int x = t.tx * n + i / n, z = t.tz * n + i % n; long k = key(x, z);
+				int prev = colTop.containsKey(k) ? colTop.get(k) : Integer.MIN_VALUE;
+				if (prev != top) { colTop.put(k, top); BlockSync.markColumnDirty(x, z, prev, top); }
+			}
+			return;
+		}
+		pending.add(t);
+	}
+	private static Tile parse(byte[] p) {
 		ByteBuffer b = ByteBuffer.wrap(p).order(ByteOrder.LITTLE_ENDIAN);
 		int tx = b.getInt(0), tz = b.getInt(4), n = ValCraftLink.TERRAIN_TILE * ValCraftLink.TERRAIN_TILE;
 		short[] top = new short[n]; byte[] mat = new byte[n];
 		for (int i = 0; i < n; i++) { top[i] = b.getShort(8 + i * 3); mat[i] = b.get(10 + i * 3); }
 		byte[] bio = p.length >= 8 + n * 3 + 4 ? java.util.Arrays.copyOfRange(p, 8 + n * 3, 8 + n * 3 + 4) : null; // 0.9.7
-		clientTiles.add(key(tx, tz));
-		pending.add(new Tile(tx, tz, top, mat, bio));
+		return new Tile(tx, tz, top, mat, bio);
+	}
+	/** Server thread: a tunnel client's Valheim terrain tile (all players' tiles of one area are identical: idempotent). */
+	public static void tileOn(net.minecraft.server.level.ServerPlayer sp, byte[] p) {
+		int n = ValCraftLink.TERRAIN_TILE * ValCraftLink.TERRAIN_TILE;
+		if (p.length < 8 + n * 3 || pending.size() > 4000) return;
+		pending.add(parse(p));
 	}
 
 	static boolean haveTileAt(double x, double z) {
@@ -150,12 +175,14 @@ public final class TerrainSync {
 
 	// ---- Phase B hook: MC block edits -> Valheim (logged there, not yet applied) ----
 	@SubscribeEvent
-	public static void onBreak(BlockEvent.BreakEvent e) { forward(e.getPos(), 0, e.getState()); }
+	public static void onBreak(BlockEvent.BreakEvent e) { forward(e.getPos(), 0, e.getState(), e.getPlayer() instanceof net.minecraft.server.level.ServerPlayer sp ? sp : null, e.getLevel()); }
 
 	@SubscribeEvent
-	public static void onPlace(BlockEvent.EntityPlaceEvent e) { forward(e.getPos(), 1, e.getPlacedBlock()); }
+	public static void onPlace(BlockEvent.EntityPlaceEvent e) { forward(e.getPos(), 1, e.getPlacedBlock(), e.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp ? sp : null, e.getLevel()); }
 
-	static void forward(BlockPos p, int kind, BlockState s) {
+	/** 0.13.0: the edit goes to the Valheim of the player who made it (or the nearest player): Valheim then syncs the
+	 * terrain change to everyone itself, so it is applied exactly once. */
+	static void forward(BlockPos p, int kind, BlockState s, net.minecraft.server.level.ServerPlayer who, net.minecraft.world.level.LevelAccessor lvl) {
 		if (!ValCraftClient.active()) return;
 		long k = key(p.getX(), p.getZ());
 		// keep the server-side column cache honest so a later Valheim resend restores/overrides correctly
@@ -165,6 +192,10 @@ public final class TerrainSync {
 		ByteBuffer b = ByteBuffer.allocate(16 + Math.min(name.length, 200)).order(ByteOrder.LITTLE_ENDIAN);
 		b.putInt(p.getX()).putInt(p.getY()).putInt(p.getZ()).putInt(kind).put(name, 0, Math.min(name.length, 200));
 		byte[] payload = b.array();
-		Minecraft.getInstance().execute(() -> ValCraftClient.sendToValheim(ValCraftLink.EV_BLOCK_CHANGED, payload)); // ring is single-producer: send from render thread
+		if (who == null && lvl instanceof ServerLevel sl) {
+			double best = 64 * 64;
+			for (var pl : sl.players()) { double d = pl.distanceToSqr(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5); if (d < best) { best = d; who = pl; } }
+		}
+		if (who != null) dev.valcraft.net.ServerOps.toValheim(who, ValCraftLink.EV_BLOCK_CHANGED, payload);
 	}
 }

@@ -79,11 +79,7 @@ public final class ValCraftClient {
 		ValCraft.LOG.info("[terrain] teleport MC player to {} {} {} (vertical anchor)", x, y, z);
 		holdSince = 0;
 		if (mc.player != null) { mc.player.setPos(x, y, z); mc.player.setDeltaMovement(0, 0, 0); }
-		var server = mc.getSingleplayerServer();
-		if (server != null && mc.player != null) {
-			var id = mc.player.getUUID();
-			server.execute(() -> { var sp = server.getPlayerList().getPlayer(id); if (sp != null) sp.connection.teleport(x, y, z, sp.getYRot(), sp.getXRot()); });
-		}
+		if (mc.player != null) Ops.run(mc, dev.valcraft.net.ServerOps.OP_TELEPORT, le(12).putFloat(x).putFloat(y).putFloat(z).array()); // 0.13.0: server-side (no "moved too quickly" for tunnel clients)
 	}
 
 	public static boolean sendToValheim(short type, byte[] payload) { ValCraftLink l = link; return l != null && acked && l.trySend(type, payload); }
@@ -134,6 +130,7 @@ public final class ValCraftClient {
 				case ValCraftLink.EV_DAY_TIME -> DayLink.receive(mc, ev.payload());
 				case ValCraftLink.EV_WEATHER -> WeatherLink.receive(mc, ev.payload());
 				case ValCraftLink.EV_WORLD_INFO -> AutoWorld.worldInfo(ev.payload());
+				case ValCraftLink.EV_NET_ROLE -> NetLink.receive(ev.payload());
 				case ValCraftLink.EV_CHEST_CONTENTS -> ChestLink.contents(mc, ev.payload());
 				case ValCraftLink.EV_LORE_TEXT -> LoreScreen.receive(mc, ev.payload());
 				case ValCraftLink.EV_VMOB_LIST -> dev.valcraft.mobs.MobSync.receiveVList(mc, ev.payload());
@@ -193,6 +190,8 @@ public final class ValCraftClient {
 		Minecraft mc = Minecraft.getInstance();
 		if (active()) {
 			AutoWorld.tick(mc);
+			NetLink.tick(mc);
+			BlockSync.clientTick(mc);
 			MapKey.tick(mc);
 			ReachLink.tick(mc);
 			PlayerDims.tick(mc);

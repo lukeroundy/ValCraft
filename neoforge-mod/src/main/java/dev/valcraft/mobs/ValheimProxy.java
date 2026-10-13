@@ -11,7 +11,7 @@ import net.minecraft.world.level.Level;
  * pickable by the player's crosshair, positioned by MobSync every update; damage is forwarded to Valheim.
  */
 public class ValheimProxy extends Mob {
-	public int vid; public long lastSeen;
+	public int vid; public long lastSeen; public java.util.UUID owner; // 0.13.0: the player whose Valheim mirrors this monster
 	private float w = 0.8f, h = 1.8f;
 
 	public ValheimProxy(EntityType<? extends ValheimProxy> type, Level level) {
@@ -41,7 +41,7 @@ public class ValheimProxy extends Mob {
 		if (level().isClientSide || amount <= 0 || vid == 0) return false;
 		Entity att = source.getEntity();
 		// 0.11.0: -1 = the player (arrows, tridents...): Valheim credits the hit to your Valheim player (skills, aggro, drops)
-		MobSync.forwardToValheim(vid, amount, att instanceof net.minecraft.world.entity.player.Player ? -1 : att == null ? 0 : att.getId());
+		MobSync.forwardToValheim(this, vid, amount, att instanceof net.minecraft.world.entity.player.Player ? -1 : att == null ? 0 : att.getId());
 		return true; // health untouched: Valheim owns the monster's health
 	}
 

@@ -221,13 +221,15 @@ namespace ValCraft
             {
                 var p = _player.transform.position;
                 _anchor = new Vector3(p.x - fx, p.y - fy, p.z - fz);
-                if (FixedAnchorY.HasValue)
+                bool mp = NetTunnel.Multiplayer;
+                if (mp) { _anchor.x = 0; _anchor.z = 0; } // 0.13.0: everyone in one MC world -> one shared mapping (MC x = Valheim x, MC z = -Valheim z)
+                if (FixedAnchorY.HasValue || mp)
                 {
                     // Terrain blocks: MC Y = Valheim Y - anchor.y must be a fixed mapping so the whole Valheim height range
                     // fits MC's -64..320; move the MC player to the matching height instead of shifting the anchor.
-                    _anchor.y = FixedAnchorY.Value;
+                    if (FixedAnchorY.HasValue) _anchor.y = FixedAnchorY.Value;
                     _teleportY = p.y - _anchor.y;
-                    _teleportX = (float)s.FeetX; _teleportZ = (float)s.FeetZ;
+                    _teleportX = mp ? p.x : (float)s.FeetX; _teleportZ = mp ? -p.z : (float)s.FeetZ;
                     _teleportUntil = Time.unscaledTime + 8f;
                     _holdPos = p;
                 }
@@ -237,7 +239,7 @@ namespace ValCraft
             }
             if (TeleportPending)
             {
-                if (Math.Abs(s.FeetY - _teleportY) < 3.0 || Time.unscaledTime > _teleportUntil) { _teleportUntil = 0; ValCraftPlugin.Log.LogInfo($"[sync] MC player at Valheim height (MC feet Y {s.FeetY:F1})"); }
+                if ((Math.Abs(s.FeetY - _teleportY) < 3.0 && Math.Abs(s.FeetX - _teleportX) < 3.0 && Math.Abs(s.FeetZ - _teleportZ) < 3.0) || Time.unscaledTime > _teleportUntil) { _teleportUntil = 0; ValCraftPlugin.Log.LogInfo($"[sync] MC player at Valheim height (MC feet Y {s.FeetY:F1})"); }
                 else { _targetPos = _holdPos; _targetRot = _player.transform.rotation; return; }
             }
             var pos = new Vector3(_anchor.x + fx, _anchor.y + fy, _anchor.z + fz);

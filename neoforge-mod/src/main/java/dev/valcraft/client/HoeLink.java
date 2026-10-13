@@ -24,17 +24,14 @@ public final class HoeLink {
 		next = now + 400;
 		ValCraftClient.sendToValheim(ValCraftLink.EV_LEVEL_GROUND, new byte[0]);
 		p.swing(InteractionHand.MAIN_HAND);
-		var server = mc.getSingleplayerServer();
-		if (server != null) {
-			var uuid = p.getUUID();
-			server.execute(() -> {
-				var sp = server.getPlayerList().getPlayer(uuid);
-				if (sp == null || sp.getAbilities().instabuild) return;
-				var st = sp.getMainHandItem();
-				if (st.getItem() instanceof HoeItem) st.hurtAndBreak(1, sp, EquipmentSlot.MAINHAND);
-			});
-		}
+		Ops.run(mc, dev.valcraft.net.ServerOps.OP_HOE_WEAR, new byte[0]);
 		ValCraft.LOG.debug("[hoe] level ground request");
 		return true;
+	}
+
+	public static void wearOn(net.minecraft.server.level.ServerPlayer sp, byte[] unused) {
+		if (sp.getAbilities().instabuild) return;
+		var st = sp.getMainHandItem();
+		if (st.getItem() instanceof HoeItem) st.hurtAndBreak(1, sp, EquipmentSlot.MAINHAND);
 	}
 }

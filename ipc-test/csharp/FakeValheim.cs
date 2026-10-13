@@ -18,6 +18,8 @@ static unsafe class FakeValheim
         Console.WriteLine($"[host] created {path}, session {link.Session:x8}; commands from {cmdFile}");
         File.WriteAllText(cmdFile, "");
         var sw = Stopwatch.StartNew();
+        // 0.13.0 multiplayer simulation (see TunnelTest.cs)
+        TunnelCore net = null; byte netRole = 0; int mcPort = 0; long nextRole = 0; float lastHp = -1; string lastHeld = "";
         long maxHbAge = 0; bool terrainFlag = false; var heightQueue = new System.Collections.Generic.Queue<byte[]>();
             var tileQueue = new Queue<byte[]>(); bool connected = false, input = true; uint mcPid = 0; int cmdLine = 0;
         var holes = new System.Collections.Generic.Dictionary<long, float>(); float[] nz = new float[6];
@@ -73,6 +75,9 @@ static unsafe class FakeValheim
                 if (ev.Type == ValCraftLink.EvBlockChanged)
                     Console.WriteLine($"[host] MC block {(BitConverter.ToInt32(ev.Payload, 12) == 0 ? "BROKEN" : "PLACED")} {System.Text.Encoding.UTF8.GetString(ev.Payload, 16, ev.Payload.Length - 16)} at ({BitConverter.ToInt32(ev.Payload, 0)},{BitConverter.ToInt32(ev.Payload, 4)},{BitConverter.ToInt32(ev.Payload, 8)})");
                 else if (ev.Type == ValCraftLink.EvAttack) Console.WriteLine($"[host] MC ATTACK kind {BitConverter.ToInt32(ev.Payload, 0)} tier {BitConverter.ToInt32(ev.Payload, 4)} at {sw.Elapsed.TotalSeconds:F1}s");
+                else if (ev.Type == ValCraftLink.EvNetReady) { int pt = ev.Payload[1] | (ev.Payload[2] << 8); if (pt != mcPort) Console.WriteLine($"[host] MC NET READY: host world published on 127.0.0.1:{pt} at {sw.Elapsed.TotalSeconds:F1}s"); mcPort = pt; }
+                else if (ev.Type == ValCraftLink.EvHealth) { float hp = BitConverter.ToSingle(ev.Payload, 0); if (hp != lastHp) Console.WriteLine($"[host] MC health {hp} at {sw.Elapsed.TotalSeconds:F1}s"); lastHp = hp; }
+                else if (ev.Type == ValCraftLink.EvHeldItem) { string h = System.Text.Encoding.UTF8.GetString(ev.Payload, 2, ev.Payload.Length - 2) + " x" + BitConverter.ToUInt16(ev.Payload, 0); if (h != lastHeld) Console.WriteLine($"[host] MC held item {h} at {sw.Elapsed.TotalSeconds:F1}s"); lastHeld = h; }
                 else if (ev.Type == ValCraftLink.EvMapToggle) Console.WriteLine($"[host] MC MAP TOGGLE at {sw.Elapsed.TotalSeconds:F1}s");
                 else if (ev.Type == ValCraftLink.EvInteract) Console.WriteLine($"[host] MC asked Valheim to INTERACT at {sw.Elapsed.TotalSeconds:F1}s");
                 else if (ev.Type == ValCraftLink.EvHello && Payload.GetU32(ev.Payload, 2) == link.Session)
@@ -88,6 +93,14 @@ static unsafe class FakeValheim
             }
             for (int q = 0; q < 24 && heightQueue.Count > 0; q++) { if (link.TrySend(ValCraftLink.EvTerrainHeights, heightQueue.Peek())) heightQueue.Dequeue(); else break; }
             for (int q = 0; q < 8 && tileQueue.Count > 0; q++) { if (link.TrySend(ValCraftLink.EvTerrainTile, tileQueue.Peek())) tileQueue.Dequeue(); else break; }
+            if (net != null) net.Pump();
+            if (connected && sw.ElapsedMilliseconds >= nextRole)
+            {
+                nextRole = sw.ElapsedMilliseconds + 2000;
+                int lp = net != null && !net.IsHost ? net.ListenPort : 0; var nm = System.Text.Encoding.UTF8.GetBytes(netRole == 2 ? "Bjorn" : "Astrid");
+                var rp = new byte[4 + nm.Length]; rp[0] = netRole; rp[1] = (byte)lp; rp[2] = (byte)(lp >> 8); rp[3] = (byte)nm.Length; nm.CopyTo(rp, 4);
+                link.TrySend(ValCraftLink.EvNetRole, rp);
+            }
             var lines = File.ReadAllLines(cmdFile);
             for (; cmdLine < lines.Length; cmdLine++) pending.Enqueue(lines[cmdLine]);
             if (sw.ElapsedMilliseconds >= waitUntil && pending.Count > 0)
@@ -179,6 +192,12 @@ static unsafe class FakeValheim
                         Console.WriteLine($"[host] lore sent={link.TrySend(ValCraftLink.EvLoreText, p1) && link.TrySend(ValCraftLink.EvLoreText, p2)}"); break;
                     }
                     case "dims": link.TrySend(ValCraftLink.EvPlayerDims, Payload.F32(F(0), F(1))); break;
+                    case "nethost": { var t = TcpTransport.Host(int.Parse(a[0])); net = new TunnelCore(true, t) { Target = () => mcPort > 0 ? new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, mcPort) : null, Log = Console.WriteLine }; t.OnMessage = net.OnMessage; netRole = 1; nextRole = 0; Console.WriteLine($"[host] simulated Valheim server on sim port {a[0]}"); break; }
+                    case "netclient": { var t = TcpTransport.Client(int.Parse(a[0])); net = new TunnelCore(false, t) { ServerPeer = 0, Log = Console.WriteLine }; t.OnMessage = net.OnMessage; net.StartListener(); netRole = 2; nextRole = 0; Console.WriteLine($"[host] simulated Valheim client, tunnel port {net.ListenPort}"); break; }
+                    case "netleave": { net?.Dispose(); net = null; netRole = 0; nextRole = 0; Console.WriteLine("[host] left the simulated Valheim server"); break; }
+                    case "netstat": Console.WriteLine($"[host] tunnel: {(net == null ? "none" : $"{net.StreamCount} connection(s), {net.BytesUp / 1024} KB up, {net.BytesDown / 1024} KB down")}"); break;
+                    case "give": { var nb = System.Text.Encoding.UTF8.GetBytes(a[1]); var gp = new byte[8 + nb.Length]; BitConverter.GetBytes(7u).CopyTo(gp, 0); BitConverter.GetBytes((ushort)int.Parse(a[0])).CopyTo(gp, 4); BitConverter.GetBytes((ushort)0xFFFF).CopyTo(gp, 6); nb.CopyTo(gp, 8); Console.WriteLine($"[host] give {a[0]} {a[1]} sent={link.TrySend(ValCraftLink.EvGiveItem, gp)}"); break; }
+                    case "damage": { var dp = new byte[17]; BitConverter.GetBytes(F(0)).CopyTo(dp, 0); dp[4] = 0; Console.WriteLine($"[host] damage {a[0]} sent={link.TrySend(ValCraftLink.EvDamage, dp)}"); break; }
                     case "quit": goto done;
                 }
                 Console.WriteLine($"[host] {string.Join(" ", c)}");

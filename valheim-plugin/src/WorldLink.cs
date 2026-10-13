@@ -287,6 +287,8 @@ namespace ValCraft
             var keep = new HashSet<uint>();
             foreach (var m in _incoming)
             {
+                // 0.13.0: every MC client reports the same MC mobs; only the nearest Valheim player spawns the (networked) stand-in
+                if (!NetTunnel.Owns(ToUnity(m.X, m.Y, m.Z), _proxies.ContainsKey(m.Id) ? 4f : 0f)) continue;
                 keep.Add(m.Id);
                 if (!_proxies.TryGetValue(m.Id, out var px))
                 {
@@ -375,7 +377,7 @@ namespace ValCraft
             float t = Time.unscaledTime;
             if (t < _nextList) return;
             _nextList = t + 0.2f;
-            var list = new List<MobCodec.Mob>(); _vmobs.Clear();
+            var list = new List<MobCodec.Mob>(); var prevSent = new HashSet<uint>(_vmobs.Keys); _vmobs.Clear();
             var me = PlayerSync.Player.transform.position;
             if (_getAll.Invoke(null, null) is IList all)
                 foreach (Component c in all)
@@ -383,6 +385,7 @@ namespace ValCraft
                     if (c == null || IsProxy(c) || (_playerT != null && _playerT.IsInstanceOfType(c))) continue;
                     if (list.Count >= MaxProxies) break;
                     if ((c.transform.position - me).sqrMagnitude > 32f * 32f) continue;
+                    if (!NetTunnel.Owns(c.transform.position, prevSent.Contains((uint)c.GetInstanceID()) ? 4f : 0f)) continue; // 0.13.0: one Valheim player mirrors each monster
                     try
                     {
                         if ((bool)_isDead.Invoke(c, null) || (_isTamed != null && (bool)_isTamed.Invoke(c, null))) continue;

@@ -33,17 +33,18 @@ public final class HealthLink {
 
 	static void damage(Minecraft mc, byte[] pl) {
 		if (pl.length < 17) return;
+		Ops.run(mc, ValCraftLink.EV_DAMAGE, pl); // 0.13.0: runs on the host's server when joined through the tunnel
+	}
+
+	/** Server thread. */
+	public static void damageOn(ServerPlayer sp, byte[] pl) {
 		ByteBuffer b = ByteBuffer.wrap(pl).order(ByteOrder.LITTLE_ENDIAN);
 		float amount = b.getFloat(0); int type = pl[4] & 0xff; float dx = b.getFloat(5), dz = b.getFloat(9), push = b.getFloat(13);
-		var server = mc.getSingleplayerServer();
-		if (server == null || mc.player == null) return;
-		var uuid = mc.player.getUUID();
-		server.execute(() -> {
-			ServerPlayer sp = server.getPlayerList().getPlayer(uuid);
+		{
 			if (sp == null || sp.isDeadOrDying()) return;
 			var src = sp.damageSources();
 			int att = pl.length >= 21 ? b.getInt(17) : 0;
-			var proxy = att != 0 ? dev.valcraft.mobs.MobSync.proxy(att) : null;
+			var proxy = att != 0 ? dev.valcraft.mobs.MobSync.proxy(sp, att) : null;
 			DamageSource ds = switch (type) {
 				case 4 -> src.drown();                // Drowning
 				case 5, 20 -> src.onFire();           // Burning, CinderFire
@@ -64,6 +65,6 @@ public final class HealthLink {
 			if (ok) ValCraft.LOG.debug("[health] Valheim damage {} (type {}) -> applied", amount, type);
 			else ValCraft.LOG.debug("[health] Valheim damage {} (type {}) -> not applied (mode {}, blocking {}, invulnerable {}, dead {}, attacker {})", amount, type,
 				sp.gameMode.getGameModeForPlayer(), sp.isBlocking(), sp.isInvulnerableTo(ds), sp.isDeadOrDying(), proxy != null ? "proxy" : "none");
-		});
+		}
 	}
 }

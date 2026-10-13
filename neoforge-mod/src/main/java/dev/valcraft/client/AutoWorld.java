@@ -121,16 +121,21 @@ final class AutoWorld {
 		var cfg0 = config();
 		if (!Boolean.parseBoolean(cfg0.getProperty("autoWorld", "true"))) return;
 		if (mc.level != null) { checkSwitch(mc, cfg0); return; }
+		// 0.13.0: joined a Valheim server -> the host's MC world through the tunnel, never a local one
+		if (NetLink.client()) { if (mc.screen instanceof TitleScreen) NetLink.connect(mc); return; }
 		if (tried || !(mc.screen instanceof TitleScreen)) return;
 		var cfg = cfg0;
 		String name;
-		if (vUid == null) {
+		if (vUid == null || !NetLink.known()) {
 			// 0.9.5: wait for Valheim's world identity, but never forever: after 20 s open the legacy/default world
 			long now = System.currentTimeMillis();
 			if (waitSince == 0) { waitSince = now; ValCraft.LOG.info("[autoworld] waiting for Valheim world identity..."); }
-			if (now - waitSince < 20000) { if (now - lastWaitLog > 5000) { lastWaitLog = now; ValCraft.LOG.info("[autoworld] still waiting for Valheim world ({} s)", (now - waitSince) / 1000); } return; }
+			if (now - waitSince < (vUid == null ? 20000 : 8000)) { if (now - lastWaitLog > 5000) { lastWaitLog = now; ValCraft.LOG.info("[autoworld] still waiting for Valheim world ({} s)", (now - waitSince) / 1000); } return; }
+			if (vUid != null) name = folderFor(mc, cfg); // identity known, no role (old plugin?): single player
+			else {
 			name = cfg.getProperty("worldName", "ValCraft").trim();
 			ValCraft.LOG.warn("[autoworld] no Valheim world identity after 20 s: opening default world '{}'", name);
+			}
 		} else {
 			name = folderFor(mc, cfg);
 			ValCraft.LOG.info("[autoworld] got identity '{}' (uid {}) -> MC world '{}'", vName, vUid, name);

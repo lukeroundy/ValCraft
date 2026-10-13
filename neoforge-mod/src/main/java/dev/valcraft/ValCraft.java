@@ -11,9 +11,11 @@ public final class ValCraft {
 	public static final Logger LOG = LogUtils.getLogger();
 
 	public ValCraft(IEventBus modBus) {
-		LOG.info("ValCraft loaded (0.12.3: off-thread collision index; 0.12.1: Valheim map visible; 0.12.0: M = Valheim map, 24 fps animation, weather sync, fluids vs Valheim buildings, stuck arrows, emeralds)");
+		LOG.info("ValCraft loaded (0.13.0: multiplayer through the Valheim server; 0.12.3: off-thread collision index; 0.12.1: Valheim map visible; 0.12.0: M = Valheim map, 24 fps animation, weather sync, fluids vs Valheim buildings, stuck arrows, emeralds)");
 		dev.valcraft.mobs.MobSync.register(modBus);
 		dev.valcraft.content.ModContent.register(modBus);
+		dev.valcraft.net.ServerOps.register(modBus);
+		if (net.neoforged.fml.loading.FMLEnvironment.dist.isClient()) dev.valcraft.client.OpsInit.init();
 		net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(dev.valcraft.content.Emerald::onBreak);
 		if (net.neoforged.fml.loading.FMLEnvironment.dist.isClient()) modBus.addListener(dev.valcraft.client.MapKey::register);
 		if (net.neoforged.fml.loading.FMLEnvironment.dist.isClient())

@@ -57,14 +57,18 @@ public final class ValheimAttack {
 		// 0.11.0: the final vanilla melee damage, computed on the integrated server like Player.attack: ATTACK_DAMAGE attribute
 		// (item modifiers incl. multipliers, Strength/Weakness), enchantment bonus (vs. the Valheim proxy if there is one),
 		// cooldown scaling and critical hits. Valheim multiplies it by [Combat] DamageScale only.
-		var server = mc.getSingleplayerServer();
-		var uuid = mc.player.getUUID();
 		boolean crit = str > 0.9f && mc.player.fallDistance > 0 && !mc.player.onGround() && !mc.player.onClimbable() && !mc.player.isInWater()
 				&& !mc.player.hasEffect(net.minecraft.world.effect.MobEffects.BLINDNESS) && !mc.player.isPassenger() && !mc.player.isSprinting();
-		if (server == null) return;
-		server.execute(() -> {
-			var sp = server.getPlayerList().getPlayer(uuid);
-			if (sp == null) return;
+		byte[] a = ByteBuffer.allocate(13).order(ByteOrder.LITTLE_ENDIAN).putInt(fKind).putInt(fTier).putFloat(str).put((byte) (crit ? 1 : 0)).array();
+		Ops.run(mc, dev.valcraft.net.ServerOps.OP_ATTACK, a);
+		mc.player.swing(InteractionHand.MAIN_HAND);
+	}
+
+	/** Server thread: final damage for that player, answered to its Valheim. */
+	public static void attackOn(net.minecraft.server.level.ServerPlayer sp, byte[] a) {
+		ByteBuffer bb = ByteBuffer.wrap(a).order(ByteOrder.LITTLE_ENDIAN);
+		int fKind = bb.getInt(0), fTier = bb.getInt(4); float str = bb.getFloat(8); boolean crit = a[12] != 0;
+		{
 			float base = (float) sp.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.ATTACK_DAMAGE);
 			ItemStack held = sp.getMainHandItem();
 			var src = sp.damageSources().playerAttack(sp);
@@ -74,9 +78,8 @@ public final class ValheimAttack {
 			float dmg = base * (0.2f + str * str * 0.8f) + ench * str;
 			if (crit) dmg *= 1.5f;
 			byte[] p = ByteBuffer.allocate(20).order(ByteOrder.LITTLE_ENDIAN).putInt(fKind).putInt(fTier).putFloat(dmg).putFloat(str).putInt(1).array();
-			mc.execute(() -> ValCraftClient.sendToValheim(ValCraftLink.EV_ATTACK, p));
-		});
-		mc.player.swing(InteractionHand.MAIN_HAND);
+			dev.valcraft.net.ServerOps.toValheim(sp, ValCraftLink.EV_ATTACK, p);
+		}
 	}
 
 	/** The Valheim proxy the player looks at (for enchantment bonuses like Smite), or null. Server thread. */

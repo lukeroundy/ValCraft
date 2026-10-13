@@ -286,3 +286,21 @@ No wire change: entity animation capture runs at 24 fps (41 ms) within 16 blocks
 - 0.12.2: while the large map is open Valheim closes it on M or Esc (raw key, Valheim's own Map key is swallowed); MC-side M while open also closes; no per-frame re-activation of the map root.
 - 0.12.3: map open requests within 0.6 s of a close are ignored (M flicker); weather: also EnvMan.IsWet()/m_forceEnv, logged on change + every 2 min; MC keeps server weather only (no rain/snow drawing, sky darkening or rain sounds while linked); collision index built off-thread; moving colliders keep cached visibility; lore guard reflection cached and no longer closes an M-opened map.
 - 0.12.4: Valheim type lookups cached (AccessTools.TypeByName scanned all assemblies on every interact / chest open / weather poll); interact stage timing (> 5 ms logged) and a [perf] watchdog for ValCraft frames > 15 ms; main-menu logo replacement never touches in-game UI.
+
+## v21 (0.13.0) — multiplayer through the Valheim server
+| Event | Dir | Payload |
+|---|---|---|
+| 68 EvNetRole | V→MC | u8 role (0 single player, 1 Valheim server host, 2 joined a Valheim server), u16 port (role 2: Valheim's local tunnel port on 127.0.0.1), u8 len, utf8 Valheim player name. On change and every 3 s. |
+| 69 EvNetReady | MC→V | u8 role (1), u16 port: the host's integrated server is published on 127.0.0.1:port (offline mode, flight allowed, no LAN broadcast). Every 2 s while published. |
+
+Tunnel (Valheim routed RPC `ValCraft_MC`, one ZPackage byte[] per message; protocol/TunnelCore.cs): u8 kind, i32 stream id, payload.
+1 Open (client→host: new MC connection), 2 Data (≤ 32 KB of TCP bytes), 3 Close (either side), 4 Ack (u32 bytes written to the local socket).
+Flow control: ≤ 1 MB un-acked per stream and direction (the socket reader blocks); sends pause while Valheim's send queue to that peer is above [Multiplayer] MaxSendQueueKB (256).
+The host dials 127.0.0.1:<EvNetReady port> per Open (refused → Close); a Valheim peer leaving drops its streams.
+
+MC custom payloads (both optional, channel version "1"): `valcraft:op` C→S {i16 op, byte[]} runs a former integrated-server action for the sending
+player on the host (op = the Valheim event id for EV_DAMAGE, EV_GIVE_ITEM, EV_CONSUME_REQ, EV_TERRAIN_TILE, EV_VMOB_LIST (whole snapshot: u16 n, n × (u16 len, part)), EV_MOB_HURT;
+1001 chest deposit {i64 serial, i32 slot, u8 half}, 1002 hoe wear, 1003 attack {i32 kind, i32 tier, f32 strength, u8 crit}, 1004 teleport {f32 x,y,z}, 1005 refresh dims, 1006 clear my Valheim proxies);
+`valcraft:to_valheim` S→C {i16 event, byte[]}: the server's answer for that player's Valheim (EV_CONSUME_ACK, EV_CHEST_OP, EV_ATTACK, EV_VMOB_HURT, EV_BLOCK_CHANGED).
+Authority: multiplayer uses a fixed shared anchor (MC x = Valheim x, MC z = −Valheim z, Y as before); each Valheim monster / MC-mob stand-in is mirrored only by the
+nearest Valheim player (4 m hysteresis); MC terrain edits go to the editing (or nearest) player's Valheim only; time/weather come from the host only.

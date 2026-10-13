@@ -67,6 +67,7 @@ namespace ValCraft
             ItemBridge.Apply(_harmony);
             HealthLink.Apply(_harmony);
             // 0.12.1: HudWanted was never assigned, so HideValheimHud hid the HUD every frame (build menu, large map)
+            Refl.Prewarm();
             PlayerSync.HudWanted = () => ItemBridge.MenuWanted() || MapToggle.Open();
             try { Saplings.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[sapling] hook failed: " + e.Message); }
             try { Emeralds.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[emerald] hook failed: " + e.Message); }
@@ -134,6 +135,9 @@ namespace ValCraft
             Logo.Enabled = Config.Bind("General", "ValCraftLogo", true, "Replace the Valheim main menu title with 'ValCraft'.").Value;
             Emeralds.Chance = Config.Bind("Items", "EmeraldChance", 0.005f, "Chance that a mined-out Valheim rock piece gives a Minecraft emerald (0 = off).").Value;
             WeatherLink.Enabled = Config.Bind("General", "SyncWeather", true, "Valheim weather (rain / thunderstorm / snow) drives Minecraft weather.").Value;
+            NetTunnel.Enabled = Config.Bind("Multiplayer", "Enabled", true, "0.13.0: on a Valheim server, Minecraft joins the host's Minecraft world through the Valheim connection (no extra ports). Everyone needs ValCraft 0.13.0+.").Value;
+            NetTunnel.DedicatedTarget = Config.Bind("Multiplayer", "DedicatedMinecraftServer", "127.0.0.1:25565", "Dedicated Valheim servers only: address of the (offline-mode) Minecraft server with the ValCraft mod that players are tunnelled to.").Value;
+            NetTunnel.MaxSendQueue = Config.Bind("Multiplayer", "MaxSendQueueKB", 256, "Tunnel pauses while Valheim's send queue to a peer is above this (KB), so Minecraft traffic never starves Valheim's own sync.").Value * 1024;
             Logo.ShowVersion = Config.Bind("General", "ValCraftLogoVersion", true, "Show the ValCraft version under the main menu title.").Value;
             ValheimHit.CombatScale = Config.Bind("Combat", "DamageScale", 6f, "Valheim damage per point of Minecraft attack damage at full swing (iron sword 6 -> 36, about a bronze/iron sword).").Value;
             ValheimHit.CombatPush = Config.Bind("Combat", "Knockback", 30f, "Valheim push force of a full-strength hit.").Value;
@@ -224,6 +228,7 @@ namespace ValCraft
         }
         void UpdateInner()
         {
+            try { NetTunnel.Update(Link, _connected); } catch (Exception e) { Diag.Warn("net", "[net] update error: " + e.GetBaseException().Message); }
             if (Link == null) return;
             float t = Time.unscaledTime;
             if (t >= _nextHeartbeat) { Link.Heartbeat(); _nextHeartbeat = t + 0.1f; }
@@ -262,6 +267,7 @@ namespace ValCraft
                         else if (ev.Type == ValCraftLink.EvVMobHurt) MobBridge.VMobHurt(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvLevelGround) TerrainEdit.LevelGround();
                         else if (ev.Type == ValCraftLink.EvMapToggle) MapToggle.Toggle();
+                        else if (ev.Type == ValCraftLink.EvNetReady) NetTunnel.Ready(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvReach) InteractBridge.SetReach(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvBuildAction) { if (ev.Payload != null && ev.Payload.Length > 0) ItemBridge.BuildAction(ev.Payload[0]); }
                         else if (!ItemBridge.Handle(ev)) BlockRender.Handle(ev);
@@ -384,6 +390,7 @@ namespace ValCraft
 
         void OnDestroy()
         {
+            NetTunnel.Shutdown();
             PlayerSync.Stop("plugin unloading");
             try { MobBridge.Clear("plugin unloading"); } catch { }
             _harmony?.UnpatchSelf();

@@ -94,6 +94,7 @@ static unsafe class Program
         if (args.Length == 2 && args[0] == "chest") return ChestTest(args[1]);
         if (args.Length == 2 && args[0] == "chestop") return ChestOpTest(args[1]);
         if (args.Length == 3 && args[0] == "mobs") return MobsTest(args[1], args[2]);
+        if (args.Length == 1 && args[0] == "tunnel") return TunnelTest.Run();
         if (args.Length > 0 && args[0] == "host") return FakeValheim.Run(args.Length > 1 ? args[1] : ValCraftLink.DefaultPath(), args.Length > 2 ? int.Parse(args[2]) : 300, args.Length > 3 ? args[3] : "cmd.txt");
         path = args.Length > 0 ? args[0] : ValCraftLink.DefaultPath();
         int pings = args.Length > 1 ? int.Parse(args[1]) : 20000;

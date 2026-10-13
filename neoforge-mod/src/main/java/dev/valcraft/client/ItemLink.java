@@ -29,22 +29,14 @@ final class ItemLink {
 	static Item item(String id) { var rl = ResourceLocation.tryParse(id); return rl == null ? Items.AIR : BuiltInRegistries.ITEM.get(rl); }
 	static String id(ItemStack s) { return BuiltInRegistries.ITEM.getKey(s.getItem()).toString(); }
 
-	private static ServerPlayer sp(Minecraft mc) {
-		var server = mc.getSingleplayerServer();
-		return server == null || mc.player == null ? null : server.getPlayerList().getPlayer(mc.player.getUUID());
-	}
-
 	/** EV_GIVE_ITEM {u32 reqId, u16 count, utf8 id}. */
-	static void give(Minecraft mc, byte[] p) {
+	static void give(Minecraft mc, byte[] p) { Ops.run(mc, ValCraftLink.EV_GIVE_ITEM, p); }
+	public static void giveOn(ServerPlayer pl, byte[] p) {
 		ByteBuffer b = ByteBuffer.wrap(p).order(ByteOrder.LITTLE_ENDIAN);
 		int count = b.getShort(4) & 0xFFFF, dur = b.getShort(6) & 0xFFFF; String id = str(b, 8); // v12: + u16 durability
 		Item it = item(id);
 		if (it == Items.AIR || count <= 0) { ValCraft.LOG.warn("[items] give: unknown item {}", id); return; }
-		var server = mc.getSingleplayerServer();
-		if (server == null) return;
-		server.execute(() -> {
-			ServerPlayer pl = sp(mc);
-			if (pl == null) return;
+		{
 			int left = count;
 			while (left > 0) {
 				int n = Math.min(left, it.getDefaultMaxStackSize());
@@ -54,18 +46,19 @@ final class ItemLink {
 				left -= n;
 			}
 			pl.inventoryMenu.broadcastChanges();
-			ValCraft.LOG.info("[items] got {} x {} from Valheim", count, id);
-		});
+			ValCraft.LOG.info("[items] {} got {} x {} from Valheim", pl.getName().getString(), count, id);
+		}
 	}
 
 	/** EV_CONSUME_REQ {u32 reqId, u16 count, u8 mode (0 held item, 1 by id anywhere), utf8 id ("" = whatever is held)} -> EV_CONSUME_ACK {u32 reqId, u16 removed, utf8 id}. */
 	static void consume(Minecraft mc, byte[] p) {
+		if (mc.player == null) { ByteBuffer b = ByteBuffer.wrap(p).order(ByteOrder.LITTLE_ENDIAN); ValCraftClient.sendToValheim(ValCraftLink.EV_CONSUME_ACK, ackBytes(b.getInt(0), 0, 0xFFFF, str(b, 7))); return; }
+		Ops.run(mc, ValCraftLink.EV_CONSUME_REQ, p);
+	}
+	public static void consumeOn(ServerPlayer pl, byte[] p) {
 		ByteBuffer b = ByteBuffer.wrap(p).order(ByteOrder.LITTLE_ENDIAN);
 		int req = b.getInt(0), count = b.getShort(4) & 0xFFFF, mode = b.get(6); String want = str(b, 7);
-		var server = mc.getSingleplayerServer();
-		if (server == null) { ack(mc, req, 0, 0xFFFF, want); return; }
-		server.execute(() -> {
-			ServerPlayer pl = sp(mc);
+		{
 			int removed = 0, dur = 0xFFFF; String got = want;
 			if (pl != null) {
 				var inv = pl.getInventory();
@@ -83,17 +76,16 @@ final class ItemLink {
 				}
 				pl.inventoryMenu.broadcastChanges();
 			}
-			ack(mc, req, removed, dur, got);
+			dev.valcraft.net.ServerOps.toValheim(pl, ValCraftLink.EV_CONSUME_ACK, ackBytes(req, removed, dur, got));
 			ValCraft.LOG.info("[items] Valheim used {} x {} (asked {})", removed, got, count);
-		});
+		}
 	}
 
-	private static void ack(Minecraft mc, int req, int removed, int dur, String id) {
+	private static byte[] ackBytes(int req, int removed, int dur, String id) {
 		byte[] name = id.getBytes(StandardCharsets.UTF_8);
 		ByteBuffer b = ByteBuffer.allocate(8 + Math.min(name.length, 200)).order(ByteOrder.LITTLE_ENDIAN);
 		b.putInt(req).putShort((short) removed).putShort((short) dur).put(name, 0, Math.min(name.length, 200));
-		byte[] a = b.array();
-		mc.execute(() -> ValCraftClient.sendToValheim(ValCraftLink.EV_CONSUME_ACK, a));
+		return b.array();
 	}
 
 	/** Render thread, every client tick: EV_HELD_ITEM {u16 count, utf8 id} when the main-hand stack changes. */

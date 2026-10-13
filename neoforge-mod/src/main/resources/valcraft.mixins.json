@@ -10,11 +10,11 @@
     "EntityFluidAccessor",
     "McWorldIrrelevantMixin",
     "PlayerDimsMixin",
-    "ServerMoveCheckMixin",
+    "ServerMoveCheckMixin", "LoopbackListenMixin",
     "TerrainMoveMixin"
   ],
   "client": [
-    "CameraMixin", "NoRainRenderMixin", "ClientRainLevelMixin",
+    "CameraMixin", "LanPingerMixin", "NoRainRenderMixin", "ClientRainLevelMixin",
     "GameRendererAccessor",
     "GameRendererPickMixin",
     "ScreenEffectMixin",

@@ -1,5 +1,7 @@
 package dev.valcraft.client;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import dev.valcraft.ValCraft;
 import dev.valcraft.link.ChestCodec;
 import dev.valcraft.link.ValCraftLink;
@@ -50,10 +52,13 @@ final class ChestLink {
 	/** Remove from the MC inventory slot on the server, then tell Valheim to store it (Valheim gives it back if it can't). */
 	static void deposit(Minecraft mc, int invSlot, boolean half) {
 		if (header == null || mc.player == null) return;
-		var server = mc.getSingleplayerServer(); if (server == null) return;
-		long serial = header.serial(); var uuid = mc.player.getUUID();
-		server.execute(() -> {
-			var sp = server.getPlayerList().getPlayer(uuid); if (sp == null) return;
+		byte[] a = ByteBuffer.allocate(13).order(ByteOrder.LITTLE_ENDIAN).putLong(header.serial()).putInt(invSlot).put((byte) (half ? 1 : 0)).array();
+		Ops.run(mc, dev.valcraft.net.ServerOps.OP_CHEST_DEPOSIT, a);
+	}
+	public static void depositOn(net.minecraft.server.level.ServerPlayer sp, byte[] a) {
+		ByteBuffer bb = ByteBuffer.wrap(a).order(ByteOrder.LITTLE_ENDIAN);
+		long serial = bb.getLong(0); int invSlot = bb.getInt(8); boolean half = a[12] != 0;
+		{
 			ItemStack st = sp.getInventory().getItem(invSlot);
 			if (st.isEmpty()) return;
 			int n = half ? Math.max(1, st.getCount() / 2) : st.getCount();
@@ -62,8 +67,8 @@ final class ChestLink {
 			st.shrink(n);
 			sp.inventoryMenu.broadcastChanges();
 			byte[] op = ChestCodec.op(serial, ChestCodec.OP_DEPOSIT, 0, n, dur, id);
-			mc.execute(() -> ValCraftClient.sendToValheim(ValCraftLink.EV_CHEST_OP, op));
-		});
+			dev.valcraft.net.ServerOps.toValheim(sp, ValCraftLink.EV_CHEST_OP, op);
+		}
 	}
 
 	static void close() {

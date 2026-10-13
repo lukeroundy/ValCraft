@@ -7,6 +7,7 @@ import dev.valcraft.link.ValCraftLink;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.Enemy;
@@ -70,62 +71,85 @@ public final class MobSync {
 
 	// ---------- Valheim monsters -> MC proxies ----------
 	private static final List<MobCodec.Mob> pending = new ArrayList<>();
-	private static final Map<Integer, ValheimProxy> proxies = new HashMap<>(); // server thread only
+	// 0.13.0: keyed by (owning player, Valheim instance id): instance ids are per Valheim process. Server thread only.
+	private static final Map<Long, ValheimProxy> proxies = new HashMap<>();
+	private static final Map<Integer, UUID> ownerOfSlot = new HashMap<>(); private static final Map<UUID, Integer> slotOf = new HashMap<>();
+	private static int slot(UUID u) { return slotOf.computeIfAbsent(u, k -> { int s = slotOf.size() + 1; ownerOfSlot.put(s, k); return s; }); }
+	private static long pk(ServerPlayer sp, int vid) { return ((long) slot(sp.getUUID()) << 32) | (vid & 0xFFFFFFFFL); }
 
-	/** Server thread: proxy of a Valheim creature (instance id), or null. */
-	public static ValheimProxy proxy(int valheimId) { var p = proxies.get(valheimId); return p != null && p.isAlive() ? p : null; }
+	/** Server thread: proxy of a Valheim creature (instance id in that player's Valheim), or null. */
+	public static ValheimProxy proxy(ServerPlayer sp, int valheimId) { var p = proxies.get(pk(sp, valheimId)); return p != null && p.isAlive() ? p : null; }
+	private static final List<byte[]> pendingRaw = new ArrayList<>();
 
 	public static void receiveVList(Minecraft mc, byte[] p) {
-		if (p[0] != 0) pending.clear();
-		pending.addAll(MobCodec.decodeList(p));
+		if (p[0] != 0) pendingRaw.clear();
+		pendingRaw.add(p);
 		if (p[1] == 0) return;
-		var list = new ArrayList<>(pending); pending.clear();
-		var server = mc.getSingleplayerServer(); if (server == null || mc.player == null) return;
-		var uuid = mc.player.getUUID();
-		server.execute(() -> {
-			var sp = server.getPlayerList().getPlayer(uuid); if (sp == null) return;
+		// whole snapshot as one op: u16 n, n x (u16 len, bytes)
+		int size = 2; for (byte[] b : pendingRaw) size += 2 + b.length;
+		ByteBuffer bb = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN).putShort((short) pendingRaw.size());
+		for (byte[] b : pendingRaw) bb.putShort((short) b.length).put(b);
+		pendingRaw.clear();
+		dev.valcraft.client.Ops.run(mc, ValCraftLink.EV_VMOB_LIST, bb.array());
+	}
+
+	/** Server thread: a player's Valheim reports the monsters it mirrors (it is their nearest Valheim player). */
+	public static void vlistOn(ServerPlayer sp, byte[] a) {
+		ByteBuffer bb = ByteBuffer.wrap(a).order(ByteOrder.LITTLE_ENDIAN);
+		List<MobCodec.Mob> list = new ArrayList<>();
+		int n = bb.getShort() & 0xFFFF;
+		for (int i = 0; i < n; i++) { byte[] part = new byte[bb.getShort() & 0xFFFF]; bb.get(part); list.addAll(MobCodec.decodeList(part)); }
+		long mine = (long) slot(sp.getUUID()) << 32;
+		{
 			ServerLevel lvl = sp.serverLevel(); long now = System.currentTimeMillis();
-			Set<Integer> keep = new HashSet<>();
+			Set<Long> keep = new HashSet<>();
 			for (var m : list) {
-				keep.add(m.id());
-				ValheimProxy px = proxies.get(m.id());
+				long key = pk(sp, m.id());
+				keep.add(key);
+				ValheimProxy px = proxies.get(key);
 				if (px == null || px.isRemoved() || px.level() != lvl) {
 					px = PROXY.get().create(lvl); if (px == null) continue;
 					px.vid = m.id(); px.setSize(m.w(), m.h()); px.moveTo(m.x(), m.y(), m.z(), 0, 0); px.lastSeen = now;
-					lvl.addFreshEntity(px); proxies.put(m.id(), px);
+					px.owner = sp.getUUID();
+					lvl.addFreshEntity(px); proxies.put(key, px);
 					ValCraft.LOG.info("[mobs] proxy for Valheim monster {} ({}x{} m)", m.id(), m.w(), m.h());
 				}
 				px.setSize(m.w(), m.h()); px.setPos(m.x(), m.y(), m.z()); px.lastSeen = now;
 			}
-			proxies.entrySet().removeIf(en -> { if (keep.contains(en.getKey()) && !en.getValue().isRemoved()) return false; en.getValue().discard(); return true; });
-		});
+			proxies.entrySet().removeIf(en -> { if ((en.getKey() & 0xFFFFFFFF00000000L) != mine) return false; if (keep.contains(en.getKey()) && !en.getValue().isRemoved()) return false; en.getValue().discard(); return true; });
+		}
 	}
 
 	public static void clear(Minecraft mc) {
-		pending.clear();
-		var server = mc.getSingleplayerServer(); if (server == null) return;
-		server.execute(() -> { proxies.values().forEach(Entity::discard); proxies.clear(); });
+		pending.clear(); pendingRaw.clear();
+		if (mc.player != null) dev.valcraft.client.Ops.run(mc, dev.valcraft.net.ServerOps.OP_VMOB_CLEAR, new byte[0]);
+	}
+	/** Server thread: drop the proxies a player's Valheim owned (it disconnected / cleared). */
+	public static void clearOn(ServerPlayer sp, byte[] unused) {
+		long mine = (long) slot(sp.getUUID()) << 32;
+		proxies.entrySet().removeIf(en -> { if ((en.getKey() & 0xFFFFFFFF00000000L) != mine) return false; en.getValue().discard(); return true; });
 	}
 
-	/** Server thread: something hit a proxy -> Valheim. Sent from the render thread. */
-	static void forwardToValheim(int vid, float amount, int attackerId) {
+	/** Server thread: something hit a proxy -> the Valheim that owns it. */
+	static void forwardToValheim(ValheimProxy px, int vid, float amount, int attackerId) {
 		byte[] b = MobCodec.vmobHurt(vid, amount, attackerId);
-		Minecraft.getInstance().execute(() -> ValCraftClient.sendToValheim(ValCraftLink.EV_VMOB_HURT, b));
+		var sp = px.owner == null ? null : px.getServer().getPlayerList().getPlayer(px.owner);
+		if (sp != null) dev.valcraft.net.ServerOps.toValheim(sp, ValCraftLink.EV_VMOB_HURT, b);
 	}
 
 	/** EV_MOB_HURT: a Valheim monster (proxy attacker) hit an MC mob. */
 	public static void hurtMob(Minecraft mc, byte[] p) {
 		if (p.length < 20) return;
+		dev.valcraft.client.Ops.run(mc, ValCraftLink.EV_MOB_HURT, p);
+	}
+	public static void hurtMobOn(ServerPlayer sp, byte[] p) {
 		ByteBuffer b = ByteBuffer.wrap(p).order(ByteOrder.LITTLE_ENDIAN);
 		int id = b.getInt(0), att = b.getInt(16); float dmg = b.getFloat(4), dx = b.getFloat(8), dz = b.getFloat(12);
-		var server = mc.getSingleplayerServer(); if (server == null || mc.player == null) return;
-		var uuid = mc.player.getUUID();
-		server.execute(() -> {
-			var sp = server.getPlayerList().getPlayer(uuid); if (sp == null) return;
+		{
 			if (!(sp.serverLevel().getEntity(id) instanceof LivingEntity le) || !le.isAlive()) return;
-			ValheimProxy src = proxies.get(att);
+			ValheimProxy src = proxies.get(pk(sp, att));
 			var ds = src != null && !src.isRemoved() ? le.damageSources().mobAttack(src) : le.damageSources().generic();
 			if (le.hurt(ds, dmg) && (dx != 0 || dz != 0)) le.knockback(0.4, -dx, -dz);
-		});
+		}
 	}
 }

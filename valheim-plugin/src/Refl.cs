@@ -9,6 +9,17 @@ namespace ValCraft
     internal static class Refl
     {
         static readonly Dictionary<string, Type> Cache = new Dictionary<string, Type>(StringComparer.Ordinal);
+        /// <summary>0.13.0: resolve the usual names on a background thread at startup, so even the first interact doesn't pay the
+        /// assembly scan (0.12.4 log: 211 ms for the first station check).</summary>
+        internal static void Prewarm()
+        {
+            var names = ("Aoe BaseAI Character ClutterSystem Container EffectArea EnvMan Fireplace Floating Game GameCamera Heightmap HitData Hoverable Hud Humanoid " +
+                "IDestructible ISocket Interactable Inventory InventoryGui ItemDrop LiquidType Localization Minimap ObjectDB Piece PieceTable Player PrivateArea RuneStone " +
+                "TerrainComp TerrainOp TextViewer TreeBase Vegvisir World WorldGenerator ZDO ZDOID ZInput ZNet ZNetPeer ZNetScene ZNetView ZPackage ZRoutedRpc ZoneSystem " +
+                "Smelter CookingStation Fermenter ItemStand Turret ShieldGenerator Incinerator Beehive Windmill BossStone Door Sign Bed Chair").Split(' ');
+            new System.Threading.Thread(() => { foreach (var n in names) try { T(n); } catch { } }) { IsBackground = true, Name = "ValCraft type cache" }.Start();
+        }
+
         internal static Type T(string name)
         {
             if (name == null) return null;

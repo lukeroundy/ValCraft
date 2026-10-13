@@ -115,18 +115,30 @@ public final class BlockSync {
 			BlockPos cur = lowest.get(k);
 			if (cur == null || p.getY() < cur.getY()) { lowest.put(k, p.immutable()); st.put(k, s); }
 		}
-		for (var en : lowest.entrySet()) TerrainSync.forward(en.getValue(), 0, st.get(en.getKey()));
+		for (var en : lowest.entrySet()) TerrainSync.forward(en.getValue(), 0, st.get(en.getKey()), null, e.getLevel());
 		if (!lowest.isEmpty()) ValCraft.LOG.info("[terrain] explosion: {} columns -> Valheim dig", lowest.size());
 	}
 
 	@SubscribeEvent
 	public static void onServerTick(ServerTickEvent.Post e) {
+		if (!enabled || !ValCraftClient.active()) { if (resetServer) scanTick(null, null); return; }
+		// 0.13.0: around OUR player (the host), not whoever joined first; tunnel clients scan their own client world
+		var mc = Minecraft.getInstance(); var me = mc.player;
+		ServerPlayer sp = me == null ? null : e.getServer().getPlayerList().getPlayer(me.getUUID());
+		if (sp == null) return;
+		scanTick(e.getServer().overworld(), sp.blockPosition());
+	}
+
+	/** Render thread, joined through the tunnel: the same scan on the client world (the host's server is not ours). */
+	static void clientTick(Minecraft mc) {
+		if (!Ops.remote(mc) || mc.level == null || mc.player == null) return;
+		if (!enabled || !ValCraftClient.active()) { if (resetServer) scanTick(null, null); return; }
+		scanTick(mc.level, mc.player.blockPosition());
+	}
+
+	private static void scanTick(net.minecraft.world.level.Level level, BlockPos pp) {
 		if (resetServer) { resetServer = false; sentHash.clear(); dirty.clear(); dirtyQ.clear(); lastCenter = Long.MIN_VALUE; cursor = 0; totalSent = 0; }
-		if (!enabled || !ValCraftClient.active()) return;
-		ServerLevel level = e.getServer().overworld();
-		List<ServerPlayer> players = e.getServer().getPlayerList().getPlayers();
-		if (players.isEmpty()) return;
-		BlockPos pp = players.get(0).blockPosition();
+		if (level == null) return;
 		int r = Math.max(16, Math.min(160, radius));
 		long center = key(pp.getX() >> 4, pp.getY() >> 4, pp.getZ() >> 4);
 		if (center != lastCenter || r != lastRadius) rebuildDesired(pp.getX() >> 4, pp.getY() >> 4, pp.getZ() >> 4, r);
@@ -170,7 +182,7 @@ public final class BlockSync {
 	private static final int[] tmpState = new int[4096];
 
 	/** Returns true if the section had any non-air content (counts toward the per-tick budget). */
-	private static boolean scan(ServerLevel level, long k) {
+	private static boolean scan(net.minecraft.world.level.Level level, long k) {
 		int sx = kx(k), sy = ky(k), sz = kz(k);
 		LevelChunk chunk = level.getChunkSource().getChunkNow(sx, sz);
 		if (chunk == null) return false;
