@@ -363,6 +363,21 @@ static unsafe class Program
         var dr = Wire(16f, 8f); C("ender dragon 16x8", Near(dr.Radius, 8f) && Near(dr.Height, 16f));
         var zero = MobCodec.Hitbox(0, 0); C("unknown size -> player-sized default", Near(zero.Radius, 0.3f) && Near(zero.Height, 1.8f));
         var sc = MobCodec.Hitbox(0.6f, 1.95f, 2f); C("block scale 2 m", Near(sc.Radius, 0.6f) && Near(sc.Height, 3.9f));
+        // 0.15.3: from the rendered mesh bounds (world), feet = proxy root
+        var f1 = MobCodec.Fit(true, 10.0f, 12.05f, 1.3f, 0.62f, 10.0f, 0.6f, 1.95f);
+        C($"zombie mesh (arms out 1.3 x 0.62, top +2.05) -> r {f1.Radius} h {f1.Height} c {f1.CenterY} move r {f1.MoveRadius} h {f1.MoveHeight}", f1.FromRender && Near(f1.Radius, 0.31f) && Near(f1.Height, 2.05f) && Near(f1.CenterY, 1.025f) && Near(f1.MoveHeight, 2.05f) && f1.MoveRadius <= 0.5f);
+        var f2 = MobCodec.Fit(true, 5.9f, 7.9f, 0.7f, 0.7f, 5.9f, 0.6f, 1.95f, 0.6f);
+        C($"scaled prefab root 0.6 -> local h {f2.Height}", Near(f2.Height, 2.0f / 0.6f) && Near(f2.CenterY, 1.0f / 0.6f));
+        var f3 = MobCodec.Fit(false, 0, 0, 0, 0, 0, 0.6f, 1.95f);
+        C("no mesh -> MC bbox", !f3.FromRender && Near(f3.Height, 1.95f) && Near(f3.MoveHeight, 1.95f));
+        var f4 = MobCodec.Fit(true, float.NaN, float.NaN, float.NaN, float.NaN, 3f, 0.6f, 1.95f);
+        C("NaN bounds -> MC bbox", !f4.FromRender && Near(f4.Height, 1.95f));
+        var f5 = MobCodec.Fit(true, 0, 0.1f, 0.5f, 0.5f, 0f, 0.6f, 1.95f);
+        C("degenerate (flat) mesh -> MC bbox", !f5.FromRender);
+        var f6 = MobCodec.Fit(true, 1f, 3.9f, 0.62f, 0.62f, 1f, 0.6f, 2.9f);
+        C("enderman mesh top 2.9 -> name tag at model top", Near(f6.MoveCenterY + f6.MoveHeight / 2, 2.9f));
+        var f7 = MobCodec.Fit(true, 0f, 1.1f, 1.6f, 1.5f, 0f, 1.4f, 0.9f);
+        C($"spider mesh -> r {f7.Radius} h {f7.Height}", Near(f7.Radius, 0.75f) && Near(f7.Height, 1.5f));
         return bad == 0 ? 0 : 7;
     }
 

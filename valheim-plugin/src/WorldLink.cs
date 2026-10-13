@@ -256,7 +256,7 @@ namespace ValCraft
         static readonly Dictionary<object, uint> _proxyToMc = new Dictionary<object, uint>();
         static readonly Dictionary<uint, Component> _vmobs = new Dictionary<uint, Component>();
         static readonly List<MobCodec.Mob> _incoming = new List<MobCodec.Mob>();
-        static bool _init, _ok; static float _nextList;
+        static bool _init, _ok; static float _nextList, _nextFit;
         static Type _charT, _znvT, _zdoT, _hitT, _baseAIT, _factionT, _playerT;
         static MethodInfo _setMax, _hoverName, _getAll, _getHealth, _getMax, _setHealth, _isDead, _isTamed, _damage, _getZdo, _setAttacker, _findInst, _sceneDestroy, _getPrefab;
         static FieldInfo _faction, _name, _attackerF; static PropertyInfo _persistent, _znsInst;
@@ -381,9 +381,16 @@ namespace ValCraft
             if (!_ok) return;
             // keep proxies on their MC mobs
             ProxyHitbox.Tick();
-            foreach (var px in _proxies.Values)
+            bool fit = Time.unscaledTime >= _nextFit; if (fit) _nextFit = Time.unscaledTime + 0.2f;
+            foreach (var kv in _proxies)
             {
+                var px = kv.Value;
                 if (px.Go == null) continue;
+                // 0.15.3: stand on the RENDERED model's feet (BlockRender re-seats meshes on Valheim's ground; the raw MC Y can be
+                // ~1 m off) and size the capsules from its bounds
+                var r = BlockRender.EntityRenderer(kv.Key);
+                if (r != null) { var tp = r.transform.position; if ((tp - px.Target).sqrMagnitude < 25f) px.Target = tp; }
+                if (fit) ProxyHitbox.Fit(px.Go, r, px.W, px.H, $"{kv.Key} {px.Name}");
                 var rb = px.Go.GetComponent<Rigidbody>();
                 if (rb != null) rb.position = px.Target;
                 px.Go.transform.position = px.Target;

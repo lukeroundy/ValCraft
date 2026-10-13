@@ -51,6 +51,9 @@ namespace ValCraft
             return true;
         }
 
+        /// 0.15.3: the rendered MC entity mesh (same id as EvMobList: the MC entity id), for proxy hitboxes / name tags.
+        internal static Renderer EntityRenderer(uint id) => EntObjs.TryGetValue(id, out var go) && go != null && go.GetComponent<MeshFilter>()?.sharedMesh != null ? go.GetComponent<MeshRenderer>() : null;
+
         internal static void OnConnected() { _configSent = false; }
         internal static void Clear()
         {

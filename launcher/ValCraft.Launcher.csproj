@@ -6,7 +6,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>ValCraft-Launcher</AssemblyName>
     <RootNamespace>ValCraft.Launcher</RootNamespace>
-    <Version>0.15.2</Version>
+    <Version>0.15.3</Version>
     <Product>ValCraft Launcher</Product>
     <ApplicationManifest>../installer/app.manifest</ApplicationManifest>
   </PropertyGroup>

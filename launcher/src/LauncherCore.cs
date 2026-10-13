@@ -12,7 +12,7 @@ namespace ValCraft.Launcher
 {
     public static class LauncherInfo
     {
-        public const string Version = "0.15.2";
+        public const string Version = "0.15.3";
         public const string ExeName = "ValCraft-Launcher.exe";
         public const string Pages = "https://lukeroundy.github.io/ValCraft/";
         public static string Repo => Versions.GitHubRepo;

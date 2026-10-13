@@ -15,7 +15,33 @@ namespace ValCraft.Protocol
         /// <summary>0.15.2: hit capsule for an MC bounding box (W x H blocks, already including baby/pose/scale, as sent by MC):
         /// radius = half the width (min 0.15 m), height = full box height (at least 2 r), centred on the body (centerY = h/2).
         /// The movement collider stays small: radius min(r, 0.4), height min(h, 1.8), also body-centred.</summary>
-        public struct Box { public float Radius, Height, CenterY, MoveRadius, MoveHeight, MoveCenterY; }
+        public struct Box { public float Radius, Height, CenterY, MoveRadius, MoveHeight, MoveCenterY; public bool FromRender; }
+        /// <summary>0.15.3: capsules from the RENDERED model. rMinY/rMaxY/rSizeX/rSizeZ = world AABB of the MC entity mesh
+        /// (Renderer.bounds), feetY = world Y of the proxy root (= the mesh origin), rootScale = proxy root lossyScale.y.
+        /// Hit capsule: height = model top - feet (at least 2 r), radius = half the smaller horizontal extent (at least half the
+        /// MC bbox width, so out-stretched arms don't make it huge). The root capsule (Character.m_collider: GetTopPoint for the
+        /// name tag, GetCenterPoint / GetHeight for aim and projectiles) gets the SAME height and centre with radius ≤ 0.5 m.
+        /// Values are returned in the root's LOCAL units (world / rootScale). Bad / missing bounds -> MC bbox (Hitbox()).</summary>
+        public static Box Fit(bool rendered, float rMinY, float rMaxY, float rSizeX, float rSizeZ, float feetY, float bbW, float bbH, float rootScale = 1f)
+        {
+            if (!(rootScale > 0.001f) || float.IsInfinity(rootScale)) rootScale = 1f;
+            Box b;
+            float hh = rMaxY - feetY;
+            bool ok = rendered && !float.IsNaN(hh) && hh > 0.2f && hh < 40f && rSizeX > 0.05f && rSizeZ > 0.05f && rSizeX < 60f && rSizeZ < 60f;
+            if (!ok) { b = Hitbox(bbW, bbH); MoveFull(ref b); }
+            else
+            {
+                float r = Math.Max(Math.Min(rSizeX, rSizeZ) / 2f, bbW > 0 ? bbW / 2f : 0.15f);
+                r = Math.Max(0.15f, r);
+                float h = Math.Max(hh, 2 * r);
+                b = new Box { Radius = r, Height = h, CenterY = h / 2f, FromRender = true };
+                MoveFull(ref b);
+            }
+            b.Radius /= rootScale; b.Height /= rootScale; b.CenterY /= rootScale; b.MoveRadius /= rootScale; b.MoveHeight /= rootScale; b.MoveCenterY /= rootScale;
+            return b;
+        }
+        static void MoveFull(ref Box b) { b.MoveRadius = Math.Min(b.Radius, 0.5f); b.MoveHeight = Math.Max(b.Height, 2 * b.MoveRadius); b.MoveCenterY = b.MoveHeight / 2f; }
+
         public static Box Hitbox(float w, float h, float scale = BlockToMeter)
         {
             if (!(w > 0)) w = 0.6f; if (!(h > 0)) h = 1.8f;

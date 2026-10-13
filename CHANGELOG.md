@@ -1,6 +1,19 @@
 # Changelog
 
 
+
+## 0.15.3
+- **Fix (for real): Minecraft mob hitboxes and name tags in Valheim.** In 0.15.2, name tags and health bars still floated at the zombies' waists. Three things were wrong:
+  - The capsule Valheim actually reads (`Character.m_collider`, used by `GetTopPoint` for the name tag and by `GetCenterPoint`/`GetHeight` for aim and projectiles) was deliberately capped at 1.8 m.
+  - The stand-in stood at the raw Minecraft feet height, while the rendered Minecraft model is re-seated on Valheim's smooth ground and can sit up to about a metre higher.
+  - Collider sizes are local to the placeholder prefab's root transform, so any scale on that prefab shrank them.
+- Now the stand-in stands on the rendered model's feet, its root transform scale is reset to 1, and both capsules are sized from the rendered mesh's world bounds (`Renderer.bounds`), with the Minecraft bounding box only as a fallback:
+  - The hit capsule spans feet to head. Its radius is half the smaller horizontal extent, at least half the bounding-box width.
+  - `m_collider` gets the same height and centre, with a radius of at most 0.5 m. The name tag therefore sits on top of the head.
+  - The fit is refreshed every 0.2 s.
+- Each stand-in logs its rendered size, Minecraft bounding box, the placeholder's original scale, both capsules, `m_collider` and the resulting GetTopPoint / GetCenterPoint / GetHeight. `[Mobs] DrawHitboxes` draws the capsules.
+- The render scale was confirmed as 1 block = 1 m (the entity meshes are in block units under an unscaled root). Protocol unchanged (v27).
+
 ## 0.15.2
 - **Fix: Minecraft mob hitboxes in Valheim were too small and short** (you had to aim at their legs). Each stand-in now has a dedicated hit capsule sized to the MC entity's bounding box (width × height in blocks, 1 block = 1 m, already including baby size, pose/sneaking, slime size and scale) and centred on the body instead of the feet.
 - The hit capsule resizes live when the MC dimensions change (EvMobList, every 0.2 s), so no protocol change is needed (still v26).
