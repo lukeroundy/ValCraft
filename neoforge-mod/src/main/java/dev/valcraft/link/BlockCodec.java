@@ -96,6 +96,23 @@ public final class BlockCodec {
 	/** EntUpdate flag 4: standing on mirrored Valheim terrain; groundY = MC Y of the top of the terrain block under it. */
 	public static final int ENT_ON_TERRAIN = 4;
 	/** EV_ENT_UPDATE: u8 first, u8 last, u16 n, n x (u32 entityId, u32 meshId, f32 x,y,z MC, u8 flags: 1 = dropped item (Valheim spins/bobs)). first..last = one full snapshot. */
+	/** 0.14.1 EV_KINETIC: u8 first, u8 last, u16 n, n x (u32 entityId, u8 axis 0=x 1=y 2=z (MC), f32 angle deg since the mesh capture
+	 *  (about +axis, MC right-handed), f32 deg/s). first..last = the full list of spinning block entities (may be empty). */
+	public record Kin(int id, int axis, float angle, float rate) {}
+	public static final int KIN_PER_MSG = 18;
+	public static List<ValCraftLink.Event> kinetic(List<Kin> k) {
+		List<ValCraftLink.Event> out = new ArrayList<>();
+		int off = 0;
+		do {
+			int n = Math.min(KIN_PER_MSG, k.size() - off);
+			ByteBuffer b = le(4 + n * 13);
+			b.put((byte) (off == 0 ? 1 : 0)).put((byte) (off + n >= k.size() ? 1 : 0)).putShort((short) n);
+			for (int i = 0; i < n; i++) { Kin e = k.get(off + i); b.putInt(e.id()).put((byte) e.axis()).putFloat(e.angle()).putFloat(e.rate()); }
+			out.add(new ValCraftLink.Event(ValCraftLink.EV_KINETIC, b.array()));
+			off += n;
+		} while (off < k.size());
+		return out;
+	}
 	public static List<ValCraftLink.Event> entityUpdate(List<Ent> ents) {
 		List<ValCraftLink.Event> out = new ArrayList<>();
 		int off = 0;

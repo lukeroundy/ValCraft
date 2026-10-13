@@ -159,6 +159,7 @@ final class EntitySync {
 	private static void liveBlocks(Minecraft mc, List<BlockCodec.Ent> ents, long now) {
 		var pp = mc.player.blockPosition();
 		int rad = Math.min(BlockSync.radius, 48), rc = (rad >> 4) + 1, caps = 0, n = 0;
+		var kin = new ArrayList<BlockCodec.Kin>();
 		var seen = new java.util.HashSet<Long>();
 		float pt = mc.getTimer().getGameTimeDeltaPartialTick(false);
 		for (int cx = (pp.getX() >> 4) - rc; cx <= (pp.getX() >> 4) + rc; cx++)
@@ -175,10 +176,15 @@ final class EntitySync {
 					int[] m = liveMesh.get(pk);
 					if (m == null) { m = new int[] { DYNAMIC_MESH | 0x20000000 | (nextMesh++ & 0x1FFFFFFF) }; liveMesh.put(pk, m); }
 					boolean kinetic = isKinetic(be);
+					// 0.14.1: Create rotating parts: capture once, then Valheim spins the mesh about the axis (no snapshot snap-backs)
+					KinState ks = kinetic ? kinState(be, st) : null;
 					int[] qc = liveQuads.get(pk);
-					long interval = kinetic ? (qc != null && qc[0] > 300 ? 1500 : d2 < 256 ? FRAME_MS : d2 < 1024 ? 2 * FRAME_MS : 400) : 2000; // 0.10.1: big models (water wheels, 1000+ quads) ~0.7 Hz: they flooded the IPC ring
+					long interval = ks != null ? Long.MAX_VALUE : kinetic ? (qc != null && qc[0] > 300 ? 1500 : d2 < 256 ? FRAME_MS : d2 < 1024 ? 2 * FRAME_MS : 400) : 2000; // 0.10.1: big models (water wheels, 1000+ quads) ~0.7 Hz: they flooded the IPC ring
 					Long last = liveLast.get(pk);
-					if ((last == null || now - last >= interval - 5) && caps < 10 && (last == null || outbox().size() < OUTBOX_BACKLOG)) {
+					double tNow = mc.level.getGameTime() + pt;
+					double[] spin = liveSpin.get(pk);
+					boolean respin = ks != null && (spin == null || spin[1] != ks.speed || spin[2] != ks.axis || spin[3] != Block.getId(st));
+					if ((last == null || respin || now - last >= interval - 5) && caps < 10 && (last == null || outbox().size() < OUTBOX_BACKLOG)) {
 						caps++; liveLast.put(pk, now);
 						Capture cap = new Capture();
 						Capture.CAPTURING = true;
@@ -187,15 +193,50 @@ final class EntitySync {
 							if (r != null) r.render(be, pt, new PoseStack(), cap, 0xF000F0, OverlayTexture.NO_OVERLAY);
 						} catch (Throwable t) { if (liveLogged++ < 20) ValCraft.LOG.warn("[entities] block entity {} capture failed: {}", st, t.toString()); }
 						finally { Capture.CAPTURING = false; }
-						var q = Capture.toTileQuads(cap.quads());
-						if (last == null && liveLogged++ < 20) ValCraft.LOG.info("[entities] live block entity {} at {}: {} quads{}", st.getBlock(), pos, q.size(), kinetic ? " (kinetic, re-captured)" : "");
+						var q = Capture.toTileQuads(cap.quads(), true);
+						if (last == null && liveLogged++ < 20) ValCraft.LOG.info("[entities] live block entity {} at {}: {} quads{}", st.getBlock(), pos, q.size(), ks != null ? " (rotating, axis " + "xyz".charAt(ks.axis) + ", " + ks.speed + " rpm)" : kinetic ? " (kinetic, re-captured)" : "");
 						outbox().addAll(BlockCodec.entityMesh(m[0], q));
 						liveQuads.put(pk, new int[] { q.size() });
+						if (ks != null && last != null && liveLogged++ < 40) ValCraft.LOG.info("[entities] {} at {}: speed {} rpm -> re-captured, spinning in Valheim", st.getBlock(), pos, ks.speed);
+						if (ks != null) { spin = new double[] { tNow, ks.speed, ks.axis, Block.getId(st) }; liveSpin.put(pk, spin); }
+						else liveSpin.remove(pk);
+					}
+					if (ks != null && spin != null && liveLast.containsKey(pk)) {
+						// Create: angle = time * speed * 3/10 (deg, time in ticks); we send the angle since capture + the rate
+						double ang = ((tNow - spin[0]) * spin[1] * 0.3) % 360.0;
+						kin.add(new BlockCodec.Kin(BLOCK_ENTITY_ID | 0x40000000 | ((int) (pk ^ (pk >>> 32)) & 0x3FFFFFFF), (int) spin[2], (float) ang, (float) (spin[1] * 6.0)));
 					}
 					if (liveLast.containsKey(pk)) ents.add(new BlockCodec.Ent(BLOCK_ENTITY_ID | 0x40000000 | ((int) (pk ^ (pk >>> 32)) & 0x3FFFFFFF), m[0], pos.getX(), pos.getY(), pos.getZ(), 0));
 				}
 			}
-		liveMesh.keySet().retainAll(seen); liveLast.keySet().retainAll(seen); liveQuads.keySet().retainAll(seen);
+		liveMesh.keySet().retainAll(seen); liveLast.keySet().retainAll(seen); liveQuads.keySet().retainAll(seen); liveSpin.keySet().retainAll(seen);
+		if (!kin.isEmpty() || kinWasSent) outbox().addAll(BlockCodec.kinetic(kin));
+		kinWasSent = !kin.isEmpty();
+	}
+	private static boolean kinWasSent;
+	private static final java.util.Map<Long, double[]> liveSpin = new java.util.HashMap<>(); // pos -> {captureTime ticks, rpm, axis, stateId}
+	record KinState(float speed, int axis) {}
+	/** BE classes whose renderer spins everything about one axis (whitelist; gearboxes/split shafts/presses etc. keep snapshots). */
+	private static final java.util.Set<String> SPIN_CLASSES = java.util.Set.of("KineticBlockEntity", "SimpleKineticBlockEntity", "BracketedKineticBlockEntity",
+		"GeneratingKineticBlockEntity", "WaterWheelBlockEntity", "LargeWaterWheelBlockEntity", "MillstoneBlockEntity", "CrushingWheelBlockEntity", "FlywheelBlockEntity", "CreativeMotorBlockEntity");
+	private static final java.util.Map<Class<?>, java.lang.reflect.Method[]> spinMethods = new java.util.concurrent.ConcurrentHashMap<>();
+	private static KinState kinState(Object be, net.minecraft.world.level.block.state.BlockState st) {
+		var ms = spinMethods.computeIfAbsent(be.getClass(), c -> {
+			if (!SPIN_CLASSES.contains(c.getSimpleName())) return new java.lang.reflect.Method[0];
+			try {
+				var gs = c.getMethod("getSpeed");
+				java.lang.reflect.Method ax = null;
+				for (var mm : st.getBlock().getClass().getMethods()) if (mm.getName().equals("getRotationAxis") && mm.getParameterCount() == 1) { ax = mm; break; }
+				return ax == null ? new java.lang.reflect.Method[0] : new java.lang.reflect.Method[] { gs, ax };
+			} catch (Throwable t) { return new java.lang.reflect.Method[0]; }
+		});
+		if (ms.length < 2) return null;
+		try {
+			float sp = ((Number) ms[0].invoke(be)).floatValue();
+			Object a = ms[1].invoke(st.getBlock(), st);
+			if (!(a instanceof net.minecraft.core.Direction.Axis axis)) return null;
+			return new KinState(sp, axis.ordinal());
+		} catch (Throwable t) { return null; }
 	}
 	private static final java.util.Map<Class<?>, Boolean> kineticCls = new java.util.concurrent.ConcurrentHashMap<>();
 	private static boolean isKinetic(Object be) {

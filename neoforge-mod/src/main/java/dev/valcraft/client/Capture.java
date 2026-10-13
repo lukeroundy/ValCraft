@@ -121,7 +121,11 @@ public final class Capture implements MultiBufferSource {
 	static void clearImages() { for (var i : images.values()) if (i != null) i.close(); images.clear(); }
 
 	/** Convert captured quads to atlas-tile quads (each quad's UV rect cropped into a tile). Positions are kept as captured. */
-	static List<BlockCodec.Quad> toTileQuads(List<CQuad> in) {
+	static List<BlockCodec.Quad> toTileQuads(List<CQuad> in) { return toTileQuads(in, false); }
+	/** @param unshaded 0.14.1 (modded block entities): facing from the quad's winding (what MC actually shows), not the
+	 *  renderer's normal (Create's SuperByteBuffer normals can point inward -> sun side rendered dark in Valheim); vertex
+	 *  colours only kept when strongly saturated (baked diffuse/light tinted the texture dark/greenish). */
+	static List<BlockCodec.Quad> toTileQuads(List<CQuad> in, boolean unshaded) {
 		List<BlockCodec.Quad> out = new ArrayList<>();
 		Map<String, Integer> seenPos = new HashMap<>();
 		for (CQuad q : in) {
@@ -134,12 +138,12 @@ public final class Capture implements MultiBufferSource {
 			int y0 = Math.max(0, (int) Math.floor(vmin + 1e-3f)), y1 = Math.min(H, (int) Math.ceil(vmax - 1e-3f));
 			if (x1 <= x0) x1 = Math.min(W, x0 + 1); if (y1 <= y0) y1 = Math.min(H, y0 + 1);
 			if (x1 <= x0 || y1 <= y0) continue;
-			int tint = normTint(q.argb);
+			int tint = unshaded && saturation(q.argb) < 96 ? -1 : normTint(q.argb);
 			int tile = BlockSync.tileForRegion(img, q.tex + "@" + x0 + "," + y0 + "," + x1 + "," + y1, x0, y0, x1 - x0, y1 - y0, tint == 0xFFFFFF ? -1 : tint);
 			float[] uv = new float[8];
 			for (int i = 0; i < 4; i++) { uv[i * 2] = (q.uv[i * 2] * W - x0) / (x1 - x0); uv[i * 2 + 1] = (q.uv[i * 2 + 1] * H - y0) / (y1 - y0); }
 			int dir = Direction.getNearest(q.nx, q.ny, q.nz).ordinal();
-			if (q.nx == 0 && q.ny == 0 && q.nz == 0) dir = normalDir(q.pos);
+			if (unshaded || q.nx == 0 && q.ny == 0 && q.nz == 0) dir = normalDir(q.pos);
 			float[] pos = q.pos;
 			// 0.10.1: layer renderers (villager type/profession, sheep wool, armour, eyes) redraw the same faces with another
 			// texture; MC's draw order hides that, Valheim's depth buffer z-fights. Push each repeat out along its normal.
@@ -167,6 +171,12 @@ public final class Capture implements MultiBufferSource {
 		float k = 255f / Math.max(1, mx);
 		r = Math.min(255, Math.round(r * k)) & 0xF0 | 0x08; g = Math.min(255, Math.round(g * k)) & 0xF0 | 0x08; b = Math.min(255, Math.round(b * k)) & 0xF0 | 0x08;
 		return (r << 16) | (g << 8) | b;
+	}
+
+	static int saturation(int argb) {
+		if (argb == -1) return 0;
+		int r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
+		return Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
 	}
 
 	private static String posKey(float[] p) {

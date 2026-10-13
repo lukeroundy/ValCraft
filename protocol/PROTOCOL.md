@@ -331,3 +331,13 @@ Single player: the horizontal anchor is no longer recomputed from the two saved 
 ## 0.14.0 (no new events; palette light byte extended)
 Palette light byte: bits 0-3 block light level, bit 0x40 = emissive quads without block light (glow material, no point light).
 MC-side classification is property-driven for any mod (BlockProps): render layer from the model's render types (NeoForge ChunkRenderTypeSet / model JSON render_type) + legacy map + texture-alpha fallback; emission from getLightEmission and baked quad lightmaps; light colour from the texture; reflections from tags (#c:glass_blocks, #c:glass_panes, #c:storage_blocks, #minecraft:ice), sound type (glass, metal, netherite, copper, amethyst, chain), friction, polished_/smooth_ names; hot/glowing modded fluids via FluidType temperature/light; campfire warmth for #minecraft:campfires / CampfireBlock subclasses with a "lit" property. Overrides: config/valcraft-blocks.json (block id or #tag → render, emissive, light, lightColor, shiny, smoothness, metallic, warm).
+
+## v25 (0.14.1) — spinning kinetic block entities
+- **EvKinetic 75** (MC→V), sent with each entity snapshot while any exist (one empty list after the last one goes):
+  `u8 first, u8 last, u16 n, n × (u32 entityId, u8 axis 0=x 1=y 2=z (MC), f32 angleDeg, f32 degPerSec)`; at most 18 per message, first..last = full list.
+  The entity's mesh (EvEntMesh) was captured once; `angleDeg` = rotation since that capture about the block centre, +axis, MC right-handed
+  (Create: angle = ticks × rpm × 3/10, so degPerSec = rpm × 6). Valheim predicts from the rate every frame and eases toward the sent angle;
+  Unity mirrors z, so x/y rotations flip sign. MC re-captures (angle restarts at 0) only when the speed, axis or block state change.
+  Whitelisted single-axis Create BEs only; others keep periodic snapshots.
+- Block-entity captures: face direction from the quad winding, near-grey/weak vertex colours ignored (no baked shading).
+- Sections: block changes are hooked at ServerLevel.sendBlockUpdated and queued ahead of entity traffic; Valheim rebuilds the changed section first.

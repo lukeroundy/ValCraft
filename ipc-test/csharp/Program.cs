@@ -82,6 +82,9 @@ static unsafe class Program
         if (mq == null || mq.Count != 12 || !es.CompleteMeshes.Contains(5) || Math.Abs(mq[3].Pos[1] - 0.03f) > 2e-3f) ok = false;
         int dyn = es.Meshes.TryGetValue(0x40000007u, out var dq) ? dq.Count : -1;
         Console.WriteLine($"[cs] mob mesh after resend: {dyn} quads; snapshot {es.Current.Count} ({es.Snapshots} snapshots), lid entity {(es.Current.ContainsKey(0x80000000u | 1234) ? "ok" : "missing")}");
+        bool kinOk = es.Spins.Count == 20 && es.Spins.TryGetValue(0xC0000000u | 13, out var sp13) && sp13.Axis == 1 && Math.Abs(sp13.Angle - 130f) < 1e-3f && Math.Abs(sp13.Rate + 48f) < 1e-3f;
+        Console.WriteLine($"[cs] kinetic spins: {es.Spins.Count} {(kinOk ? "ok" : "BAD")}");
+        if (!kinOk) ok = false;
         if (dyn != 3 || es.Snapshots != 2 || es.Current.Count != 2 || es.Current[7].Flags != (2 | 8 | 4) || Math.Abs(es.Current[7].GroundY - 63f) > 1e-4f || !es.Current.ContainsKey(0x80000000u | 1234)) ok = false;
         Console.WriteLine($"[cs] blocks test: {n} messages, {(ok ? "PASS" : "FAIL")}");
         return ok ? 0 : 1;

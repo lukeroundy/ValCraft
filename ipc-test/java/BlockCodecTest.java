@@ -56,6 +56,10 @@ public class BlockCodecTest {
 		ev.addAll(BlockCodec.entityMesh(0x40000007, eq));
 		ev.addAll(BlockCodec.entityMesh(0x40000007, eq.subList(0, 3)));
 		ev.addAll(BlockCodec.entityUpdate(List.of(new BlockCodec.Ent(7, 0x40000007, 1, 64, 1, 2 | 8 | 4, 63f), new BlockCodec.Ent(0x80000000 | 1234, 5, 3, 64, 3, 0))));
+		// 0.14.1: spinning block entities (20 -> two messages)
+		List<BlockCodec.Kin> kin = new ArrayList<>();
+		for (int i = 0; i < 20; i++) kin.add(new BlockCodec.Kin(0xC0000000 | i, i % 3, i * 10f, -48f));
+		ev.addAll(BlockCodec.kinetic(kin));
 		ev.add(BlockCodec.atlas(3, 10, 64, 16, "C:/x/blocks-atlas.png"));
 		try (var out = new DataOutputStream(new FileOutputStream(a[0]))) {
 			for (var e : ev) {

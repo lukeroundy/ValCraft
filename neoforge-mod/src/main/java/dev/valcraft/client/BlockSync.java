@@ -80,7 +80,9 @@ public final class BlockSync {
 	static int kz(long k) { return (int) (k << 22 >> 42); }
 	static int ky(long k) { return (int) (k << 44 >> 44); }
 
-	static void markDirty(int x, int y, int z) { dirtyQ.add(key(x >> 4, y >> 4, z >> 4)); }
+	/** 0.14.1: ServerLevel.sendBlockUpdated hook (any block change, not only player place/break events). */
+	public static void onBlockUpdated(int x, int y, int z) { if (enabled) markDirty(x, y, z); }
+	public static void markDirty(int x, int y, int z) { dirtyQ.add(key(x >> 4, y >> 4, z >> 4)); }
 	/** TerrainSync: a column's mirrored-terrain top changed -> the "is this terrain?" decision changes for that column. */
 	static void markColumnDirty(int x, int z, int oldTop, int newTop) {
 		if (!enabled) return;
@@ -217,7 +219,7 @@ public final class BlockSync {
 	}
 
 	// ---------------- render thread ----------------
-	private static final ArrayDeque<ValCraftLink.Event> outbox = new ArrayDeque<>();
+	private static final ArrayDeque<ValCraftLink.Event> outbox = new ArrayDeque<>(), prio = new ArrayDeque<>();
 	private static final Int2IntOpenHashMap paletteOf = new Int2IntOpenHashMap(); // state id -> palette id
 	private static final Map<String, Integer> tileOf = new HashMap<>();
 	private static NativeImage atlas;
@@ -238,7 +240,7 @@ public final class BlockSync {
 
 	/** On (re)link / disconnect: forget everything sent; Valheim is told to clear on next send. */
 	static void reset() {
-		outbox.clear(); fromServer.clear(); paletteOf.clear(); tileOf.clear();
+		outbox.clear(); prio.clear(); fromServer.clear(); paletteOf.clear(); tileOf.clear();
 		nextPalette = 1; nextTile = 1; atlasDirty = false;
 		if (atlas != null) { atlas.close(); atlas = null; }
 		Capture.clearImages(); EntitySync.reset();
@@ -246,17 +248,21 @@ public final class BlockSync {
 		outbox.add(new ValCraftLink.Event(ValCraftLink.EV_BLOCKS_RESET, new byte[0]));
 	}
 	private static int entErr;
-	static void disconnected() { enabled = false; reset(); outbox.clear(); }
+	static void disconnected() { enabled = false; reset(); outbox.clear(); prio.clear(); }
 
 	@SubscribeEvent
 	public static void onRenderFrame(RenderFrameEvent.Post e) {
 		if (!ValCraftClient.active()) return;
 		Minecraft mc = Minecraft.getInstance();
 		SectionOut so;
-		while (outbox.size() < OUTBOX_MAX && (so = fromServer.poll()) != null) {
+		// 0.14.1: block sections jump the queue (they used to wait behind entity/BE meshes -> ~3 s placement latency);
+		// palettes they need are moved along with them so the order palette -> section holds
+		while (prio.size() < OUTBOX_MAX && (so = fromServer.poll()) != null) {
+			int before = outbox.size();
 			short[] pid = new short[so.count];
 			for (int i = 0; i < so.count; i++) pid[i] = (short) paletteFor(mc, so.state[i]);
-			outbox.addAll(BlockCodec.section(so.sx, so.sy, so.sz, so.local, pid, so.count));
+			if (outbox.size() > before) { var tmp = new ArrayDeque<ValCraftLink.Event>(); while (outbox.size() > before) tmp.addFirst(outbox.pollLast()); prio.addAll(tmp); }
+			prio.addAll(BlockCodec.section(so.sx, so.sy, so.sz, so.local, pid, so.count));
 		}
 		if (enabled && outbox.size() < OUTBOX_MAX) {
 			try { EntitySync.tick(mc, outbox); }
@@ -265,8 +271,13 @@ public final class BlockSync {
 		long now = System.currentTimeMillis();
 		if (atlasDirty && now >= nextAtlasWrite) writeAtlas();
 		ValCraftLink.Event ev;
-		while ((ev = outbox.peek()) != null && ValCraftClient.sendToValheim(ev.type(), ev.payload())) outbox.poll();
+		// control/palette/atlas events already queued (reset, config) go first; only entity traffic yields to sections
+		while ((ev = outbox.peek()) != null && !isEntityEvent(ev.type()) && ValCraftClient.sendToValheim(ev.type(), ev.payload())) outbox.poll();
+		while ((ev = prio.peek()) != null && ValCraftClient.sendToValheim(ev.type(), ev.payload())) prio.poll();
+		if (prio.isEmpty()) while ((ev = outbox.peek()) != null && ValCraftClient.sendToValheim(ev.type(), ev.payload())) outbox.poll();
 	}
+
+	private static boolean isEntityEvent(short t) { return t == ValCraftLink.EV_ENT_MESH || t == ValCraftLink.EV_ENT_UPDATE || t == ValCraftLink.EV_KINETIC; }
 
 	private static int paletteFor(Minecraft mc, int stateId) {
 		if (paletteOf.containsKey(stateId)) return paletteOf.get(stateId);

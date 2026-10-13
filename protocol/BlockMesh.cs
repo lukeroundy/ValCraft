@@ -30,6 +30,7 @@ namespace ValCraft.Protocol
         readonly Dictionary<(int, int, int), ushort[]> _pending = new Dictionary<(int, int, int), ushort[]>();
         /// <summary>Sections whose mesh must be rebuilt (changed, or a neighbour changed).</summary>
         public readonly HashSet<(int, int, int)> Dirty = new HashSet<(int, int, int)>();
+        public readonly List<(int, int, int)> Urgent = new List<(int, int, int)>();
         public int AtlasRevision, AtlasTiles, AtlasPerRow = 64, AtlasTileSize = 16; public string AtlasPath;
         public bool ResetRequested;
         /// <summary>Animated tiles (EvBlockAnim): the display tile shows Frames[i] for Ticks[i] game ticks (20/s).</summary>
@@ -45,7 +46,7 @@ namespace ValCraft.Protocol
             switch (type)
             {
                 case ValCraftLink.EvBlocksReset:
-                    foreach (var k in Sections.Keys) Dirty.Add(k);
+                    foreach (var k in Sections.Keys) Dirty.Add(k); Urgent.Clear();
                     Sections.Clear(); _pending.Clear(); Palette.Clear(); Anims.Clear(); ResetRequested = true; return true;
                 case ValCraftLink.EvBlockPalette:
                 {
@@ -97,6 +98,7 @@ namespace ValCraft.Protocol
                     bool any = false; for (int i = 0; i < 4096 && !any; i++) any = arr[i] != 0;
                     if (any) Sections[k] = arr; else Sections.Remove(k);
                     Dirty.Add(k);
+                    if (Urgent.Count < 64) Urgent.Add(k); // 0.14.1: the changed section itself rebuilds before neighbours/initial sync
                     // neighbours' boundary faces may change
                     Dirty.Add((k.Item1 - 1, k.Item2, k.Item3)); Dirty.Add((k.Item1 + 1, k.Item2, k.Item3));
                     Dirty.Add((k.Item1, k.Item2 - 1, k.Item3)); Dirty.Add((k.Item1, k.Item2 + 1, k.Item3));
@@ -323,16 +325,34 @@ namespace ValCraft.Protocol
         public Dictionary<uint, Ent> Current = new Dictionary<uint, Ent>();
         Dictionary<uint, Ent> _building;
         public int Snapshots;
+        /// <summary>0.14.1 (EvKinetic): rotating block entities: MC axis (0..2), angle since the mesh capture (deg), rate (deg/s), receive time.</summary>
+        public struct Spin { public byte Axis; public float Angle, Rate; public double At; }
+        public Dictionary<uint, Spin> Spins = new Dictionary<uint, Spin>();
+        Dictionary<uint, Spin> _spinBuilding;
+        public static Func<double> Clock = () => DateTime.UtcNow.Ticks / 1e7;
 
         public bool Handle(ushort type, byte[] p)
         {
-            if (type == ValCraftLink.EvBlocksReset) { Meshes.Clear(); CompleteMeshes.Clear(); NewMeshes.Clear(); Current.Clear(); _building = null; return false; }
+            if (type == ValCraftLink.EvBlocksReset) { Meshes.Clear(); CompleteMeshes.Clear(); NewMeshes.Clear(); Current.Clear(); Spins.Clear(); _building = null; return false; }
             if (type == ValCraftLink.EvEntMesh)
             {
                 uint id = BitConverter.ToUInt32(p, 0); int first = BitConverter.ToUInt16(p, 4), n = p[6];
                 if (first == 0 || !Meshes.TryGetValue(id, out var list)) { list = new List<BlockPaletteEntry.Q>(); Meshes[id] = list; CompleteMeshes.Remove(id); }
                 for (int i = 0; i < n && 8 + (i + 1) * 44 <= p.Length; i++) list.Add(BlockStore.ReadQuad(p, 8 + i * 44));
                 if (p[7] != 0) { CompleteMeshes.Add(id); NewMeshes.Add(id); }
+                return true;
+            }
+            if (type == ValCraftLink.EvKinetic)
+            {
+                bool first = p[0] != 0, last = p[1] != 0; int n = BitConverter.ToUInt16(p, 2); double now = Clock();
+                if (first || _spinBuilding == null) _spinBuilding = new Dictionary<uint, Spin>();
+                var d = _spinBuilding;
+                for (int i = 0; i < n && 4 + (i + 1) * 13 <= p.Length; i++)
+                {
+                    int o = 4 + i * 13;
+                    d[BitConverter.ToUInt32(p, o)] = new Spin { Axis = p[o + 4], Angle = BitConverter.ToSingle(p, o + 5), Rate = BitConverter.ToSingle(p, o + 9), At = now };
+                }
+                if (last) { Spins = d; _spinBuilding = null; }
                 return true;
             }
             if (type == ValCraftLink.EvEntUpdate)

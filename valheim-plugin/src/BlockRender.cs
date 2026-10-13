@@ -36,6 +36,7 @@ namespace ValCraft
         /// <summary>Called with every M2V event; true if it was a block message.</summary>
         internal static int MaxEntities = 64, MaxMobs = 24; internal static string OpaqueShader = "";
         static readonly EntityStore Ents = new EntityStore();
+        static readonly Dictionary<uint, float> SpinShown = new Dictionary<uint, float>();
         static readonly Dictionary<uint, Mesh> EntMeshes = new Dictionary<uint, Mesh>();
         static readonly Dictionary<uint, GameObject> EntObjs = new Dictionary<uint, GameObject>();
         static Texture2D _frames; static bool _copyOk;
@@ -93,6 +94,11 @@ namespace ValCraft
 
             int budget = RebuildsPerFrame;
             var done = new List<(int, int, int)>();
+            // 0.14.1: just-changed sections first (placement shows the same frame it arrives), a few extra beyond the budget
+            int urgent = 0;
+            foreach (var k in Store.Urgent) { if (urgent++ >= 8) break; if (Store.Dirty.Remove(k)) { Rebuild(k); budget--; } }
+            Store.Urgent.RemoveRange(0, Math.Min(urgent, Store.Urgent.Count));
+            if (budget < 2) budget = 2;
             foreach (var k in Store.Dirty)
             {
                 if (budget-- <= 0) break;
@@ -417,6 +423,27 @@ namespace ValCraft
                     go.transform.localRotation = Quaternion.identity;
                     continue;
                 }
+                if (Ents.Spins.TryGetValue(e.Id, out var sp))
+                {
+                    // 0.14.1: Create kinetic BE: spin the angle-0 mesh about the block centre's axis every frame (predicted from the rate,
+                    // gently corrected toward MC's angle). MC->Unity mirrors z: rotations about x/y flip sign, about z keep it.
+                    float want = sp.Angle + sp.Rate * (float)(EntityStore.Clock() - sp.At);
+                    if (!SpinShown.TryGetValue(e.Id, out var shown)) shown = want;
+                    else
+                    {
+                        shown += sp.Rate * Time.deltaTime;
+                        float err = Mathf.DeltaAngle(shown, want);
+                        shown = Mathf.Abs(err) > 45f ? want : shown + err * Mathf.Clamp01(Time.deltaTime * 2f);
+                    }
+                    shown = Mathf.Repeat(shown, 360f);
+                    SpinShown[e.Id] = shown;
+                    var axis = sp.Axis == 0 ? Vector3.right : sp.Axis == 1 ? Vector3.up : Vector3.forward;
+                    var q = Quaternion.AngleAxis(sp.Axis == 2 ? shown : -shown, axis);
+                    var c = new Vector3(0.5f, 0.5f, -0.5f);
+                    go.transform.localRotation = q;
+                    go.transform.localPosition = target + c - q * c;
+                    continue;
+                }
                 var lp = go.transform.localPosition;
                 go.transform.localPosition = (lp - target).sqrMagnitude > 16f ? target : Vector3.Lerp(lp, target, Mathf.Clamp01(Time.deltaTime * 12f));
                 go.transform.localRotation = (e.Flags & 1) != 0 ? Quaternion.Euler(0, (t * 60f + e.Id * 37) % 360f, 0) : Quaternion.identity;
@@ -435,7 +462,7 @@ namespace ValCraft
                         foreach (var kv in EntMeshes) if (kv.Value == mm && (kv.Key & 0x40000000u) != 0) { UnityEngine.Object.Destroy(mm); EntMeshes.Remove(kv.Key); Ents.Meshes.Remove(kv.Key); break; }
                         UnityEngine.Object.Destroy(go);
                     }
-                    EntObjs.Remove(id); GroundOffset.Remove(id);
+                    EntObjs.Remove(id); GroundOffset.Remove(id); SpinShown.Remove(id);
                 }
             }
         }

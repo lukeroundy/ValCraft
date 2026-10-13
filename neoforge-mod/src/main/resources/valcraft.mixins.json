@@ -11,7 +11,7 @@
     "McWorldIrrelevantMixin",
     "PlayerDimsMixin",
     "ServerMoveCheckMixin", "LoopbackListenMixin", "ValheimSupportMixin",
-    "TerrainMoveMixin", "ServerSleepSkipMixin"
+    "TerrainMoveMixin", "ServerSleepSkipMixin", "BlockUpdateMixin"
   ],
   "client": [
     "CameraMixin", "LanPingerMixin", "LevelLoadMixin", "NoRainRenderMixin", "ClientRainLevelMixin",
