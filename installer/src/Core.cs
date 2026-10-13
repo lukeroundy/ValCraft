@@ -9,7 +9,7 @@ namespace ValCraft.Installer
 {
     public static class Versions
     {
-        public const string ValCraft = "0.14.2";
+        public const string ValCraft = "0.14.3";
         public const string Minecraft = "1.21.1";
         /// <summary>NeoForge build the mod is compiled against (user confirmed 21.1.259; 21.1.251+ also loads).</summary>
         public const string NeoForge = "21.1.259";
@@ -253,8 +253,20 @@ namespace ValCraft.Installer
             var lcfg = Path.Combine(root, "prismlauncher.cfg");
             File.WriteAllText(lcfg, LauncherCfg(File.Exists(lcfg) ? File.ReadAllText(lcfg) : null));
             if (!File.Exists(Path.Combine(root, "portable.txt"))) File.WriteAllText(Path.Combine(root, "portable.txt"), "");
+            var opt = Path.Combine(inst, "minecraft", "options.txt");
+            File.WriteAllText(opt, McOptions(File.Exists(opt) ? File.ReadAllText(opt) : null));
             Mods.InstallJar(ModsDir(root), jar, log);
             log?.Invoke("Prism instance ready: " + inst);
+        }
+
+        /// <summary>0.14.3: Minecraft options.txt defaults for ValCraft (no accessibility welcome screen, narrator off, music off);
+        /// only keys that are absent are added, the user's values are never overwritten.</summary>
+        public static string McOptions(string existing)
+        {
+            var lines = (existing ?? "").Replace("\r\n", "\n").Split('\n').Where(l => l.Length > 0).ToList();
+            foreach (var kv in new[] { ("onboardAccessibility", "false"), ("narrator", "0"), ("soundCategory_music", "0.0") })
+                if (!lines.Any(l => l.StartsWith(kv.Item1 + ":"))) lines.Add(kv.Item1 + ":" + kv.Item2);
+            return string.Join("\n", lines) + "\n";
         }
 
         public static int Accounts(string root)

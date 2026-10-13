@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.3 (Minecraft mod + installer; Valheim plugin unchanged, protocol v26)
+- A fresh Minecraft no longer gets stuck on the accessibility welcome screen ("Welcome to Minecraft!"). It is closed automatically, the onboarding and narrator are turned off and saved, and the automatic world load continues.
+- Minecraft music is off while linked to Valheim (`muteMusic=true` in `config/valcraft.properties`; set it to false to keep the music).
+- Installer: the Prism instance gets `options.txt` defaults (`onboardAccessibility:false`, `narrator:0`, `soundCategory_music:0.0`). Only missing keys are added; your own values are kept.
+
 ## 0.14.2 (protocol v26)
 - Hugin/Munin (tutorial raven): right-click from Minecraft opens the dialog in a Minecraft screen (vanilla Raven.Interact, so the text is marked seen and the raven leaves). Valheim's text viewer is suppressed.
 - The raven's auto-talk is forwarded to Minecraft chat and the action bar (new EvNpcSay message).

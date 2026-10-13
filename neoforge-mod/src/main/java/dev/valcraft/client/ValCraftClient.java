@@ -204,6 +204,7 @@ public final class ValCraftClient {
 		// Rendering may be skipped (noRender); keep the heartbeat alive from the tick too.
 		if (link != null && System.currentTimeMillis() >= nextHeartbeat) { link.heartbeat(); nextHeartbeat = System.currentTimeMillis() + 100; }
 		Minecraft mc = Minecraft.getInstance();
+		Onboarding.tick(mc);
 		if (active()) {
 			AutoWorld.tick(mc);
 			NetLink.tick(mc);

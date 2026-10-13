@@ -37,6 +37,7 @@ final class AutoWorld {
 		props.setProperty("worldName", "ValCraft");
 		props.setProperty("gameMode", "survival");
 		props.setProperty("generator", "void");
+		props.setProperty("muteMusic", "true");
 		Path p = FMLPaths.CONFIGDIR.get().resolve("valcraft.properties");
 		try {
 			if (Files.exists(p)) try (Reader r = Files.newBufferedReader(p)) { props.load(r); }
