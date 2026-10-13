@@ -170,11 +170,11 @@ namespace ValCraft.Protocol
                 int wx = bx + lx, wy = by + ly, wz = bz + lz;
                 var tris = m.Sub[e.Layer];
                 bool collides = (e.Flags & BlockPaletteEntry.Collides) != 0;
-                if (e.Light > 0)
+                if ((e.Light & 15) > 0) // 0.14.0: bit 0x40 = emissive quads without block light (glow only)
                 {
                     var ck = (lx >> 3, ly >> 3, lz >> 3, e.LightRgb);
                     clusters.TryGetValue(ck, out var cl);
-                    clusters[ck] = (cl.x + lx + 0.5f, cl.y + ly + 0.5f, cl.z - (lz + 0.5f), Math.Max(cl.level, e.Light), cl.count + 1);
+                    clusters[ck] = (cl.x + lx + 0.5f, cl.y + ly + 0.5f, cl.z - (lz + 0.5f), Math.Max(cl.level, e.Light & 15), cl.count + 1);
                 }
                 bool useQuads = (e.Flags & BlockPaletteEntry.HasQuads) != 0 && e.Quads.Count > 0;
                 if (useQuads)

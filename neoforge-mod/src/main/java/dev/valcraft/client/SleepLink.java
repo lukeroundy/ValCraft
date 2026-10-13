@@ -70,9 +70,8 @@ public final class SleepLink {
 		for (int cx = pcx - 2; cx <= pcx + 2; cx++) for (int cz = pcz - 2; cz <= pcz + 2; cz++) {
 			var ch = lvl.getChunkSource().getChunk(cx, cz, false); if (ch == null) continue;
 			for (var be : ch.getBlockEntities().values()) {
-				if (!(be instanceof CampfireBlockEntity)) continue;
 				var st = be.getBlockState();
-				if (!st.hasProperty(CampfireBlock.LIT) || !st.getValue(CampfireBlock.LIT)) continue;
+				if (!BlockProps.warm(st)) continue; // 0.14.0: any mod's campfire (tag / subclass / override), lit property honoured
 				if (be.getBlockPos().distSqr(pp) > 32 * 32 || lit.size() >= 64) continue;
 				lit.add(be.getBlockPos().immutable());
 			}

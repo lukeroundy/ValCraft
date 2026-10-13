@@ -274,6 +274,7 @@ public final class BlockSync {
 		paletteOf.put(stateId, id);
 		BlockState s = Block.stateById(stateId);
 		int flags = 0; int[] tiles = new int[6]; byte[] boxes;
+		com.google.gson.JsonObject ov = null; try { ov = BlockProps.override(s); } catch (Throwable t) { }
 		if (s.getRenderShape() == net.minecraft.world.level.block.RenderShape.INVISIBLE && !s.getFluidState().isEmpty()) {
 			outbox.add(fluidPalette(mc, id, s));
 			return id;
@@ -281,9 +282,9 @@ public final class BlockSync {
 		try {
 			if (s.isSolidRender(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)) flags |= BlockCodec.FLAG_FULL_OPAQUE;
 			if (!s.getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO).isEmpty()) flags |= BlockCodec.FLAG_COLLIDES;
-			RenderType rt = ItemBlockRenderTypes.getChunkRenderType(s);
-			if (rt == RenderType.translucent() || rt == RenderType.tripwire()) flags |= BlockCodec.FLAG_TRANSLUCENT;
-			else if (rt != RenderType.solid()) flags |= BlockCodec.FLAG_CUTOUT;
+			int rc = BlockProps.renderClass(mc, s, mc.getBlockRenderer().getBlockModel(s), ov); // 0.14.0: model render types (any mod) + alpha fallback
+			if (rc == BlockProps.TRANSLUCENT) flags |= BlockCodec.FLAG_TRANSLUCENT;
+			else if (rc == BlockProps.CUTOUT) flags |= BlockCodec.FLAG_CUTOUT;
 			if (isCross(s)) flags = (flags & ~BlockCodec.FLAG_COLLIDES & ~BlockCodec.FLAG_FULL_OPAQUE) | BlockCodec.FLAG_CROSS | BlockCodec.FLAG_CUTOUT;
 		} catch (Throwable t) { flags = BlockCodec.FLAG_FULL_OPAQUE | BlockCodec.FLAG_COLLIDES; }
 		try {
@@ -328,9 +329,24 @@ public final class BlockSync {
 		int light = 0;
 		try { light = s.getLightEmission(EmptyBlockGetter.INSTANCE, BlockPos.ZERO); } catch (Throwable t) { }
 		String name = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(s.getBlock()).getPath();
-		if (isShiny(name)) flags |= BlockCodec.FLAG_SHINY;
+		int lightRgb = 0;
+		try {
+			BakedModel model = mc.getBlockRenderer().getBlockModel(s);
+			int rc = (flags & BlockCodec.FLAG_TRANSLUCENT) != 0 ? BlockProps.TRANSLUCENT : (flags & BlockCodec.FLAG_CUTOUT) != 0 ? BlockProps.CUTOUT : BlockProps.SOLID;
+			if (BlockProps.shiny(s, rc, name, ov)) flags |= BlockCodec.FLAG_SHINY;
+			if (ov != null && ov.has("light")) light = Math.max(0, Math.min(15, ov.get("light").getAsInt()));
+			boolean emissive = ov != null && ov.has("emissive") ? ov.get("emissive").getAsBoolean() : light > 0 || BlockProps.emissiveQuads(s, model);
+			if (ov != null && ov.has("lightColor")) lightRgb = Integer.parseInt(ov.get("lightColor").getAsString().replace("#", ""), 16);
+			else if (light > 0) lightRgb = BlockProps.lightColorFromTexture(s, model);
+			if (emissive && light == 0) light = 0x40; // glow only, no block light (BlockMesh: bit 0x40)
+			if (!emissive) light = 0;
+		} catch (Throwable t) { if (isShiny(name)) flags |= BlockCodec.FLAG_SHINY; lightRgb = lightColor(name); }
 		if (quads != null && !quads.isEmpty()) flags |= BlockCodec.FLAG_QUADS;
-		outbox.add(BlockCodec.palette(id, flags, tiles, boxes, light, lightColor(name)));
+		var key = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(s.getBlock());
+		if (!key.getNamespace().equals("minecraft") && loggedModded.add(key.toString()))
+			ValCraft.LOG.info("[blocks] {}: {}{}{}{}", key, (flags & BlockCodec.FLAG_TRANSLUCENT) != 0 ? "translucent" : (flags & BlockCodec.FLAG_CUTOUT) != 0 ? "cutout" : "solid",
+				(flags & BlockCodec.FLAG_SHINY) != 0 ? ", shiny" : "", light > 0 ? ", light " + (light & 15) + ((light & 0x40) != 0 ? " (glow)" : "") : "", ov != null ? ", override" : "");
+		outbox.add(BlockCodec.palette(id, flags, tiles, boxes, light, lightRgb));
 		if ((flags & BlockCodec.FLAG_QUADS) != 0) outbox.addAll(BlockCodec.quads(id, quads));
 		return id;
 	}
@@ -459,12 +475,22 @@ public final class BlockSync {
 		int tint = ext.getTintColor() & 0xFFFFFF;
 		if (tint == 0xFFFFFF) tint = -1;
 		int still = tileFor(atlasFn.apply(ext.getStillTexture()), tint), flow = tileFor(atlasFn.apply(ext.getFlowingTexture()), tint);
-		boolean lava = fs.is(net.minecraft.tags.FluidTags.LAVA);
+		boolean lava = fs.is(net.minecraft.tags.FluidTags.LAVA) || fs.getFluidType().getTemperature() >= 1000 || fs.getFluidType().getLightLevel() >= 10; // 0.14.0: any hot/glowing modded fluid
 		int h = Math.max(1, Math.min(16, Math.round(fs.getOwnHeight() * 16)));
 		int flags = BlockCodec.FLAG_FLUID | (lava ? 0 : BlockCodec.FLAG_TRANSLUCENT | BlockCodec.FLAG_SHINY);
 		int light = 0; try { light = s.getLightEmission(EmptyBlockGetter.INSTANCE, BlockPos.ZERO); } catch (Throwable t) { }
+		if (light == 0) light = fs.getFluidType().getLightLevel();
 		if (lava && light == 0) light = 15;
-		return BlockCodec.palette(id, flags, new int[] { still, still, flow, flow, flow, flow }, new byte[] { 0, 0, 0, 16, (byte) h, 16 }, light, lava ? 0xFF7A30 : 0);
+		int frgb = lava ? 0xFF7A30 : 0;
+		if (light > 0 && !fs.is(net.minecraft.tags.FluidTags.LAVA)) { var sp = atlasFn.apply(ext.getStillTexture()); frgb = avgColor(sp); }
+		return BlockCodec.palette(id, flags, new int[] { still, still, flow, flow, flow, flow }, new byte[] { 0, 0, 0, 16, (byte) h, 16 }, light, frgb);
+	}
+
+	private static final java.util.Set<String> loggedModded = java.util.concurrent.ConcurrentHashMap.newKeySet();
+	private static int avgColor(TextureAtlasSprite sp) {
+		long r = 0, g = 0, b = 0; int n = 0; var img = sp.contents().getOriginalImage();
+		for (int y = 0; y < sp.contents().height(); y += 2) for (int x = 0; x < sp.contents().width(); x += 2) { int c = img.getPixelRGBA(x, y); r += c & 0xFF; g += (c >> 8) & 0xFF; b += (c >> 16) & 0xFF; n++; }
+		return n == 0 ? 0xFFFFFF : (int) (r / n) << 16 | (int) (g / n) << 8 | (int) (b / n);
 	}
 
 	private static int tileFor(TextureAtlasSprite sprite, int tint) {
