@@ -47,7 +47,7 @@ namespace ValCraft.Protocol
   ""Dandelion"": [""minecraft:dandelion""],
   ""Honey"": [""minecraft:honey_bottle"", ""valcraft:valheim_honey""],
   ""LeatherScraps"": [""minecraft:leather"", ""valcraft:leather_scraps""],
-  ""DeerHide"": [""minecraft:rabbit_hide"", ""valcraft:deer_hide""],
+  ""DeerHide"": [""valcraft:deer_hide"", ""minecraft:rabbit_hide""],
   ""BoneFragments"": [""minecraft:bone"", ""valcraft:bone_fragments""],
   ""Feathers"": [""minecraft:feather""],
   ""RawMeat"": [""minecraft:beef"", ""valcraft:boar_meat""],
@@ -501,6 +501,10 @@ namespace ValCraft.Protocol
             {
                 var rx = new Regex("\"" + Regex.Escape(mk) + "\"\\s*:\\s*\\[\\s*\"" + Regex.Escape(oldId) + "\"\\s*\\]");
                 if (rx.IsMatch(userJson)) { userJson = rx.Replace(userJson, "\"" + mk + "\": [\"" + oldId + "\", \"" + addId + "\"]"); migrated++; added.Add(mk + " (+" + addId + ")"); }
+            }
+            { // 0.15.6: deer drop the ValCraft deer hide (rabbit hide still accepted): swap the old default order
+                var rx = new Regex("\"DeerHide\"\\s*:\\s*\\[\\s*\"minecraft:rabbit_hide\"\\s*,\\s*\"valcraft:deer_hide\"\\s*\\]");
+                if (rx.IsMatch(userJson)) { userJson = rx.Replace(userJson, "\"DeerHide\": [\"valcraft:deer_hide\", \"minecraft:rabbit_hide\"]"); migrated++; added.Add("DeerHide (valcraft:deer_hide first)"); }
             }
             var user = new HashSet<string>(); var known = new HashSet<string>();
             foreach (Match m in Entry.Matches(userJson))

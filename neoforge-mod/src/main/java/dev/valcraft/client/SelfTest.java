@@ -79,7 +79,19 @@ public final class SelfTest {
 			if (t == t2) mc.setScreen(new InventoryScreen(mc.player));
 			if (t == t2 + 20) shot(mc, "inventory");
 			if (t == t2 + 24) { mc.setScreen(null); report.add("cape slot item: " + Capes.id(mc.player.getData(Capes.CAPE))); }
-			if (t == t2 + 30) {
+			// 0.15.6: held bow + shields, first and third person
+			if (t == t2 + 30 && sp != null) mc.getSingleplayerServer().execute(() -> hold(sp, "valcraft:huntsman_bow", "valcraft:iron_tower_shield"));
+			if (t == t2 + 40) { mc.options.setCameraType(CameraType.FIRST_PERSON); mc.player.setXRot(0f); }
+			if (t == t2 + 48) shot(mc, "held-fp-tower");
+			if (t == t2 + 50) mc.options.setCameraType(CameraType.THIRD_PERSON_FRONT);
+			if (t == t2 + 58) shot(mc, "held-tp-tower");
+			if (t == t2 + 60 && sp != null) mc.getSingleplayerServer().execute(() -> hold(sp, "valcraft:crude_bow", "valcraft:banded_shield"));
+			if (t == t2 + 68) shot(mc, "held-tp-round");
+			if (t == t2 + 70) mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+			if (t == t2 + 78) shot(mc, "held-tpback-round");
+			if (t == t2 + 80) mc.options.setCameraType(CameraType.FIRST_PERSON);
+			if (t == t2 + 88) shot(mc, "held-fp-round");
+			if (t == t2 + 92) {
 				report.add("done");
 				Files.write(new File(mc.gameDirectory, "valcraft-selftest.txt").toPath(), report);
 				ValCraft.LOG.info("[selftest] finished: {}", String.join(" | ", report));
@@ -135,6 +147,30 @@ public final class SelfTest {
 		int adv = 0; for (var a : sp.server.getAdvancements().getAllAdvancements()) if (a.id().getNamespace().equals("valcraft") && a.id().getPath().startsWith("recipes/")) adv++;
 		String r = "recipes valcraft=" + vc + " leather=" + leather + " scraps=" + scraps + " recipeAdvancements=" + adv + " scrapsItem=" + (scrapIt != net.minecraft.world.item.Items.AIR);
 		report.add(r); ValCraft.LOG.info("[selftest] {}", r);
+		// 0.15.6: dirt + hoe -> farmland keeps the hoe (1 durability used); deer hide <-> rabbit hide
+		var lv = sp.serverLevel();
+		var in = net.minecraft.world.item.crafting.CraftingInput.of(2, 1, java.util.List.of(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIRT), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_HOE)));
+		var hoe = rm.getRecipeFor(net.minecraft.world.item.crafting.RecipeType.CRAFTING, in, lv);
+		String h = "hoe recipe missing";
+		if (hoe.isPresent()) {
+			var res = hoe.get().value().assemble(in, reg); var rem = hoe.get().value().getRemainingItems(in);
+			h = "dirt+iron_hoe -> " + res.getItem() + " x" + res.getCount() + ", remainder " + rem.get(1).getItem() + " damage " + rem.get(1).getDamageValue() + " (" + hoe.get().id() + ")";
+		}
+		int hide = 0;
+		for (var id : new String[] { "minecraft:rabbit_hide", "valcraft:deer_hide" }) {
+			var it = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(id));
+			var in1 = net.minecraft.world.item.crafting.CraftingInput.of(1, 1, java.util.List.of(new net.minecraft.world.item.ItemStack(it)));
+			var rr = rm.getRecipeFor(net.minecraft.world.item.crafting.RecipeType.CRAFTING, in1, lv);
+			if (rr.isPresent()) { hide++; h += " | " + id + " -> " + rr.get().value().assemble(in1, reg).getItem(); }
+		}
+		h += " | hide swaps " + hide + "/2";
+		report.add(h); ValCraft.LOG.info("[selftest] {}", h);
+	}
+
+	static void hold(ServerPlayer sp, String main, String off) {
+		var g = (java.util.function.Function<String, net.minecraft.world.item.ItemStack>) id -> new net.minecraft.world.item.ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(id)));
+		sp.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, g.apply(main));
+		sp.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, g.apply(off));
 	}
 
 	static void fillInventory(ServerPlayer sp) {

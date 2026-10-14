@@ -6,7 +6,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>ValCraft-Installer</AssemblyName>
     <RootNamespace>ValCraft.Installer</RootNamespace>
-    <Version>0.15.5</Version>
+    <Version>0.15.6</Version>
     <Product>ValCraft Installer</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>

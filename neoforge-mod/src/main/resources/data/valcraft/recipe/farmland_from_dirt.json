@@ -1,0 +1,16 @@
+{
+  "type": "valcraft:crafting_keep_tool",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:dirt"
+    },
+    {
+      "tag": "minecraft:hoes"
+    }
+  ],
+  "result": {
+    "id": "minecraft:farmland",
+    "count": 1
+  }
+}

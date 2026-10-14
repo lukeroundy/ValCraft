@@ -299,6 +299,10 @@ static unsafe class Program
                     Check(ck.ValheimFor("minecraft:chicken") == "RawMeat" && ck.ValheimFor("minecraft:porkchop") == "RawMeat" && ck.ValheimFor("minecraft:cod") == "FishRaw" && ck.ValheimFor("minecraft:beef") == "RawMeat" && ck.ValheimFor("minecraft:mutton") == "DeerMeat", "raw MC meat cookable");
                     Check(ck.ValheimFor("minecraft:cooked_chicken") == "CookedMeat" && ck.ValheimFor("minecraft:cooked_salmon") == "FishCooked" && ValCraft.Protocol.ItemMap.Cookables["minecraft:porkchop"].cooked == "minecraft:cooked_porkchop", "cooked MC versions");
                     Console.WriteLine("[cs] 0.15.5 ledger + cookables ok");
+                    // 0.15.6: deer drop valcraft:deer_hide (old default order migrated, rabbit hide still accepted)
+                    Check(cm.McFor("DeerHide") == "valcraft:deer_hide" && cm.ValheimFor("minecraft:rabbit_hide") == "DeerHide", "deer hide first");
+                    var deerM = ValCraft.Protocol.ItemMap.Merge("{\n  \"DeerHide\": [\"minecraft:rabbit_hide\", \"valcraft:deer_hide\"]\n}", out _);
+                    Check(deerM.Contains("\"DeerHide\": [\"valcraft:deer_hide\", \"minecraft:rabbit_hide\"]"), "deer hide migration");
                 }
                 Check(cm.CraftedMcFor("SwordIron") == "valcraft:iron_sword" && cm.CraftedMcFor("KnifeFlint") == "valcraft:flint_knife" && cm.CraftedMcFor("AxeBronze") == "valcraft:bronze_axe", "crafted -> ValCraft item");
                 Check(cm.CraftedMcFor("CapeDeerHide") == "valcraft:deer_hide_cape" && cm.CraftedMcFor("Wood") == "minecraft:oak_log" && cm.CraftedMcFor("NotAThing") == null, "crafted fallback / unmapped");

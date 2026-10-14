@@ -305,7 +305,7 @@ namespace ValCraft
                         else if (ev.Type == ValCraftLink.EvCape) CapeLink.Receive(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvVMobHurt) MobBridge.VMobHurt(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvLevelGround) TerrainEdit.LevelGround();
-                        else if (ev.Type == ValCraftLink.EvMapToggle) MapToggle.Toggle();
+                        else if (ev.Type == ValCraftLink.EvMapToggle) { if (ev.Payload != null && ev.Payload.Length > 0 && ev.Payload[0] == 1) ValheimMenu.Show(); else MapToggle.Toggle(); } // 0.15.6: payload 1 = O key, Valheim menu
                         else if (ev.Type == ValCraftLink.EvNetReady) NetTunnel.Ready(ev.Payload);
                         else if (ev.Type == ValCraftLink.EvOffset) { if (ev.Payload != null && ev.Payload.Length >= 9) PlayerSync.SetOffset(BitConverter.ToSingle(ev.Payload, 1), BitConverter.ToSingle(ev.Payload, 5), ev.Payload[0] != 0); }
                         else if (ev.Type == ValCraftLink.EvSleep) SleepLink.Receive(Link, ev.Payload);

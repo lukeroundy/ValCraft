@@ -3,6 +3,15 @@
 
 
 
+## 0.15.6
+- **Shields** are real 3D models: the art is extruded 2 px thick with a handle, and they sit exactly where the vanilla shield model sits, so the vanilla transforms put them on the forearm, idle and blocking, in first and third person. In 0.15.5 the plate was offset by half a block, which made it float away from the arm and show its edge in first person. Tower shields are 14×26 px, round shields 12×22 and bucklers 12×12.
+- **Bows** are no longer held backwards. The vanilla bow transforms are now combined with a 135° turn that maps our vertical bow art onto vanilla's diagonal layout. Before, the limbs pointed at the player. All pull stages are fixed too.
+- **Tab** while building with the hammer cancels Valheim building (closes the piece menu and leaves placement mode) and no longer opens the Minecraft inventory.
+- **O** opens Valheim's Esc menu (`Menu.Show`). It can be rebound under Controls > ValCraft ("Valheim Menu"), and O has no vanilla binding.
+- **Deer hide:** Valheim deer hide now becomes `valcraft:deer_hide` in Minecraft. Rabbit hide is still accepted, and existing item maps at the old default are migrated. New shapeless recipes swap 1 deer hide and 1 rabbit hide both ways.
+- **Dirt + any hoe (`#minecraft:hoes`) → farmland.** The hoe stays in the grid with 1 durability used (new recipe type `valcraft:crafting_keep_tool`).
+- Tests: the self-test checks the hoe recipe (the iron hoe comes back with damage 1), the hide swaps, and that all 243 recipes and their unlock advancements load. It also takes held-item screenshots. ipc-test covers the deer hide mapping and its migration.
+
 ## 0.15.5
 - Other linked players' Viking bodies are hidden in Valheim, since you see their Minecraft player. Mob proxy stand-ins are hidden for every client (flags are synced through the ZDO).
 - Cooking: raw Minecraft beef, porkchop, chicken, rabbit, mutton, cod and salmon can go on Valheim cooking stations. What comes off is the cooked Minecraft item.

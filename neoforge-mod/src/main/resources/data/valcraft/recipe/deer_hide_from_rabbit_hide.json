@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:rabbit_hide"
+    }
+  ],
+  "result": {
+    "id": "valcraft:deer_hide",
+    "count": 1
+  }
+}

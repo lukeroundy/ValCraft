@@ -2,7 +2,7 @@
 
 **Play Minecraft inside Valheim.** A Valheim BepInEx plugin and a Minecraft (NeoForge) mod run side by side and share one world. You build with Minecraft blocks inside your Valheim world, and items, health, sleep, fire, mobs and more are shared between the two games.
 
-- Current version: **0.15.5** (protocol v27; the plugin and the mod must be the same version, and the launcher and installer keep them in sync)
+- Current version: **0.15.6** (protocol v27; the plugin and the mod must be the same version, and the launcher and installer keep them in sync)
 - Valheim (Steam, Windows) with BepInEx 5.4.23.x (BepInExPack_Valheim)
 - Minecraft Java Edition 1.21.1 with NeoForge 21.1.259 (21.1.251 or newer loads); Java 21
 

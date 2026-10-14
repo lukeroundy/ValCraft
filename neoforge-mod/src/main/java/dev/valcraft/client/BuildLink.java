@@ -21,6 +21,8 @@ public final class BuildLink {
 		var mc = Minecraft.getInstance();
 		if (!active && mc.screen instanceof BuildScreen) mc.setScreen(null);
 	}
+	/** 0.15.6: Tab cancelled building; Valheim confirms with EV_BUILD_STATE 0. */
+	static void cancelLocal() { active = false; usePressed = false; }
 	static void reset() { active = false; usePressed = false; pending.clear(); }
 
 	private static final java.util.List<dev.valcraft.link.BuildCodec.Piece> pending = new java.util.ArrayList<>();

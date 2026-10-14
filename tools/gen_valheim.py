@@ -181,10 +181,11 @@ def advancements(D, wj):
     return n
 
 # ---- 0.15.5: bows / crossbows / shields render and animate like their vanilla counterparts ----
-BOW_DISPLAY = {"thirdperson_righthand": {"rotation": [-80, 260, -40], "translation": [-1, -2, 2.5], "scale": [0.9, 0.9, 0.9]},
-               "thirdperson_lefthand": {"rotation": [-80, -280, 40], "translation": [-1, -2, 2.5], "scale": [0.9, 0.9, 0.9]},
-               "firstperson_righthand": {"rotation": [0, -90, 25], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]},
-               "firstperson_lefthand": {"rotation": [0, 90, -25], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]}}
+# 0.15.6: vanilla bow transforms composed with Rz(135): our vertical art (limbs on the +x side, string on the left) turned into vanilla's diagonal layout. With the plain vanilla transforms (0.15.5) the limbs pointed at the player (+z in hand space) = held backwards; now they point away like minecraft:bow
+BOW_DISPLAY = {"thirdperson_righthand": {"rotation": [100, -80, -85], "translation": [-1, -2, 2.5], "scale": [0.9, 0.9, 0.9]},
+               "thirdperson_lefthand": {"rotation": [-80, 80, 175], "translation": [-1, -2, 2.5], "scale": [0.9, 0.9, 0.9]},
+               "firstperson_righthand": {"rotation": [0, -90, 160], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]},
+               "firstperson_lefthand": {"rotation": [0, 90, 110], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]}}
 XBOW_DISPLAY = {"thirdperson_righthand": {"rotation": [-90, 0, -60], "translation": [2, 0.1, -3], "scale": [0.9, 0.9, 0.9]},
                 "thirdperson_lefthand": {"rotation": [-90, 0, 30], "translation": [2, 0.1, -3], "scale": [0.9, 0.9, 0.9]},
                 "firstperson_righthand": {"rotation": [-90, 0, -55], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]},
@@ -202,16 +203,37 @@ SHIELD_BLOCKING = {"thirdperson_righthand": {"rotation": [45, 155, 0], "translat
                    "firstperson_lefthand": {"rotation": [0, 180, -5], "translation": [5, 5, -11], "scale": [1.25, 1.25, 1.25]},
                    "gui": {"rotation": [15, -25, -5], "translation": [2, 3, 0], "scale": [0.65, 0.65, 0.65]}}
 
+ICON_PX = {}
+
 def _shield_elements(n):
-    t = f'#t'
-    def faces(u0, v0, u1, v1):
-        f = {d: {"uv": [u0, v0, u1, v1], "texture": t} for d in ("north", "south")}
-        for d in ("east", "west"): f[d] = {"uv": [0, 0, 1, 16], "texture": t}
-        for d in ("up", "down"): f[d] = {"uv": [0, 0, 16, 1], "texture": t}
-        return f
-    # same space as the vanilla shield (BEWLR plate 12x22x1 px, handle 2x6x6 px) so the vanilla display transforms fit
-    return [{"from": [2, -3, 9], "to": [14, 19, 10], "faces": faces(0, 0, 16, 16)},
-            {"from": [7, 5, 3], "to": [9, 11, 9], "faces": faces(6, 6, 10, 10)}]
+    # 0.15.6: a real 3D shield: the icon's opaque pixels extruded row by row (2 px thick) + a handle, placed in the exact
+    # space the vanilla BEWLR shield occupies under the vanilla shield display transforms (element = (px, -py, -pz) of
+    # ShieldModel: plate (-6,-11,-2) 12x22x1, handle (-1,-3,-1) 2x6x6), so it sits on the forearm like a vanilla shield.
+    t = '#t'
+    if 'tower' in n: W, H, y0 = 14.0, 26.0, 13.0
+    elif 'buckler' in n: W, H, y0 = 12.0, 12.0, 6.0
+    else: W, H, y0 = 12.0, 22.0, 11.0
+    sx, sy = W / 16.0, H / 16.0
+    px = ICON_PX.get(n)
+    rows = []
+    for v in range(16):
+        u = 0
+        while u < 16:
+            if px is None or px[v][u][3] > 0:
+                u0 = u
+                while u < 16 and (px is None or px[v][u][3] > 0): u += 1
+                rows.append((v, u0, u))
+            else: u += 1
+    els = []
+    for v, u0, u1 in rows:
+        f = {"south": {"uv": [u0, v, u1, v + 1], "texture": t}, "north": {"uv": [u1, v, u0, v + 1], "texture": t},
+             "east": {"uv": [u1 - 1, v, u1, v + 1], "texture": t}, "west": {"uv": [u0, v, u0 + 1, v + 1], "texture": t},
+             "up": {"uv": [u0, v, u1, v + 1], "texture": t}, "down": {"uv": [u0, v, u1, v + 1], "texture": t}}
+        els.append({"from": [round(-W / 2 + u0 * sx, 4), round(y0 - (v + 1) * sy, 4), 0.0],
+                    "to": [round(-W / 2 + u1 * sx, 4), round(y0 - v * sy, 4), 2.0], "faces": f})
+    hf = {d: {"uv": [7, 7, 9, 9], "texture": t} for d in ("north", "south", "east", "west", "up", "down")}
+    els.append({"from": [-1, -3, -5], "to": [1, 3, 0], "faces": hf})
+    return els
 
 def use_model(n, kind):
     tex = f'valcraft:item/{n}'
@@ -250,7 +272,8 @@ def use_models_extra(n, kind):
 def run(png, wj, A, D, R, lang, base_cs):
     entries, sets, tags, covered = [], [], {}, []
     def tex(n, kind, palname):
-        png(f'{A}/textures/item/{n}.png', 16, 16, pixelart.icon(n, kind, BASE[palname], BASE))  # 0.15.1: crisp templated pixel art
+        ICON_PX[n] = pixelart.icon(n, kind, BASE[palname], BASE)
+        png(f'{A}/textures/item/{n}.png', 16, 16, ICON_PX[n])  # 0.15.1: crisp templated pixel art
         wj(f'{A}/models/item/{n}.json', use_model(n, kind) or {'parent': f'minecraft:item/{KIND_MODEL.get(kind, "generated")}', 'textures': {'layer0': f'valcraft:item/{n}'}})
         for extra, m in use_models_extra(n, kind): wj(f'{A}/models/item/{extra}.json', m)
     def recipe(n, kind, palname, tier=0):

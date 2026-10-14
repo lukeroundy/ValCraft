@@ -751,7 +751,7 @@ namespace ValCraft
             ValCraftPlugin.Log.LogInfo($"[build] snap point {(next < 0 ? "automatic" : (next + 1) + "/" + n)} ({g?.name})");
         }
 
-        /// <summary>EvBuildAction: 1 place, 2 remove, 3 rotate, 4 cycle snap point.</summary>
+        /// <summary>EvBuildAction: 1 place, 2 remove, 3 rotate, 4 cycle snap point, 5 rotate back, 6 exit build mode (Tab).</summary>
         internal static void BuildAction(byte a)
         {
             if (!_building || PlayerSync.Player == null) return;
@@ -779,6 +779,7 @@ namespace ValCraft
                 else if (a == 3 && _rot != null) _rot.SetValue(pl, (int)_rot.GetValue(pl) + 1);
                 else if (a == 5 && _rot != null) _rot.SetValue(pl, (int)_rot.GetValue(pl) - 1); // 0.15.5: mouse wheel back
                 else if (a == 4) CycleSnap(pl);
+                else if (a == 6) { CloseMenu("Tab"); ExitBuild("Tab pressed in Minecraft"); } // 0.15.6: Tab cancels building
             }
             catch (Exception e) { Diag.Warn("buildact", "[build] action failed: " + e.GetBaseException().Message); }
         }
