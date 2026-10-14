@@ -335,6 +335,7 @@ namespace ValCraft
                 var go = UnityEngine.Object.Instantiate(prefab, pos, Quaternion.identity);
                 var nv = go.GetComponent(_znvT); var zdo = nv == null ? null : _getZdo.Invoke(nv, null);
                 if (zdo != null && _persistent?.GetSetMethod(true) != null) _persistent.SetValue(zdo, false); // never saved with the world
+                Visibility.SetFlag(zdo, Visibility.ProxyKey, 1); // 0.15.5: hidden on every client
                 foreach (var b in go.GetComponentsInChildren<Behaviour>(true))
                 {
                     var tn = b.GetType().Name;

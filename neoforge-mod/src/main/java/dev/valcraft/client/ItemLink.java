@@ -25,6 +25,40 @@ final class ItemLink {
 	private ItemLink() {}
 	private static String lastHeld = "";
 
+	/** 0.15.5: where items lent to Valheim (crafting / building) came from, per player and item id, so they return to the same slots. */
+	static final class Slots {
+		record Took(int slot, int count, long at) {}
+		static final Map<java.util.UUID, Map<String, java.util.ArrayDeque<Took>>> BY = new java.util.HashMap<>();
+		static void took(ServerPlayer pl, String id, int slot, int n) {
+			if (pl == null || n <= 0) return;
+			var q = BY.computeIfAbsent(pl.getUUID(), k -> new java.util.HashMap<>()).computeIfAbsent(id, k -> new java.util.ArrayDeque<>());
+			q.addLast(new Took(slot, n, System.currentTimeMillis()));
+			while (q.size() > 64) q.removeFirst();
+		}
+		/** Puts as much of st as fits into the remembered slots (empty, or the same item and components); st shrinks. */
+		static void putBack(ServerPlayer pl, String id, ItemStack st) {
+			var m = BY.get(pl.getUUID()); if (m == null) return;
+			var q = m.get(id); if (q == null) return;
+			var inv = pl.getInventory(); long now = System.currentTimeMillis();
+			while (!st.isEmpty() && !q.isEmpty()) {
+				var t = q.peekFirst();
+				if (now - t.at() > 30 * 60_000L || t.slot() < 0 || t.slot() >= inv.items.size()) { q.removeFirst(); continue; }
+				ItemStack cur = inv.items.get(t.slot());
+				int want = Math.min(t.count(), st.getCount());
+				if (cur.isEmpty()) {
+					int n = Math.min(want, st.getMaxStackSize());
+					inv.items.set(t.slot(), st.split(n));
+					consume(q, t, n);
+				} else if (ItemStack.isSameItemSameComponents(cur, st) && cur.getCount() < cur.getMaxStackSize()) {
+					int n = Math.min(want, cur.getMaxStackSize() - cur.getCount());
+					cur.grow(n); st.shrink(n); consume(q, t, n);
+				} else q.removeFirst(); // slot taken by something else meanwhile: normal add
+			}
+			if (q.isEmpty()) m.remove(id);
+		}
+		private static void consume(java.util.ArrayDeque<Took> q, Took t, int n) { q.removeFirst(); if (t.count() > n) q.addFirst(new Took(t.slot(), t.count() - n, t.at())); }
+	}
+
 	static String str(ByteBuffer b, int off) { byte[] a = new byte[b.limit() - off]; b.get(off, a); return new String(a, StandardCharsets.UTF_8); }
 	static Item item(String id) { var rl = ResourceLocation.tryParse(id); return rl == null ? Items.AIR : BuiltInRegistries.ITEM.get(rl); }
 	static String id(ItemStack s) { return BuiltInRegistries.ITEM.getKey(s.getItem()).toString(); }
@@ -42,7 +76,8 @@ final class ItemLink {
 				int n = Math.min(left, it.getDefaultMaxStackSize());
 				ItemStack st = new ItemStack(it, n);
 				if (dur != 0xFFFF && st.isDamageableItem()) st.setDamageValue(Math.min(st.getMaxDamage() - 1, Math.round((1f - dur / 10000f) * st.getMaxDamage())));
-				if (!pl.getInventory().add(st) && !st.isEmpty()) pl.drop(st, false);
+				Slots.putBack(pl, id, st);
+				if (!st.isEmpty() && !pl.getInventory().add(st) && !st.isEmpty()) pl.drop(st, false);
 				left -= n;
 			}
 			pl.inventoryMenu.broadcastChanges();
@@ -72,7 +107,7 @@ final class ItemLink {
 						if (s.isEmpty() || s.getItem() != it) continue;
 						if (s.isDamageableItem()) dur = Math.round((1f - (float) s.getDamageValue() / s.getMaxDamage()) * 10000f);
 						q = quality(s); crafter = crafter(s);
-						s.shrink(1); removed = 1; break;
+						s.shrink(1); removed = 1; Slots.took(pl, want, i, 1); break;
 					}
 					pl.inventoryMenu.broadcastChanges();
 					dev.valcraft.net.ServerOps.toValheim(pl, ValCraftLink.EV_CONSUME_ACK_Q, qBytes(req, removed, dur, q, crafter, want));
@@ -85,6 +120,7 @@ final class ItemLink {
 						if (s.isEmpty() || s.getItem() != it) continue;
 						int n = Math.min(count - removed, s.getCount());
 						s.shrink(n); removed += n;
+						Slots.took(pl, want, i, n); // 0.15.5: comes back to this slot
 					}
 				}
 				pl.inventoryMenu.broadcastChanges();
@@ -145,7 +181,8 @@ final class ItemLink {
 			ItemStack st = new ItemStack(it, n);
 			applyQuality(st, q, crafter);
 			if (dur != 0xFFFF && st.isDamageableItem()) st.setDamageValue(Math.min(st.getMaxDamage() - 1, Math.round((1f - dur / 10000f) * st.getMaxDamage())));
-			if (!pl.getInventory().add(st) && !st.isEmpty()) { dropped += st.getCount(); pl.drop(st, false); }
+			Slots.putBack(pl, id, st);
+			if (!st.isEmpty() && !pl.getInventory().add(st) && !st.isEmpty()) { dropped += st.getCount(); pl.drop(st, false); }
 			left -= n;
 		}
 		pl.inventoryMenu.broadcastChanges();

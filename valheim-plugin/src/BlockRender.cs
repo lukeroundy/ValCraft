@@ -54,6 +54,16 @@ namespace ValCraft
         /// 0.15.3: the rendered MC entity mesh (same id as EvMobList: the MC entity id), for proxy hitboxes / name tags.
         internal static Renderer EntityRenderer(uint id) => EntObjs.TryGetValue(id, out var go) && go != null && go.GetComponent<MeshFilter>()?.sharedMesh != null ? go.GetComponent<MeshRenderer>() : null;
 
+        /// 0.15.5: is this a collider of the rendered MC blocks?
+        internal static bool IsMcCollider(Collider c) => c != null && _root != null && c.transform.IsChildOf(_root);
+        /// 0.15.5: are the MC blocks around this Valheim position currently streamed in (so their colliders really exist)?
+        internal static bool McLoadedAt(Vector3 pos)
+        {
+            if (_root == null || !_root.gameObject.activeInHierarchy || PlayerSync.Player == null) return false;
+            var d = pos - PlayerSync.Player.transform.position; d.y = 0;
+            return d.magnitude < Radius * 0.75f;
+        }
+
         internal static void OnConnected() { _configSent = false; }
         internal static void Clear()
         {
@@ -406,7 +416,11 @@ namespace ValCraft
                 var target = new Vector3(e.X, e.Y, -e.Z);
                 // 0.7.5: re-seat on Valheim's smooth ground (flag 8 = MC groundY valid; 4 = standing on it). offset = valheimGround - mcGround.
                 GroundOffset.TryGetValue(e.Id, out var off);
-                if ((e.Flags & 8) != 0)
+                // 0.15.5: mobs/players (flag 2) are NOT re-seated while the camera follows MC's own height: MC picks entities
+                // (your sword hits) on their MC boxes, so drawing them up to a block higher on Valheim's smooth ground made
+                // you aim at their legs. Items/minecarts etc. still sit on Valheim's ground.
+                bool reseat = (e.Flags & 2) == 0 || PlayerSync.Vertical != VerticalMode.FollowMinecraft;
+                if (reseat && (e.Flags & 8) != 0)
                 {
                     float vg = TerrainExport.HeightAtMc(e.X, e.Z, _root.position);
                     if (!float.IsNaN(vg))
@@ -415,6 +429,7 @@ namespace ValCraft
                         if (Mathf.Abs(want) < 3f) off = (e.Flags & 4) != 0 ? Mathf.Lerp(off, want, Mathf.Clamp01(Time.deltaTime * 10f)) : off;
                     }
                 }
+                else if (!reseat) off = 0f;
                 else off = Mathf.Lerp(off, 0f, Mathf.Clamp01(Time.deltaTime * 4f)); // on a player block / unknown: no correction
                 GroundOffset[e.Id] = off;
                 target.y += off;

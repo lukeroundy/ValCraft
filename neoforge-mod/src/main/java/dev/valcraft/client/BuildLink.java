@@ -43,7 +43,14 @@ public final class BuildLink {
 		}
 	}
 
-	static boolean holdingMace(Minecraft mc) { return mc.player != null && mc.player.getMainHandItem().is(Items.MACE); }
+	static boolean holdingMace(Minecraft mc) { return mc.player != null && isHammer(mc.player.getMainHandItem()); }
+	/** 0.15.5: the ValCraft build hammer works exactly like the mace (= Valheim hammer). */
+	public static boolean isHammer(net.minecraft.world.item.ItemStack s) {
+		if (s.is(Items.MACE)) return true;
+		var k = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(s.getItem());
+		return k.getNamespace().equals("valcraft") && k.getPath().equals("valheim_hammer");
+	}
+	public static boolean holdingHammer(Minecraft mc) { return ValCraftClient.active() && holdingMace(mc); }
 	public static boolean building(Minecraft mc) { return active && ValCraftClient.active() && holdingMace(mc); }
 
 	public static boolean tryUse(Minecraft mc) {

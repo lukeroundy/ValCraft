@@ -32,6 +32,15 @@ namespace ValCraft
         internal static bool PreferMc = true;
         static readonly Dictionary<uint, string> PendingGear = new Dictionary<uint, string>();
         static readonly HashSet<object> _keepValheim = new HashSet<object>();
+        /// 0.15.5: which MC ids (and how many) were lent into each Valheim prefab for crafting/building; returns use them first
+        /// (40 planks lent as Wood come back as planks, not logs)
+        static readonly Dictionary<string, List<KeyValuePair<string, int>>> _lent = new Dictionary<string, List<KeyValuePair<string, int>>>();
+        static void Lend(string prefab, string mcId, int n)
+        {
+            if (!_lent.TryGetValue(prefab, out var l)) _lent[prefab] = l = new List<KeyValuePair<string, int>>();
+            l.Add(new KeyValuePair<string, int>(mcId, n));
+        }
+
         static FieldInfo _qualityF, _crafterF;
         static readonly ItemMap Map = new ItemMap();
         static string _path; static DateTime _mtime; static float _nextFileCheck, _nextSweep;
@@ -40,7 +49,7 @@ namespace ValCraft
         static readonly Dictionary<uint, (GameObject target, string valheim)> PendingUse = new Dictionary<uint, (GameObject, string)>();
         static readonly Dictionary<uint, string> PendingDeposit = new Dictionary<uint, string>();
         static readonly ItemMap.Snapshot Snap = new ItemMap.Snapshot();
-        static bool _crafting, _snapRequested;
+        static bool _crafting, _snapRequested; static int _sweepsSinceSession;
         static float _lastAction = -100f;
         static readonly List<GameObject> _spawned = new List<GameObject>();
         static ValCraftLink _link;
@@ -132,8 +141,27 @@ namespace ValCraft
             }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[items] mapping merge failed: {e.Message}"); }
             _mtime = mt;
-            try { int n = Map.Load(File.ReadAllText(_path)); ValCraftPlugin.Log.LogInfo($"[items] mapping loaded: {n} Valheim items <-> {Map.ToValheim.Count} Minecraft items ({_path})"); }
+            try { int n = Map.Load(File.ReadAllText(_path)); AddCookables(Map); ValCraftPlugin.Log.LogInfo($"[items] mapping loaded: {n} Valheim items <-> {Map.ToValheim.Count} Minecraft items ({_path})"); }
             catch (Exception e) { ValCraftPlugin.Log.LogWarning($"[items] mapping file error: {e.Message}"); }
+        }
+
+        // ---------------- 0.15.5: MC raw meat / fish on Valheim cooking stations ----------------
+        /// MC raw id -> (Valheim raw prefab, MC cooked id). The Valheim output (CookedMeat / FishCooked) comes back as the
+        /// cooked version of what was put on (raw chicken -> cooked chicken), not the table's first item.
+        static Dictionary<string, (string raw, string cooked)> Cookables => ItemMap.Cookables;
+        static Dictionary<string, string> CookedOf => ItemMap.CookedOf;
+        static readonly Dictionary<string, Queue<string>> _cooking = new Dictionary<string, Queue<string>>();
+        static void AddCookables(ItemMap map) => map.AddCookables();
+        static void NoteCooking(string mcRawId, int n)
+        {
+            if (!Cookables.TryGetValue(mcRawId, out var c) || !CookedOf.TryGetValue(c.raw, out var cooked)) return;
+            if (!_cooking.TryGetValue(cooked, out var q)) _cooking[cooked] = q = new Queue<string>();
+            for (int i = 0; i < n && q.Count < 64; i++) q.Enqueue(c.cooked);
+        }
+        /// MC id for a Valheim cooked prefab coming back: the cooked version of what went on the station, else the table's.
+        static string CookedMc(string prefab, string def)
+        {
+            return _cooking.TryGetValue(prefab, out var q) && q.Count > 0 ? q.Dequeue() : def;
         }
 
         internal static bool HeldIs(string id) => _heldCount > 0 && _heldId == id;
@@ -218,6 +246,7 @@ namespace ValCraft
                     _spawned.Remove(go);
                     if (mc == null) continue;
                     int n = (int)_stack.GetValue(data);
+                    if (n == 1) mc = CookedMc(prefab, mc); // 0.15.5: cooked MC meat comes back as itself
                     if (Give(mc, n, prefab, "drop", DurOf(data)))
                     {
                         // always through ZNetScene.Destroy (a plain Object.Destroy leaves a dead entry in ZNetScene.m_instances)
@@ -228,9 +257,11 @@ namespace ValCraft
 
             // sweep: mapped materials in the Valheim inventory -> MC (not during crafting)
             BuildUpdate();
+            LedgerTick();
             if (!_crafting && !_building && t >= _nextSweep && PendingUse.Count == 0)
             {
                 _nextSweep = t + 0.5f;
+                _sweepsSinceSession++;
                 var inv = Inv();
                 if (inv != null && _getAllItems.Invoke(inv, null) is IList items)
                     foreach (var it in new ArrayList(items))
@@ -241,10 +272,31 @@ namespace ValCraft
                         if (!PreferMc && IsGear(it)) continue; // 0.15.2: with PreferMinecraftItems off, Valheim gear stays in Valheim
                         string prefab = PrefabOf(it), mc = McForItem(it, prefab);
                         if (mc == null) continue;
+                        if (!IsGear(it) && _cooking.TryGetValue(prefab, out var cq) && cq.Count > 0)
+                        {
+                            // 0.15.5: cooked on a station from MC meat -> the matching MC cooked item
+                            int st = (int)_stack.GetValue(it), given = 0;
+                            var by = new Dictionary<string, int>();
+                            for (int i = 0; i < st; i++) { var id = CookedMc(prefab, mc); by[id] = (by.TryGetValue(id, out var c0) ? c0 : 0) + 1; }
+                            foreach (var kv in by) if (Give(kv.Key, kv.Value, prefab, "cooked")) given += kv.Value;
+                            if (given >= st) _removeItem.Invoke(inv, new[] { it }); else if (given > 0 && _removeAmt != null) _removeAmt.Invoke(inv, new object[] { it, given });
+                            continue;
+                        }
+                        if (!IsGear(it) && _lent.ContainsKey(prefab))
+                        {
+                            // 0.15.5: lent materials go back as the exact MC items (planks stay planks)
+                            int st = (int)_stack.GetValue(it), given = 0;
+                            foreach (var part in ItemMap.ReturnParts(_lent, prefab, st, mc)) { if (!Give(part.Key, part.Value, prefab, "returned", DurOf(it))) break; given += part.Value; }
+                            if (given >= st) _removeItem.Invoke(inv, new[] { it }); else if (given > 0 && _removeAmt != null) _removeAmt.Invoke(inv, new object[] { it, given });
+                            continue;
+                        }
                         if (GiveItem(it, mc, (int)_stack.GetValue(it), prefab, "inventory")) _removeItem.Invoke(inv, new[] { it });
                     }
             }
         }
+
+        /// called at the end of Update: forget the ledger 2 sweeps after the station / build session (whatever was used up is gone)
+        static void LedgerTick() { if (_crafting || _building) _sweepsSinceSession = 0; else if (_sweepsSinceSession > 2 && _lent.Count > 0) _lent.Clear(); }
 
         static bool Give(string mc, int n, string prefab, string why, ushort dur = ItemMap.NoDur)
         {
@@ -261,6 +313,7 @@ namespace ValCraft
         {
             NoteAction();
             if (!Enabled || !_ok || target == null || string.IsNullOrEmpty(_heldId) || _heldCount <= 0) return false;
+            if (_building || IsHammerId(_heldId)) return false; // 0.15.5: never feed the build hammer to a station (it was eaten by cooking stations)
             string valheim = Map.ValheimFor(_heldId);
             if (valheim == null) return false;
             bool station = false;
@@ -332,7 +385,7 @@ namespace ValCraft
             {
                 PendingDeposit.Remove(req);
                 if (removed > 0 && AddValheim(dv, removed) == null) GiveBack(id, removed);
-                else if (removed > 0) ValCraftPlugin.Log.LogInfo($"[items] moved {removed} x {id} -> {dv} into the Valheim inventory for crafting");
+                else if (removed > 0) { Lend(dv, id, removed); ValCraftPlugin.Log.LogInfo($"[items] moved {removed} x {id} -> {dv} into the Valheim inventory for crafting"); }
                 return;
             }
             if (!PendingUse.TryGetValue(req, out var pu)) return;
@@ -340,6 +393,7 @@ namespace ValCraft
             if (removed <= 0) { ValCraftPlugin.Log.LogInfo($"[items] Minecraft had no {id} to use"); return; }
             var data = AddValheim(pu.valheim, removed);
             if (data == null) { GiveBack(id, removed); return; }
+            if (pu.target != null && Refl.T("CookingStation") is Type _cst && pu.target.GetComponentInParent(_cst) != null) NoteCooking(id, removed);
             SetDur(data, dur);
             try
             {
@@ -431,7 +485,10 @@ namespace ValCraft
         }
 
         // ---------------- 0.8.3: mace = Valheim hammer (build mode) ----------------
-        internal const string MaceId = "minecraft:mace";
+        internal const string MaceId = "minecraft:mace", HammerId = "valcraft:valheim_hammer";
+        /// 0.15.5: the ValCraft build hammer item is a build hammer too
+        internal static bool HeldHammer() => HeldIs(MaceId) || HeldIs(HammerId);
+        internal static bool IsHammerId(string id) => id == MaceId || id == HammerId;
         static bool _building; static object _virtualHammer, _hammerUsed;
         static Type _hudT, _playerT; static MethodInfo _toggleSel, _hideSel, _selVisible, _tryPlace, _removePiece, _getSel; static FieldInfo _rot; static PropertyInfo _hudInst; static FieldInfo _hudInstF;
         static bool _buildInit;
@@ -616,7 +673,7 @@ namespace ValCraft
 
         static bool EnterBuild()
         {
-            if (!HeldIs(MaceId)) return false;
+            if (!HeldHammer()) return false;
             var inv = Inv(); if (inv == null || _equip == null) return false;
             object hammer = null;
             foreach (var it in (IList)_getAllItems.Invoke(inv, null)) if (PrefabOf(it) == "Hammer") { hammer = it; break; }
@@ -673,7 +730,7 @@ namespace ValCraft
             if (!_building) return;
             if (!PlayerSync.Following || PlayerSync.Player == null) { _virtualHammer = null; ExitBuild("player gone"); return; }
             if (_listWantedAt >= 0 && ((PendingDeposit.Count == 0 && !_awaitSnap) || Time.unscaledTime - _listWantedAt > 1.5f)) SendPieceList();
-            if (!HeldIs(MaceId)) ExitBuild("mace no longer held");
+            if (!HeldHammer()) ExitBuild("hammer no longer held");
         }
 
         internal static void ResetBuild() { if (_building) { CloseMenu("disconnect"); _building = false; _virtualHammer = null; } }
@@ -720,6 +777,7 @@ namespace ValCraft
                 }
                 else if (a == 2) { bool ok = (bool)_removePiece.Invoke(pl, null); ValCraftPlugin.Log.LogInfo($"[build] remove: {(ok ? "removed" : "nothing removable aimed at")}"); }
                 else if (a == 3 && _rot != null) _rot.SetValue(pl, (int)_rot.GetValue(pl) + 1);
+                else if (a == 5 && _rot != null) _rot.SetValue(pl, (int)_rot.GetValue(pl) - 1); // 0.15.5: mouse wheel back
                 else if (a == 4) CycleSnap(pl);
             }
             catch (Exception e) { Diag.Warn("buildact", "[build] action failed: " + e.GetBaseException().Message); }

@@ -180,11 +180,79 @@ def advancements(D, wj):
         n += 1
     return n
 
+# ---- 0.15.5: bows / crossbows / shields render and animate like their vanilla counterparts ----
+BOW_DISPLAY = {"thirdperson_righthand": {"rotation": [-80, 260, -40], "translation": [-1, -2, 2.5], "scale": [0.9, 0.9, 0.9]},
+               "thirdperson_lefthand": {"rotation": [-80, -280, 40], "translation": [-1, -2, 2.5], "scale": [0.9, 0.9, 0.9]},
+               "firstperson_righthand": {"rotation": [0, -90, 25], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]},
+               "firstperson_lefthand": {"rotation": [0, 90, -25], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]}}
+XBOW_DISPLAY = {"thirdperson_righthand": {"rotation": [-90, 0, -60], "translation": [2, 0.1, -3], "scale": [0.9, 0.9, 0.9]},
+                "thirdperson_lefthand": {"rotation": [-90, 0, 30], "translation": [2, 0.1, -3], "scale": [0.9, 0.9, 0.9]},
+                "firstperson_righthand": {"rotation": [-90, 0, -55], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]},
+                "firstperson_lefthand": {"rotation": [-90, 0, 35], "translation": [1.13, 3.2, 1.13], "scale": [0.68, 0.68, 0.68]}}
+SHIELD_DISPLAY = {"thirdperson_righthand": {"rotation": [0, 90, 0], "translation": [10, 6, -4], "scale": [1, 1, 1]},
+                  "thirdperson_lefthand": {"rotation": [0, 90, 0], "translation": [10, 6, 12], "scale": [1, 1, 1]},
+                  "firstperson_righthand": {"rotation": [0, 180, 5], "translation": [-10, 2, -10], "scale": [1.25, 1.25, 1.25]},
+                  "firstperson_lefthand": {"rotation": [0, 180, 5], "translation": [10, 0, -10], "scale": [1.25, 1.25, 1.25]},
+                  "gui": {"rotation": [15, -25, -5], "translation": [2, 3, 0], "scale": [0.65, 0.65, 0.65]},
+                  "fixed": {"rotation": [0, 180, 0], "translation": [-4.5, 4.5, -5], "scale": [0.55, 0.55, 0.55]},
+                  "ground": {"rotation": [0, 0, 0], "translation": [2, 4, 2], "scale": [0.25, 0.25, 0.25]}}
+SHIELD_BLOCKING = {"thirdperson_righthand": {"rotation": [45, 155, 0], "translation": [-3.49, 11, -2], "scale": [1, 1, 1]},
+                   "thirdperson_lefthand": {"rotation": [45, 155, 0], "translation": [11.51, 7, 2.5], "scale": [1, 1, 1]},
+                   "firstperson_righthand": {"rotation": [0, 180, -5], "translation": [-15, 5, -11], "scale": [1.25, 1.25, 1.25]},
+                   "firstperson_lefthand": {"rotation": [0, 180, -5], "translation": [5, 5, -11], "scale": [1.25, 1.25, 1.25]},
+                   "gui": {"rotation": [15, -25, -5], "translation": [2, 3, 0], "scale": [0.65, 0.65, 0.65]}}
+
+def _shield_elements(n):
+    t = f'#t'
+    def faces(u0, v0, u1, v1):
+        f = {d: {"uv": [u0, v0, u1, v1], "texture": t} for d in ("north", "south")}
+        for d in ("east", "west"): f[d] = {"uv": [0, 0, 1, 16], "texture": t}
+        for d in ("up", "down"): f[d] = {"uv": [0, 0, 16, 1], "texture": t}
+        return f
+    # same space as the vanilla shield (BEWLR plate 12x22x1 px, handle 2x6x6 px) so the vanilla display transforms fit
+    return [{"from": [2, -3, 9], "to": [14, 19, 10], "faces": faces(0, 0, 16, 16)},
+            {"from": [7, 5, 3], "to": [9, 11, 9], "faces": faces(6, 6, 10, 10)}]
+
+def use_model(n, kind):
+    tex = f'valcraft:item/{n}'
+    if kind == 'bow':
+        return {"parent": "minecraft:item/generated", "textures": {"layer0": tex}, "display": BOW_DISPLAY,
+                "overrides": [{"predicate": {"pulling": 1}, "model": f"valcraft:item/{n}_pulling_0"},
+                              {"predicate": {"pulling": 1, "pull": 0.65}, "model": f"valcraft:item/{n}_pulling_1"},
+                              {"predicate": {"pulling": 1, "pull": 0.9}, "model": f"valcraft:item/{n}_pulling_2"}]}
+    if kind == 'crossbow':
+        return {"parent": "minecraft:item/generated", "textures": {"layer0": tex}, "display": XBOW_DISPLAY,
+                "overrides": [{"predicate": {"pulling": 1}, "model": f"valcraft:item/{n}_pulling_0"},
+                              {"predicate": {"pulling": 1, "pull": 0.58}, "model": f"valcraft:item/{n}_pulling_1"},
+                              {"predicate": {"pulling": 1, "pull": 1.0}, "model": f"valcraft:item/{n}_pulling_2"},
+                              {"predicate": {"charged": 1}, "model": f"valcraft:item/{n}_charged"}]}
+    if kind == 'shield':
+        return {"gui_light": "front", "textures": {"t": tex, "particle": tex}, "elements": _shield_elements(n), "display": SHIELD_DISPLAY,
+                "overrides": [{"predicate": {"blocking": 1}, "model": f"valcraft:item/{n}_blocking"}]}
+    return None
+
+def use_models_extra(n, kind):
+    tex = f'valcraft:item/{n}'
+    if kind == 'bow':
+        # the pulled bow: same art drawn slightly smaller/closer (the arm pose and FOV pull come from UseAnim.BOW)
+        out = []
+        for i, sc in enumerate((0.95, 0.9, 0.85)):
+            d = {k: dict(v, scale=[v["scale"][0] * sc] * 3) for k, v in BOW_DISPLAY.items()}
+            out.append((f'{n}_pulling_{i}', {"parent": "minecraft:item/generated", "textures": {"layer0": tex}, "display": d}))
+        return out
+    if kind == 'crossbow':
+        return [(f'{n}_pulling_{i}', {"parent": "minecraft:item/generated", "textures": {"layer0": tex}, "display": XBOW_DISPLAY}) for i in range(3)] + \
+               [(f'{n}_charged', {"parent": "minecraft:item/generated", "textures": {"layer0": tex}, "display": XBOW_DISPLAY})]
+    if kind == 'shield':
+        return [(f'{n}_blocking', {"gui_light": "front", "textures": {"t": tex, "particle": tex}, "elements": _shield_elements(n), "display": SHIELD_BLOCKING})]
+    return []
+
 def run(png, wj, A, D, R, lang, base_cs):
     entries, sets, tags, covered = [], [], {}, []
     def tex(n, kind, palname):
         png(f'{A}/textures/item/{n}.png', 16, 16, pixelart.icon(n, kind, BASE[palname], BASE))  # 0.15.1: crisp templated pixel art
-        wj(f'{A}/models/item/{n}.json', {'parent': f'minecraft:item/{KIND_MODEL.get(kind, "generated")}', 'textures': {'layer0': f'valcraft:item/{n}'}})
+        wj(f'{A}/models/item/{n}.json', use_model(n, kind) or {'parent': f'minecraft:item/{KIND_MODEL.get(kind, "generated")}', 'textures': {'layer0': f'valcraft:item/{n}'}})
+        for extra, m in use_models_extra(n, kind): wj(f'{A}/models/item/{extra}.json', m)
     def recipe(n, kind, palname, tier=0):
         # 0.15.1: Valheim-like costs: main material + tier wood + tier binding (leather scraps -> linen -> eitr -> asksvin hide)
         pat = PAT2.get(kind)

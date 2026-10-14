@@ -48,7 +48,7 @@ namespace ValCraft
         static float _next;
         static string _sent = "";
         static GameObject _target;
-        static int _mask; static Type _effectArea;
+        static int _mask; static Type _effectArea, _itemDropT;
 
         static void Init()
         {
@@ -93,6 +93,28 @@ namespace ValCraft
                     if (!Proper(text, _target)) text = "";
                     break;
                 }
+            }
+            // 0.15.5: small item drops were hard to hit (thin colliders, half sunk into MC block meshes / terrain): if the exact
+            // ray found nothing, take the nearest ItemDrop within 0.35 m of the view ray (still within reach)
+            if (_target == null && active && player != null && cam != null)
+            {
+                try
+                {
+                    _itemDropT = _itemDropT ?? Refl.T("ItemDrop");
+                    var eye = player.transform.position + Vector3.up * 1.6f;
+                    float best = float.MaxValue; Component pick = null;
+                    foreach (var h in Physics.SphereCastAll(cam.transform.position, 0.35f, cam.transform.forward, Range + 2f, ~0, QueryTriggerInteraction.Collide))
+                    {
+                        var d = _itemDropT == null ? null : h.collider.GetComponentInParent(_itemDropT);
+                        if (d == null) continue;
+                        float dist = Vector3.Distance(d.transform.position, eye);
+                        if (dist > Range + 0.5f || dist >= best) continue;
+                        best = dist; pick = d;
+                    }
+                    var hov = pick == null ? null : pick.GetComponent(_hoverable);
+                    if (hov != null) { _target = pick.gameObject; try { text = Clean(_getHoverText.Invoke(hov, null) as string); } catch { text = ""; } if (!Proper(text, _target)) text = ""; }
+                }
+                catch { }
             }
             // 0.14.2: Hugin/Munin are not hit by the ray (character layer / large trigger): pick by the view ray
             if (_target == null && active && player != null && cam != null)

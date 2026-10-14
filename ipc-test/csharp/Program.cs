@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 // Valheim-role IPC test (protocol v2): acked Hello, ping/pong, seqlock PlayerState, double-buffered frames
 // with size negotiation, input events, reconnect after host re-init, Quit.
 using System;
@@ -286,6 +287,19 @@ static unsafe class Program
                 var d0 = ValCraft.Protocol.ItemMap.DecodeQ(ValCraft.Protocol.ItemMap.EncodeQ(new ValCraft.Protocol.ItemMap.Q { Count = 2, Quality = 0, Id = "valcraft:bronze_ingot" }));
                 Check(d0.Quality == 1 && d0.Crafter == "" && d0.Count == 2, "give-q defaults");
                 var cm = new ValCraft.Protocol.ItemMap(); cm.Load(ValCraft.Protocol.ItemMap.DefaultJson);
+                { // 0.15.5: lent-material ledger (planks lent as Wood come back as planks) + MC meat on Valheim cooking stations
+                    var lent = new Dictionary<string, List<KeyValuePair<string, int>>> { ["Wood"] = new List<KeyValuePair<string, int>> { new KeyValuePair<string, int>("minecraft:oak_planks", 120), new KeyValuePair<string, int>("minecraft:birch_log", 10) } };
+                    var p1 = ValCraft.Protocol.ItemMap.ReturnParts(lent, "Wood", 50, "minecraft:oak_log");
+                    Check(p1.Count == 1 && p1[0].Key == "minecraft:oak_planks" && p1[0].Value == 50, "return 50 of 120 planks");
+                    var p2 = ValCraft.Protocol.ItemMap.ReturnParts(lent, "Wood", 85, "minecraft:oak_log");
+                    Check(p2.Count == 3 && p2[0].Value == 70 && p2[1].Key == "minecraft:birch_log" && p2[1].Value == 10 && p2[2].Key == "minecraft:oak_log" && p2[2].Value == 5 && !lent.ContainsKey("Wood"), "return rest planks, logs, then default");
+                    var p3 = ValCraft.Protocol.ItemMap.ReturnParts(lent, "Stone", 3, "minecraft:cobblestone");
+                    Check(p3.Count == 1 && p3[0].Key == "minecraft:cobblestone", "no ledger -> default");
+                    var ck = new ValCraft.Protocol.ItemMap(); ck.Load(ValCraft.Protocol.ItemMap.DefaultJson); ck.AddCookables();
+                    Check(ck.ValheimFor("minecraft:chicken") == "RawMeat" && ck.ValheimFor("minecraft:porkchop") == "RawMeat" && ck.ValheimFor("minecraft:cod") == "FishRaw" && ck.ValheimFor("minecraft:beef") == "RawMeat" && ck.ValheimFor("minecraft:mutton") == "DeerMeat", "raw MC meat cookable");
+                    Check(ck.ValheimFor("minecraft:cooked_chicken") == "CookedMeat" && ck.ValheimFor("minecraft:cooked_salmon") == "FishCooked" && ValCraft.Protocol.ItemMap.Cookables["minecraft:porkchop"].cooked == "minecraft:cooked_porkchop", "cooked MC versions");
+                    Console.WriteLine("[cs] 0.15.5 ledger + cookables ok");
+                }
                 Check(cm.CraftedMcFor("SwordIron") == "valcraft:iron_sword" && cm.CraftedMcFor("KnifeFlint") == "valcraft:flint_knife" && cm.CraftedMcFor("AxeBronze") == "valcraft:bronze_axe", "crafted -> ValCraft item");
                 Check(cm.CraftedMcFor("CapeDeerHide") == "valcraft:deer_hide_cape" && cm.CraftedMcFor("Wood") == "minecraft:oak_log" && cm.CraftedMcFor("NotAThing") == null, "crafted fallback / unmapped");
                 Check(cm.ValheimFor(cm.CraftedMcFor("ArmorBronzeChest")) == "ArmorBronzeChest", "crafted id maps back");

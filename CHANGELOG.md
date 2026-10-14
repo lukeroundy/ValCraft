@@ -3,6 +3,22 @@
 
 
 
+## 0.15.5
+- Other linked players' Viking bodies are hidden in Valheim, since you see their Minecraft player. Mob proxy stand-ins are hidden for every client (flags are synced through the ZDO).
+- Cooking: raw Minecraft beef, porkchop, chicken, rabbit, mutton, cod and salmon can go on Valheim cooking stations. What comes off is the cooked Minecraft item.
+- Valheim pieces built on Minecraft blocks no longer collapse when you walk away and the blocks unload. Their support is frozen until the blocks are loaded again.
+- Item pickup: dropped items within 0.35 m of your aim are picked up even when the exact ray misses them. Auto-pickup range is 3 m while linked.
+- Minecraft name tags are not drawn on the captured entity meshes.
+- The ValCraft hammer item (`valcraft:valheim_hammer`) builds like the Valheim hammer, the same as the mace.
+- Shields hold and raise like vanilla shields. Bows and crossbows show the draw and charge pose (vanilla display transforms and pull/pulling/charged/blocking item properties).
+- Mob hits: with the default camera mode, mobs are no longer drawn up to a block higher or lower than the Minecraft hitbox you actually swing at.
+- Step height +0.5 (`valcraft:step_bonus`).
+- The scroll wheel rotates the piece while you place. Right-click with the hammer only builds and no longer uses the station or item you are aiming at.
+- Shift+right-clicking a cooking station with the hammer no longer consumes the hammer.
+- Materials you hand over (crafting or building) and get back go to their original inventory slots.
+- Materials come back as the item you handed in: planks come back as planks, not logs.
+- Tests: ipc-test covers the returned-material ledger and the cookable meat mapping.
+
 ## 0.15.4
 - Recipes: every ValCraft crafting recipe that used Valheim leather scraps now uses vanilla `minecraft:leather` instead, with the same counts. That is 42 recipes (rag and leather armour, capes, shields, the hammer, knives and maces...), and their recipe-book unlock advancements now trigger on picking up leather. The leather scraps item is still in the game. The generator (`tools/gen_valheim.py`) was changed to match.
 - The client self-test checks that all 240 ValCraft recipes and recipe advancements load and that none still asks for leather scraps.

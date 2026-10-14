@@ -14,7 +14,11 @@ public abstract class MinecraftUseMixin {
 
 	@Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
 	private void valcraft$valheimInteract(CallbackInfo ci) {
-		if (ValheimInteract.tryInteract((Minecraft) (Object) this) || dev.valcraft.client.HoeLink.tryUse((Minecraft) (Object) this) || dev.valcraft.client.BuildLink.tryUse((Minecraft) (Object) this)) {
+		// 0.15.5: holding the build hammer, right-click is build-only (menu / sneak = rotate): never a Valheim interact or item use
+		// on the station under the crosshair (that fed the hammer to cooking stations and blocked rotating workbenches/chests)
+		boolean hammer = dev.valcraft.client.BuildLink.holdingHammer((Minecraft) (Object) this);
+		if (hammer ? dev.valcraft.client.BuildLink.tryUse((Minecraft) (Object) this)
+				: (ValheimInteract.tryInteract((Minecraft) (Object) this) || dev.valcraft.client.HoeLink.tryUse((Minecraft) (Object) this))) {
 			rightClickDelay = 4;
 			ci.cancel();
 			return;

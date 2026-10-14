@@ -568,6 +568,41 @@ namespace ValCraft.Protocol
             foreach (var id in l) if (id.StartsWith("valcraft:", StringComparison.Ordinal)) return id;
             return l[0];
         }
+        // ---- 0.15.5 ----
+        public static readonly Dictionary<string, (string raw, string cooked)> Cookables = new Dictionary<string, (string, string)>
+        {
+            { "minecraft:beef", ("RawMeat", "minecraft:cooked_beef") }, { "minecraft:porkchop", ("RawMeat", "minecraft:cooked_porkchop") },
+            { "minecraft:chicken", ("RawMeat", "minecraft:cooked_chicken") }, { "minecraft:rabbit", ("RawMeat", "minecraft:cooked_rabbit") },
+            { "minecraft:mutton", ("DeerMeat", "minecraft:cooked_mutton") }, { "minecraft:cod", ("FishRaw", "minecraft:cooked_cod") },
+            { "minecraft:salmon", ("FishRaw", "minecraft:cooked_salmon") },
+        };
+        public static readonly Dictionary<string, string> CookedOf = new Dictionary<string, string> { { "RawMeat", "CookedMeat" }, { "DeerMeat", "CookedDeerMeat" }, { "FishRaw", "FishCooked" } };
+        public void AddCookables()
+        {
+            foreach (var kv in Cookables)
+            {
+                if (!ToValheim.ContainsKey(kv.Key)) ToValheim[kv.Key] = kv.Value.raw;
+                if (CookedOf.TryGetValue(kv.Value.raw, out var cooked) && !ToValheim.ContainsKey(kv.Value.cooked)) ToValheim[kv.Value.cooked] = cooked;
+            }
+        }
+        /// Splits a return of n x prefab into (mcId, count) parts: lent ids first (FIFO), the rest as the default id.
+        public static List<KeyValuePair<string, int>> ReturnParts(Dictionary<string, List<KeyValuePair<string, int>>> lent, string prefab, int n, string def)
+        {
+            var parts = new List<KeyValuePair<string, int>>();
+            if (lent.TryGetValue(prefab, out var l))
+            {
+                while (n > 0 && l.Count > 0)
+                {
+                    var e = l[0]; int k = Math.Min(n, e.Value);
+                    parts.Add(new KeyValuePair<string, int>(e.Key, k)); n -= k;
+                    if (k >= e.Value) l.RemoveAt(0); else l[0] = new KeyValuePair<string, int>(e.Key, e.Value - k);
+                }
+                if (l.Count == 0) lent.Remove(prefab);
+            }
+            if (n > 0) parts.Add(new KeyValuePair<string, int>(def, n));
+            return parts;
+        }
+
         public string ValheimFor(string mcId) => mcId != null && ToValheim.TryGetValue(mcId, out var v) ? v : null;
 
         // ---- payloads ----
