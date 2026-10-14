@@ -66,6 +66,8 @@ namespace ValCraft
             InputBlock.Apply(_harmony);
             PlayerSync.Apply(_harmony);
             ItemBridge.Apply(_harmony);
+            try { Fixes157.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[xp] " + e.Message); }
+            try { DungeonLink.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[teleport] " + e.Message); }
             try { PieceSupport.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[support] " + e.Message); }
             HealthLink.Apply(_harmony);
             try { RavenBridge.Apply(_harmony); } catch (Exception e) { Log.LogWarning("[raven] hook failed: " + e.Message); }
@@ -374,6 +376,7 @@ namespace ValCraft
             try { if (_connected) Hazards.Update(Link); } catch (Exception e) { Diag.Warn("hazard", "[hazard] update error: " + e.GetBaseException().Message); }
             Part("Hazards");
             try { if (_connected) MobBridge.Update(Link); else MobBridge.Clear("disconnected"); } catch (Exception e) { Diag.Warn("mobs", "[mobs] update error: " + e.GetBaseException().Message); }
+            try { if (_connected) Fixes157.Update(Link); } catch (Exception e) { Diag.Warn("f157", "[0.15.7] " + e.GetBaseException().Message); }
             try { Visibility.Update(); } catch (Exception e) { Diag.Warn("vis", "[visibility] " + e.GetBaseException().Message); }
             Part("MobBridge");
             try { CapeLink.Update(); } catch { }

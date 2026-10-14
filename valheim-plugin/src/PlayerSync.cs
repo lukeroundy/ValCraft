@@ -173,7 +173,7 @@ namespace ValCraft
             // 0.8.1: Valheim destroys the local player on death/respawn; drop the dead reference at once (Unity null)
             // instead of driving a destroyed object for a second, and pick up the respawned player when it appears.
             if (Following && (_player == null || player == null || !ReferenceEquals(player, _player))) { Stop(player == null ? "local player destroyed (death/respawn)" : "local player changed (respawn)"); _wantFalseSince = -1f; }
-            bool want = Enabled && _haveState && player != null && (link.PeerFlags & ValCraftLink.McFlagWorldLoaded) != 0;
+            bool want = Enabled && _haveState && player != null && (link.PeerFlags & ValCraftLink.McFlagWorldLoaded) != 0 && !DungeonLink.Busy; // 0.15.7: not during Valheim teleports / dungeons
             if (want) _wantFalseSince = -1f;
             else if (_wantFalseSince < 0) _wantFalseSince = Time.unscaledTime;
             if (want && !Following) Start(player);
@@ -188,7 +188,8 @@ namespace ValCraft
             MovePlayer(); // also done in FixedUpdate postfix; moving here keeps the transform in step with rendering
         }
 
-        static bool _alignPending; static Component _deadPlayer;
+        static bool _alignPending, _alignNow; static Component _deadPlayer;
+        internal static void AlignMcOnStart() => _alignNow = true;
         internal static bool AlignPending => _alignPending;
         /// <summary>HealthLink: the Valheim player is being killed for an MC death; align the respawn instead of re-anchoring.</summary>
         internal static void ExpectRespawn() { if (_anchored) { _alignPending = true; _deadPlayer = _player; _alignSince = Time.unscaledTime; } }
@@ -262,6 +263,14 @@ namespace ValCraft
                 _lastGroundFeetY = s.FeetY;
                 _anchored = true;
                 ValCraftPlugin.Log.LogInfo($"[sync] anchor {_anchor} (Valheim {p} = MC feet {s.FeetX:F2},{s.FeetY:F2},{s.FeetZ:F2})");
+            }
+            if (_alignNow && _anchored)
+            {
+                // 0.15.7: after a Valheim teleport (portal / dungeon exit): keep the mapping, move MC to where Valheim put us
+                _alignNow = false; var p = _player.transform.position;
+                _teleportX = p.x - _anchor.x; _teleportY = p.y - _anchor.y; _teleportZ = -(p.z - _anchor.z);
+                _teleportUntil = Time.unscaledTime + 10f; _holdPos = p; _lastGroundFeetY = _teleportY; _haveY = false; _nextTeleportSend = 0;
+                ValCraftPlugin.Log.LogInfo($"[sync] teleport: MC player -> Valheim {p} (MC {_teleportX:F1} {_teleportY:F1} {_teleportZ:F1}), anchor kept");
             }
             if (_alignPending)
             {

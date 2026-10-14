@@ -2,6 +2,7 @@
 Templates are ASCII masks of regions; each region gets a 5-tone hue-shifted ramp (tone 0 = outline).
 lowercase region = auto-shaded (light from top-left), UPPERCASE = highlight, region+'_' via DARK map = shadow tone.
 A coloured dark outline is added around every shape. No blur, no anti-aliasing."""
+import random
 import colorsys
 
 def clamp(v): return max(0, min(255, int(round(v))))
@@ -1087,9 +1088,10 @@ def icon(name, kind, base, BASE):
             if tmpl == 'hood': pals['m'] = ramp(st['a'])
             return render(T[tmpl], pals)
     if kind == 'helmet_misc':
-        tm = {'dverger_circlet': 'crown', 'midsummer_crown': 'crown', 'hood_of_odin': 'hood', 'yule_hat': 'hat', 'fishing_hat': 'hat'}.get(name, 'helmet')
-        acc = {'midsummer_crown': (110, 170, 70), 'yule_hat': (240, 240, 240), 'dverger_circlet': (230, 190, 60), 'fishing_hat': (90, 60, 40)}.get(name, lighter)
+        tm = {'dverger_circlet': 'crown', 'midsummer_crown': 'crown', 'hood_of_odin': 'hood', 'yule_hat': 'hat', 'fishing_hat': 'hat', 'pointy_hat': 'pointy'}.get(name, 'helmet')
+        acc = {'midsummer_crown': (110, 170, 70), 'yule_hat': (240, 240, 240), 'dverger_circlet': (230, 190, 60), 'fishing_hat': (90, 60, 40), 'pointy_hat': (230, 200, 90)}.get(name, lighter)
         if tm == 'crown': return render(T[tm], P(m=(200, 160, 50) if name == 'dverger_circlet' else (90, 140, 55), a=acc if name != 'midsummer_crown' else (240, 220, 90), b=(120, 210, 240) if name == 'dverger_circlet' else (230, 90, 120)))
+        if tm == 'pointy': return pointy_icon(m, acc)
         return render(T[tm], P(m=m, a=acc if tm == 'hat' else m))
     if kind == 'cape':
         return render(T['cape'], P(m=m, a=tuple(min(255, v + 30) for v in m) if name not in ('wolf_fur_cape', 'lox_cape') else (235, 230, 220)))
@@ -1296,3 +1298,39 @@ def empty_cape_slot():
             if px[y][x][3] and any(not (0 <= x + dx < 16 and 0 <= y + dy < 16) or not px[y + dy][x + dx][3] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))): out[y][x] = (200, 200, 200, 120)
             elif px[y][x][3]: out[y][x] = (0, 0, 0, 0)
     return out
+
+
+# ---- 0.15.7: pointy (wizard) hat ----
+def pointy_icon(m, band):
+    """16x16 icon: a tall bent cone on a wide brim with a gold band and a star."""
+    img = [[(0, 0, 0, 0)] * 16 for _ in range(16)]
+    dark = tuple(max(0, v - 30) for v in m); light = tuple(min(255, v + 35) for v in m)
+    def px(x, y, c):
+        if 0 <= x < 16 and 0 <= y < 16: img[y][x] = c + (255,)
+    for x in range(1, 15): px(x, 13, dark); px(x, 12, m)
+    px(0, 13, dark); px(15, 13, dark)
+    rows = [(4, 11), (4, 11), (5, 10), (5, 10), (6, 9), (6, 9), (7, 9), (7, 8), (8, 9), (9, 10), (10, 11)]
+    for i, (a, b) in enumerate(rows):
+        y = 11 - i
+        for x in range(a, b + 1): px(x, y, light if x == a else (dark if x == b else m))
+    for x in range(4, 12): px(x, 10, band)
+    px(7, 6, (250, 240, 150)); px(11, 1, dark)
+    return img
+
+def pointy_hat_layer():
+    """64x32 texture for the client PointyHatModel boxes (brim 12x1x12 @0,0; cone 8x3x8 @0,13; 6x3x6 @32,13;
+    4x3x4 @0,24; 2x3x2 tip @16,24). Dark violet felt with a gold band on the lowest cone tier."""
+    rnd = random.Random('pointy')
+    base = (62, 52, 105)
+    img = [[(0, 0, 0, 0)] * 64 for _ in range(32)]
+    def felt():
+        d = rnd.randint(-10, 10); return tuple(max(0, min(255, v + d)) for v in base) + (255,)
+    def box(u, v, w, h, d, band=False):
+        for y in range(v, v + d + h):
+            for x in range(u, u + 2 * d + 2 * w):
+                if y < v + d and not (d <= x - u < d + 2 * w): continue
+                c = felt()
+                if band and y >= v + d and (y - v - d) == h - 1: c = (225, 190, 80, 255)
+                img[y][x] = c
+    box(0, 0, 12, 1, 12); box(0, 13, 8, 3, 8, band=True); box(32, 13, 6, 3, 6); box(0, 24, 4, 3, 4); box(16, 24, 2, 3, 2)
+    return img

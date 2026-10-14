@@ -80,7 +80,9 @@ public final class SelfTest {
 			if (t == t2 + 20) shot(mc, "inventory");
 			if (t == t2 + 24) { mc.setScreen(null); report.add("cape slot item: " + Capes.id(mc.player.getData(Capes.CAPE))); }
 			// 0.15.6: held bow + shields, first and third person
-			if (t == t2 + 30 && sp != null) mc.getSingleplayerServer().execute(() -> hold(sp, "valcraft:huntsman_bow", "valcraft:iron_tower_shield"));
+			if (t == t2 + 30 && sp != null) mc.getSingleplayerServer().execute(() -> { hold(sp, "valcraft:huntsman_bow", "valcraft:iron_tower_shield");
+				sp.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, new net.minecraft.world.item.ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse("valcraft:pointy_hat"))));
+				String c = clayReport(sp); report.add(c); ValCraft.LOG.info("[selftest] {}", c); });
 			if (t == t2 + 40) { mc.options.setCameraType(CameraType.FIRST_PERSON); mc.player.setXRot(0f); }
 			if (t == t2 + 48) shot(mc, "held-fp-tower");
 			if (t == t2 + 50) mc.options.setCameraType(CameraType.THIRD_PERSON_FRONT);
@@ -164,7 +166,31 @@ public final class SelfTest {
 			if (rr.isPresent()) { hide++; h += " | " + id + " -> " + rr.get().value().assemble(in1, reg).getItem(); }
 		}
 		h += " | hide swaps " + hide + "/2";
+		// 0.15.7: mace + cobblestone -> gravel, mace + gravel -> sand (mace kept, 1 durability), pointy hat, Rested
+		for (var pair : new String[][] { { "minecraft:cobblestone", "valcraft:iron_mace" }, { "minecraft:gravel", "valcraft:bronze_mace" } }) {
+			var g = (java.util.function.Function<String, net.minecraft.world.item.ItemStack>) id -> new net.minecraft.world.item.ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(id)));
+			var in2 = net.minecraft.world.item.crafting.CraftingInput.of(2, 1, java.util.List.of(g.apply(pair[0]), g.apply(pair[1])));
+			var r2 = rm.getRecipeFor(net.minecraft.world.item.crafting.RecipeType.CRAFTING, in2, lv);
+			h += " | " + pair[0] + "+" + pair[1] + " -> " + (r2.isPresent() ? r2.get().value().assemble(in2, reg).getItem() + ", remainder " + r2.get().value().getRemainingItems(in2).get(1).getItem() + " damage " + r2.get().value().getRemainingItems(in2).get(1).getDamageValue() : "NO RECIPE");
+		}
+		h += " | pointy_hat recipe " + rm.byKey(net.minecraft.resources.ResourceLocation.parse("valcraft:pointy_hat")).isPresent() + ", rested effect " + dev.valcraft.content.Fixes157Common.RESTED.isBound();
+		// sand into water -> clay (checked later)
+		var bp = sp.blockPosition().offset(3, -1, 0); // a water hole in the ground (no flowing away)
+		for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) for (int dy = -1; dy <= 0; dy++) lv.setBlockAndUpdate(bp.offset(dx, dy, dz), net.minecraft.world.level.block.Blocks.WATER.defaultBlockState()); // 5x5x2 pool
+		var sand = new net.minecraft.world.entity.item.ItemEntity(lv, bp.getX() + 0.5, bp.getY() + 0.5, bp.getZ() + 0.5, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SAND, 2));
+		sand.setPickUpDelay(32767); lv.addFreshEntity(sand); SAND_AT = bp;
 		report.add(h); ValCraft.LOG.info("[selftest] {}", h);
+	}
+
+	static net.minecraft.core.BlockPos SAND_AT;
+	static String clayReport(ServerPlayer sp) {
+		if (SAND_AT == null) return "sand test not run";
+		int clay = 0, sand = 0;
+		for (var ie : sp.serverLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, new net.minecraft.world.phys.AABB(SAND_AT).inflate(6))) {
+			if (ie.getItem().is(net.minecraft.world.item.Items.CLAY_BALL)) clay += ie.getItem().getCount();
+			if (ie.getItem().is(net.minecraft.world.item.Items.SAND)) sand += ie.getItem().getCount();
+		}
+		return "2 sand in water -> " + clay + " clay balls, " + sand + " sand left";
 	}
 
 	static void hold(ServerPlayer sp, String main, String off) {

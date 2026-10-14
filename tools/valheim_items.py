@@ -29,6 +29,7 @@ ITEMS = [
  ('midsummer_crown', 'helmet_misc', 0, 'flower', ['HelmetMidsummerCrown'], 'Midsummer Crown'),
  ('hood_of_odin', 'helmet_misc', 0, 'linen', ['HelmetOdin'], 'Hood of Odin'),
  ('fishing_hat', 'helmet_misc', 0, 'leather', ['HelmetFishingHat'], 'Fishing Hat'),
+ ('pointy_hat', 'helmet_misc', 0, 'wizard', ['HelmetPointyHat'], 'Pointy Hat'),  # 0.15.7: Halloween wizard hat (own 3D worn model)
  # ---- capes ----
  ('deer_hide_cape', 'cape', 0, 'leather', ['CapeDeerHide'], 'Deer Hide Cape'),
  ('troll_hide_cape', 'cape', 1, 'troll', ['CapeTrollHide'], 'Troll Hide Cape'),

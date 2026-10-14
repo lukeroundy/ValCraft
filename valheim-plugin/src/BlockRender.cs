@@ -41,6 +41,8 @@ namespace ValCraft
         static readonly Dictionary<uint, GameObject> EntObjs = new Dictionary<uint, GameObject>();
         static Texture2D _frames; static bool _copyOk;
         static readonly Dictionary<uint, float> GroundOffset = new Dictionary<uint, float>();
+        /// <summary>0.15.7: current vertical re-seat offsets (m) of live MC entities, for EvMobOffsets.</summary>
+        internal static IEnumerable<KeyValuePair<uint, float>> Offsets => GroundOffset;
 
         internal static bool Handle(LinkEvent ev)
         {
@@ -416,10 +418,11 @@ namespace ValCraft
                 var target = new Vector3(e.X, e.Y, -e.Z);
                 // 0.7.5: re-seat on Valheim's smooth ground (flag 8 = MC groundY valid; 4 = standing on it). offset = valheimGround - mcGround.
                 GroundOffset.TryGetValue(e.Id, out var off);
-                // 0.15.5: mobs/players (flag 2) are NOT re-seated while the camera follows MC's own height: MC picks entities
-                // (your sword hits) on their MC boxes, so drawing them up to a block higher on Valheim's smooth ground made
-                // you aim at their legs. Items/minecarts etc. still sit on Valheim's ground.
-                bool reseat = (e.Flags & 2) == 0 || PlayerSync.Vertical != VerticalMode.FollowMinecraft;
+                // 0.15.7: everything (mobs too) is re-seated on Valheim's ground again. 0.15.5 drew mobs at their raw MC height so
+                // the MC hitbox matched, but on Valheim's smooth ground that buried them up to the knees. Now the offset is also
+                // sent to MC (EvMobOffsets) so MC's entity pick (your sword) uses the same, re-seated box, and the Valheim stand-in
+                // already follows the rendered mesh (MobBridge).
+                bool reseat = true;
                 if (reseat && (e.Flags & 8) != 0)
                 {
                     float vg = TerrainExport.HeightAtMc(e.X, e.Z, _root.position);
@@ -429,7 +432,6 @@ namespace ValCraft
                         if (Mathf.Abs(want) < 3f) off = (e.Flags & 4) != 0 ? Mathf.Lerp(off, want, Mathf.Clamp01(Time.deltaTime * 10f)) : off;
                     }
                 }
-                else if (!reseat) off = 0f;
                 else off = Mathf.Lerp(off, 0f, Mathf.Clamp01(Time.deltaTime * 4f)); // on a player block / unknown: no correction
                 GroundOffset[e.Id] = off;
                 target.y += off;

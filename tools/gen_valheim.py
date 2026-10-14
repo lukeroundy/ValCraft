@@ -6,7 +6,7 @@ from valheim_items import ARMOR_SETS, ARMOR_NAMES, ITEMS, SLOT_SHARE
 
 BASE = {'rag': (150, 130, 100), 'leather': (140, 90, 50), 'troll': (70, 100, 140), 'iron': (150, 155, 165), 'root': (90, 110, 60),
  'wolf': (200, 200, 210), 'fenris': (90, 80, 90), 'padded': (170, 150, 110), 'carapace': (60, 120, 130), 'eitr': (90, 170, 220),
- 'flametal': (220, 120, 50), 'embla': (150, 40, 50), 'ask': (110, 90, 70), 'gold': (230, 190, 60), 'red': (190, 40, 40), 'flower': (230, 210, 90),
+ 'flametal': (220, 120, 50), 'embla': (150, 40, 50), 'ask': (110, 90, 70), 'gold': (230, 190, 60), 'red': (190, 40, 40), 'flower': (230, 210, 90), 'wizard': (62, 52, 105),
  'linen': (225, 220, 200), 'lox': (130, 100, 70), 'feather': (210, 220, 230), 'ash': (80, 75, 75), 'wood': (140, 100, 55), 'bronze': (186, 118, 52),
  'silver': (200, 210, 225), 'blackmetal': (70, 70, 80), 'flint': (120, 120, 115), 'copper': (200, 110, 70), 'chitin': (120, 150, 140),
  'stone': (128, 128, 128), 'crystal': (180, 220, 240), 'antler': (210, 190, 160), 'birch': (225, 215, 185), 'fire': (240, 130, 30),
@@ -133,7 +133,7 @@ MAT = {'rag': 'minecraft:leather', 'leather': 'valcraft:deer_hide', 'troll': 'va
        'antler': 'valcraft:hard_antler', 'chitin': 'valcraft:chitin', 'copper': 'minecraft:copper_ingot', 'birch': 'valcraft:fine_wood', 'ash': 'valcraft:ashwood',
        'bone': 'valcraft:bone_fragments', 'frost': 'valcraft:freeze_gland', 'fire': 'valcraft:surtling_core', 'serpent': 'valcraft:scale_hide', 'crystal': 'valcraft:crystal',
        'poison': 'valcraft:ooze', 'obsidian': 'minecraft:obsidian', 'lox': 'valcraft:lox_pelt', 'linen': 'valcraft:linen_thread', 'feather': 'minecraft:feather',
-       'gold': 'minecraft:gold_ingot', 'red': 'minecraft:red_wool', 'flower': 'minecraft:dandelion'}
+       'gold': 'minecraft:gold_ingot', 'red': 'minecraft:red_wool', 'flower': 'minecraft:dandelion', 'wizard': 'valcraft:deer_hide'}
 PAT = {'sword': [' M ', ' M ', ' L '], 'greatsword': [' MM', 'MM ', 'L  '], 'knife': ['M', 'L'], 'mace': [' MM', ' LM', 'S  '], 'club': ['  M', ' M ', 'L  '],
        'sledge': ['MMM', 'MLM', ' S '], 'axe': ['MM', 'ML', ' S'], 'battleaxe': ['MMM', 'MLM', ' S '], 'pickaxe': ['MMM', ' L ', ' S '], 'hoe': ['MM ', ' L ', ' S '],
        'spear': ['  M', ' L ', 'S  '], 'atgeir': [' MM', ' LM', 'S  '], 'fist': ['M M', 'LML'], 'staff': ['  M', ' L ', 'S  '], 'bow': [' MW', 'L W', ' MW'],
@@ -306,16 +306,22 @@ def run(png, wj, A, D, R, lang, base_cs):
     sets.append({'name': 'cloth', 'def': [1, 1, 1, 1], 'tough': 0.0, 'ench': 20, 'dur': 6})
     r = ramp(BASE['linen']); rnd = random.Random('cloth')
     l1, l2 = pixelart.armor_layers('cloth'); png(f'{A}/textures/models/armor/cloth_layer_1.png', 64, 32, l1); png(f'{A}/textures/models/armor/cloth_layer_2.png', 64, 32, l2)
+    # 0.15.7: the pointy hat has its own material + texture laid out for its 3D worn model (client PointyHatModel)
+    sets.append({'name': 'pointy', 'def': [0, 0, 0, 1], 'tough': 0.0, 'ench': 15, 'dur': 50})
+    png(f'{A}/textures/models/armor/pointy_layer_1.png', 64, 32, pixelart.pointy_hat_layer())
+    png(f'{A}/textures/models/armor/pointy_layer_2.png', 64, 32, [[(0, 0, 0, 0)] * 64 for _ in range(32)])
     for it in ITEMS:
         n, kind, tier, pal, prefabs, name = it[:6]; extra = it[6] if len(it) > 6 else {}
         tex(n, kind, pal); lang[f'item.valcraft.{n}'] = name
         if kind == 'cape': png(f'{A}/textures/entity/cape/{n}.png', 64, 32, pixelart.cape_texture(n, BASE[pal]))  # 0.15.1: worn cape
         e = {'id': n, 'kind': kind, 'tier': tier}
         if 'food' in extra: e['food'] = list(extra['food'])
-        if kind == 'helmet_misc': e['set'] = 'cloth'
+        if kind == 'helmet_misc': e['set'] = 'pointy' if n == 'pointy_hat' else 'cloth'
         entries.append(e)
         if kind in TAG: tags.setdefault(TAG[kind], []).append(n)
-        if kind not in ('meat', 'cooked', 'fish', 'egg', 'bowl', 'bread', 'mead', 'berry', 'carrot', 'mushroom') or 'food' not in extra: recipe(n, kind, pal, tier)
+        if n == 'pointy_hat':  # Valheim: 3 deer hide + 5 coal + 1 bronze (workbench)
+            wj(f'{D}/valcraft/recipe/{n}.json', {'type': 'minecraft:crafting_shapeless', 'category': 'equipment', 'ingredients': [{'item': 'valcraft:deer_hide'}] * 3 + [{'item': 'minecraft:coal'}] * 5 + [{'item': 'valcraft:bronze_ingot'}], 'result': {'id': 'valcraft:pointy_hat', 'count': 1}})
+        elif kind not in ('meat', 'cooked', 'fish', 'egg', 'bowl', 'bread', 'mead', 'berry', 'carrot', 'mushroom') or 'food' not in extra: recipe(n, kind, pal, tier)
         if kind == 'arrow' and pal in MAT:
             wj(f'{D}/valcraft/recipe/{n}.json', {'type': 'minecraft:crafting_shapeless', 'category': 'equipment', 'ingredients': [{'item': i} for i in (MAT[pal], 'minecraft:stick', 'minecraft:feather', 'minecraft:string')], 'result': {'id': f'valcraft:{n}', 'count': 8}})
         if prefabs: vmap.append((n, prefabs))
@@ -343,6 +349,9 @@ def run(png, wj, A, D, R, lang, base_cs):
                     if pf in basej and len(basej[pf]) == 1: appends.append((pf, basej[pf][0], vid))
                     out[pf].append(vid)
             else: out[pf] = [vid]
+    # 0.15.6/0.15.7: Valheim deer hide becomes the ValCraft deer hide (rabbit hide still accepted; ItemMap.Merge migrates old files)
+    for pf in ('DeerHide',):
+        if pf in out and f'valcraft:deer_hide' in out[pf]: out[pf].remove('valcraft:deer_hide'); out[pf].insert(0, 'valcraft:deer_hide')
     body = '{\n' + ',\n'.join(f'  ""{k}"": [{", ".join(chr(34) * 2 + x + chr(34) * 2 for x in v)}]' for k, v in out.items()) + '\n}'
     gen = ('        // <gen:defaults> generated by tools/gen_content.py from tools/valheim_items.py; do not edit by hand\n'
            f'        public const string DefaultJson = @"{body}";\n\n'

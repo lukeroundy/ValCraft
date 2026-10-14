@@ -15,5 +15,6 @@
     <Compile Include="../../protocol/MobCodec.cs" Link="MobCodec.cs" />
     <Compile Include="../../protocol/ChestCodec.cs" Link="ChestCodec.cs" />
     <Compile Include="../../protocol/TunnelCore.cs" Link="TunnelCore.cs" />
+    <Compile Include="../../protocol/MobOffsetCodec.cs" Link="MobOffsetCodec.cs" />
   </ItemGroup>
 </Project>

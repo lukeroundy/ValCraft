@@ -1,0 +1,37 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "equipment",
+  "ingredients": [
+    {
+      "item": "valcraft:deer_hide"
+    },
+    {
+      "item": "valcraft:deer_hide"
+    },
+    {
+      "item": "valcraft:deer_hide"
+    },
+    {
+      "item": "minecraft:coal"
+    },
+    {
+      "item": "minecraft:coal"
+    },
+    {
+      "item": "minecraft:coal"
+    },
+    {
+      "item": "minecraft:coal"
+    },
+    {
+      "item": "minecraft:coal"
+    },
+    {
+      "item": "valcraft:bronze_ingot"
+    }
+  ],
+  "result": {
+    "id": "valcraft:pointy_hat",
+    "count": 1
+  }
+}

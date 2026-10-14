@@ -160,6 +160,7 @@ namespace ValCraft.Protocol
   ""HelmetMidsummerCrown"": [""valcraft:midsummer_crown""],
   ""HelmetOdin"": [""valcraft:hood_of_odin""],
   ""HelmetFishingHat"": [""valcraft:fishing_hat""],
+  ""HelmetPointyHat"": [""valcraft:pointy_hat""],
   ""CapeFeather"": [""valcraft:feather_cape""],
   ""CapeAsksvin"": [""valcraft:asksvin_cloak""],
   ""CapeAsh"": [""valcraft:ash_cape""],

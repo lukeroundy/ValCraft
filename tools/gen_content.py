@@ -92,7 +92,7 @@ for b in ('tin_ore', 'bronze_block'):
     wj(f'{A}/models/item/{b}.json', {'parent': f'valcraft:block/{b}'})
 
 lang = {'item.valcraft.raw_tin': 'Raw Tin', 'item.valcraft.tin_ingot': 'Tin Ingot', 'item.valcraft.tin_nugget': 'Tin Nugget', 'item.valcraft.bronze_ingot': 'Bronze Ingot',
-        'item.valcraft.valheim_item': 'Valheim Item', 'block.valcraft.tin_ore': 'Tin Ore', 'block.valcraft.bronze_block': 'Block of Bronze', 'entity.valcraft.valheim_proxy': 'Valheim Creature', 'itemGroup.valcraft': 'ValCraft', 'key.valcraft.map': 'Valheim Map', 'key.valcraft.valheim_menu': 'Valheim Menu', 'key.categories.valcraft': 'ValCraft'}
+        'item.valcraft.valheim_item': 'Valheim Item', 'block.valcraft.tin_ore': 'Tin Ore', 'block.valcraft.bronze_block': 'Block of Bronze', 'entity.valcraft.valheim_proxy': 'Valheim Creature', 'itemGroup.valcraft': 'ValCraft', 'key.valcraft.map': 'Valheim Map', 'key.valcraft.valheim_menu': 'Valheim Menu', 'effect.valcraft.rested': 'Rested', 'key.categories.valcraft': 'ValCraft'}
 for metal in ('tin', 'bronze'):
     for tool in ('sword', 'pickaxe', 'axe', 'shovel', 'hoe', 'helmet', 'chestplate', 'leggings', 'boots'):
         lang[f'item.valcraft.{metal}_{tool}'] = f'{metal.title()} {tool.title()}'

@@ -299,6 +299,15 @@ static unsafe class Program
                     Check(ck.ValheimFor("minecraft:chicken") == "RawMeat" && ck.ValheimFor("minecraft:porkchop") == "RawMeat" && ck.ValheimFor("minecraft:cod") == "FishRaw" && ck.ValheimFor("minecraft:beef") == "RawMeat" && ck.ValheimFor("minecraft:mutton") == "DeerMeat", "raw MC meat cookable");
                     Check(ck.ValheimFor("minecraft:cooked_chicken") == "CookedMeat" && ck.ValheimFor("minecraft:cooked_salmon") == "FishCooked" && ValCraft.Protocol.ItemMap.Cookables["minecraft:porkchop"].cooked == "minecraft:cooked_porkchop", "cooked MC versions");
                     Console.WriteLine("[cs] 0.15.5 ledger + cookables ok");
+                    { // 0.15.7: mob re-seat offsets round trip
+                        var ol = new List<KeyValuePair<uint, float>> { new KeyValuePair<uint, float>(42, 0.75f), new KeyValuePair<uint, float>(0x7fffffff, -2.5f) };
+                        var od = ValCraft.Protocol.MobOffsetCodec.Decode(ValCraft.Protocol.MobOffsetCodec.Encode(ol));
+                        Check(od.Count == 2 && od[0].Key == 42 && od[0].Value == 0.75f && od[1].Key == 0x7fffffff && od[1].Value == -2.5f, "mob offsets codec");
+                        Check(ValCraft.Protocol.MobOffsetCodec.Decode(new byte[] { 5, 0, 1 }).Count == 0, "mob offsets truncated");
+                        int xg = ValCraft.Protocol.ValheimXp.For(20, 1, false), t2 = ValCraft.Protocol.ValheimXp.For(600, 3, false), ei = ValCraft.Protocol.ValheimXp.For(500, 1, true), yag = ValCraft.Protocol.ValheimXp.For(10000, 1, true);
+                        Check(xg == 2 && t2 == 180 && ei == 250 && yag == 5000, $"valheim xp greyling {xg}, 2-star troll {t2}, eikthyr {ei}, big boss {yag}");
+                        Console.WriteLine($"[cs] 0.15.7 offsets + xp ok (greyling {xg}, 2-star troll {t2}, Eikthyr {ei})");
+                    }
                     // 0.15.6: deer drop valcraft:deer_hide (old default order migrated, rabbit hide still accepted)
                     Check(cm.McFor("DeerHide") == "valcraft:deer_hide" && cm.ValheimFor("minecraft:rabbit_hide") == "DeerHide", "deer hide first");
                     var deerM = ValCraft.Protocol.ItemMap.Merge("{\n  \"DeerHide\": [\"minecraft:rabbit_hide\", \"valcraft:deer_hide\"]\n}", out _);

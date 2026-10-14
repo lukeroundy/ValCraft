@@ -73,6 +73,8 @@ public final class ValCraftLink implements AutoCloseable {
 	public static final short EV_SLEEP = 70, EV_SPAWN = 71, EV_MC_FIRES = 72, EV_RESPAWN_READY = 73, EV_OFFSET = 74, EV_KINETIC = 75, EV_NPC_SAY = 76, EV_CAPE = 77;
 	/** v27 (0.15.2): u32 req, u16 count, u16 dur, u8 quality, u8 crafterLen, crafter, utf8 id. */
 	public static final short EV_GIVE_ITEM_Q = 78, EV_CONSUME_ACK_Q = 79;
+	/** 0.15.7 (Valheim -> MC): mob re-seat offsets, XP for Valheim kills, Valheim Rested. */
+	public static final short EV_MOB_OFFSETS = 80, EV_XP = 81, EV_RESTED = 82;
 	public static final int HEIGHT_CELL = 4, HEIGHT_RES = 9;
 	public static final int TERRAIN_TILE = 8, VFLAG_TERRAIN_BLOCKS = 32;
 

@@ -32,4 +32,11 @@ public abstract class GameRendererPickMixin {
 	private int valcraft$handLight(net.minecraft.client.renderer.entity.EntityRenderDispatcher d, Entity e, float pt) {
 		return ValCraftClient.active() ? 0xF000F0 : d.getPackedLightCoords(e, pt);
 	}
+
+	/** 0.15.7: entity pick on the boxes Valheim actually draws (mobs re-seated on Valheim's ground). */
+	@Redirect(method = "pick(Lnet/minecraft/world/entity/Entity;DDF)Lnet/minecraft/world/phys/HitResult;",
+			at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/projectile/ProjectileUtil;getEntityHitResult(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/phys/AABB;Ljava/util/function/Predicate;D)Lnet/minecraft/world/phys/EntityHitResult;"))
+	private net.minecraft.world.phys.EntityHitResult valcraft$offsetPick(Entity shooter, Vec3 a, Vec3 b, net.minecraft.world.phys.AABB area, java.util.function.Predicate<Entity> f, double d) {
+		return ValCraftClient.active() ? dev.valcraft.client.MobOffsets.pick(shooter, a, b, area, f, d) : net.minecraft.world.entity.projectile.ProjectileUtil.getEntityHitResult(shooter, a, b, area, f, d);
+	}
 }

@@ -120,6 +120,8 @@ namespace ValCraft.Protocol
         public const ushort EvSleep = 70, EvSpawn = 71, EvMcFires = 72, EvRespawnReady = 73, EvOffset = 74, EvKinetic = 75, EvNpcSay = 76, EvCape = 77;
         /// <summary>v27 (0.15.2): crafted Valheim items as Minecraft items with quality + crafter (see ItemMap.EncodeQ).</summary>
         public const ushort EvGiveItemQ = 78, EvConsumeAckQ = 79;
+        // 0.15.7: re-seat offsets of MC entities (V->MC), XP for Valheim kills (i32), Valheim Rested remaining seconds (f32, 0 = off)
+        public const ushort EvMobOffsets = 80, EvXp = 81, EvRested = 82;
         public const int TerrainTile = 8;
         public const uint VFlagTerrainBlocks = 32;
 

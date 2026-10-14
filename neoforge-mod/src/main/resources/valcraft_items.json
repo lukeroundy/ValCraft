@@ -167,6 +167,18 @@
       "tough": 0.0,
       "ench": 20,
       "dur": 6
+    },
+    {
+      "name": "pointy",
+      "def": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "tough": 0.0,
+      "ench": 15,
+      "dur": 50
     }
   ],
   "items": [
@@ -505,6 +517,12 @@
       "kind": "helmet_misc",
       "tier": 0,
       "set": "cloth"
+    },
+    {
+      "id": "pointy_hat",
+      "kind": "helmet_misc",
+      "tier": 0,
+      "set": "pointy"
     },
     {
       "id": "deer_hide_cape",

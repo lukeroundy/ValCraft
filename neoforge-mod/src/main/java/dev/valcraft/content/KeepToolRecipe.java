@@ -18,10 +18,12 @@ import java.util.function.Supplier;
 /** 0.15.6: shapeless recipe ("valcraft:crafting_keep_tool") whose hoe ingredient (#minecraft:hoes) is not consumed:
  *  it stays in the grid with 1 durability used (a hoe on its last point breaks). Used for dirt + hoe -> farmland. */
 public class KeepToolRecipe extends ShapelessRecipe {
+	/** 0.15.7: tools that stay in the grid: #minecraft:hoes + #valcraft:maces (mace + cobblestone -> gravel, mace + gravel -> sand). */
+	public static final net.minecraft.tags.TagKey<net.minecraft.world.item.Item> KEEP = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM, net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("valcraft", "keep_tools"));
 	public KeepToolRecipe(ShapelessRecipe r) { super(r.getGroup(), r.category(), r.getResultItem(null), r.getIngredients()); }
 
 	public static ItemStack remainderOf(ItemStack st) {
-		if (!st.is(ItemTags.HOES)) return ItemStack.EMPTY;
+		if (!st.is(ItemTags.HOES) && !st.is(KEEP)) return ItemStack.EMPTY;
 		ItemStack k = st.copyWithCount(1);
 		if (k.isDamageableItem()) {
 			int d = k.getDamageValue() + 1;
